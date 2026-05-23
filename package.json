@@ -1,0 +1,21 @@
+{
+  "name": "enterprise-flow-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight information integration platform for small businesses.",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter frontend --filter backend dev",
+    "build": "pnpm --recursive build",
+    "lint": "pnpm --recursive lint",
+    "test": "pnpm --recursive test"
+  },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
+
