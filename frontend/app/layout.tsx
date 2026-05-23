@@ -9,6 +9,17 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const enterpriseGroups = [
+    {
+      name: "启航留学",
+      conversations: ["线索跟进诊断", "顾问日报整理"],
+    },
+    {
+      name: "云杉贸易",
+      conversations: ["订单付款同步", "老板看板规划"],
+    },
+  ];
+
   return (
     <html lang="zh-CN">
       <body>
@@ -24,8 +35,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </Link>
 
           <div className="section-label">历史</div>
-          <div className="nav-item" style={{ color: "#aeaeb2", cursor: "default" }}>
-            <span className="icon">💬</span> 暂无记录
+          <div className="history-groups">
+            {enterpriseGroups.map((group) => (
+              <section className="history-group" key={group.name}>
+                <div className="history-company">{group.name}</div>
+                {group.conversations.map((conversation) => (
+                  <button className="history-chat" key={conversation} type="button">
+                    <span className="icon">💬</span>
+                    {conversation}
+                  </button>
+                ))}
+              </section>
+            ))}
           </div>
 
           <div className="spacer" />

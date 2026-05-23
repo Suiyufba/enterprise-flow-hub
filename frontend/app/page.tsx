@@ -11,6 +11,7 @@ export default function Home() {
   const [need, setNeed] = useState("");
   const [businessType, setBusinessType] = useState("");
   const [tools, setTools] = useState("");
+  const [project, setProject] = useState("启航留学 / 线索增长");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,10 +75,25 @@ export default function Home() {
 
   return (
     <div className="main-inner">
-      <h1 className="main-title">今天想分析什么流程？</h1>
+      <h1 className="main-title">我们该做什么？</h1>
 
       {/* Prompt Card */}
       <div className="prompt-card">
+        <div className="prompt-input-row">
+          <textarea
+            placeholder="尽管问"
+            rows={2}
+            value={need}
+            onChange={(e) => setNeed(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+        </div>
+
         <div className="prompt-main-row">
           <div className="prompt-left-actions">
             <button
@@ -87,32 +103,21 @@ export default function Home() {
             >
               +
             </button>
-            <span className="access-badge">
-              <span style={{ color: "#ff9500", fontSize: 10 }}>⚠</span>
-              上传截图
-            </span>
-          </div>
-
-          <div className="prompt-textarea-wrap">
-            <textarea
-              placeholder="描述你的业务需求..."
-              rows={1}
-              value={need}
-              onChange={(e) => setNeed(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-            />
+            <button className="access-select" type="button">
+              <span className="shield-icon">!</span>
+              完全访问权限
+              <span className="chevron">⌄</span>
+            </button>
           </div>
 
           <div className="prompt-right-actions">
             <span className="model-select">
-              AI 分析
-              <span style={{ fontSize: 9 }}>▾</span>
+              5.5&nbsp; 中
+              <span className="chevron">⌄</span>
             </span>
+            <button className="mic-btn" type="button" title="语音输入">
+              ♫
+            </button>
             <button
               className="submit-btn"
               onClick={submit}
@@ -125,21 +130,26 @@ export default function Home() {
         </div>
 
         {/* Bottom row */}
-        {files.length > 0 ? (
+        {files.length > 0 && (
           <div className="prompt-bottom-row">
-            <button className="mode-btn" onClick={() => fileInputRef.current?.click()}>
-              <span>📸</span> 已添加 {files.length} 张截图
-              <span style={{ fontSize: 9 }}>▾</span>
-            </button>
             <span className="file-list">{files.map((f) => f.name).join(", ")}</span>
           </div>
-        ) : (
-          <div className="prompt-bottom-row">
-            <button className="mode-btn" onClick={() => fileInputRef.current?.click()}>
-              <span>📸</span> 添加截图
-            </button>
-          </div>
         )}
+
+        <div className="project-row">
+          <span className="project-icon">▱</span>
+          <select
+            aria-label="选择企业项目"
+            className="project-select"
+            value={project}
+            onChange={(e) => setProject(e.target.value)}
+          >
+            <option value="启航留学 / 线索增长">进入项目工作：启航留学 / 线索增长</option>
+            <option value="启航留学 / 顾问日报">进入项目工作：启航留学 / 顾问日报</option>
+            <option value="云杉贸易 / 订单同步">进入项目工作：云杉贸易 / 订单同步</option>
+            <option value="新企业 / 默认项目">进入项目工作：新企业 / 默认项目</option>
+          </select>
+        </div>
       </div>
 
       {/* Hidden file input */}
