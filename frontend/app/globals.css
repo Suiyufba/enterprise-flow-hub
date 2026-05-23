@@ -276,7 +276,8 @@ body {
   background: transparent;
   color: #737373;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
 }
@@ -301,7 +302,8 @@ body {
   background: #1d1d1d;
   color: #f0f0f0;
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   padding: 5px 8px;
   outline: none;
 }
