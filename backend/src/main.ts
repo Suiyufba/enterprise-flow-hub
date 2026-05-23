@@ -7,6 +7,11 @@ const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: true });
 
+app.get("/health", async () => ({
+  ok: true,
+  service: "enterprise-flow-hub-backend",
+}));
+
 await app.register(analysisRoutes);
 await app.register(exportRoutes);
 
