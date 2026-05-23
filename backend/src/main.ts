@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { analysisRoutes } from "./routes/analysis.js";
 import { exportRoutes } from "./routes/export.js";
+import { workspaceRoutes } from "./routes/workspace.js";
 
 const app = Fastify({ logger: true });
 
@@ -14,6 +15,7 @@ app.get("/health", async () => ({
 
 await app.register(analysisRoutes);
 await app.register(exportRoutes);
+await app.register(workspaceRoutes);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

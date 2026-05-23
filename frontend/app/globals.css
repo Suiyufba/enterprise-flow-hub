@@ -603,6 +603,152 @@ body {
   font-weight: 450;
 }
 
+/* ---- Workspace Pages ---- */
+.page-shell {
+  width: 100%;
+  max-width: 900px;
+  padding: 0 24px 64px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  color: #f4f4f4;
+  font-size: 34px;
+  line-height: 1.15;
+  margin-bottom: 8px;
+}
+
+.page-header p {
+  max-width: 680px;
+  color: #9b9b9b;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.page-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.page-input,
+.page-textarea {
+  width: 100%;
+  border: 1px solid #333;
+  border-radius: 10px;
+  background: #202020;
+  color: #f0f0f0;
+  font: inherit;
+  font-size: 14px;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.page-textarea {
+  min-height: 110px;
+  resize: vertical;
+  grid-column: 1 / -1;
+}
+
+.page-primary-button,
+.page-secondary-button {
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.page-primary-button {
+  min-height: 42px;
+  padding: 0 18px;
+  background: #f0f0f0;
+  color: #181818;
+}
+
+.page-secondary-button {
+  padding: 8px 12px;
+  background: #303030;
+  color: #e8e8e8;
+}
+
+.page-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.page-card,
+.page-row,
+.page-stat {
+  border: 1px solid #303030;
+  border-radius: 14px;
+  background: #202020;
+}
+
+.page-card {
+  padding: 18px;
+}
+
+.page-card span,
+.page-row span,
+.page-stat span {
+  color: #8f8f8f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.page-card h3 {
+  margin: 10px 0 6px;
+  color: #f2f2f2;
+  font-size: 17px;
+}
+
+.page-card p,
+.page-row p {
+  color: #a6a6a6;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.page-list {
+  display: grid;
+  gap: 10px;
+}
+
+.page-row {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.page-row strong {
+  color: #f2f2f2;
+}
+
+.page-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.page-stat {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+}
+
+.page-stat strong {
+  color: #f4f4f4;
+  font-size: 28px;
+}
+
 .result-card h3 {
   font-size: 13px;
   font-weight: 600;
@@ -819,6 +965,12 @@ body {
   }
 
   .cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-card-grid,
+  .page-form-grid,
+  .page-stats {
     grid-template-columns: 1fr;
   }
 

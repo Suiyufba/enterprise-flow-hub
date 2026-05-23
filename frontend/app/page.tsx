@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import type { AnalysisResult, AnalysisRequest } from "shared";
+import type { AnalysisResult, AnalysisRequest, Workspace } from "shared";
+import { fetchJson } from "./lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -10,11 +11,25 @@ export default function Home() {
   const router = useRouter();
   const [need, setNeed] = useState("");
   const [project, setProject] = useState("启航留学 / 线索增长");
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchJson<Workspace>("/workspace")
+      .then((data) => {
+        setWorkspace(data);
+        const firstProject = data.projects[0];
+        const enterprise = data.enterprises.find((item) => item.id === firstProject?.enterpriseId);
+        if (firstProject && enterprise) {
+          setProject(`${enterprise.name} / ${firstProject.name}`);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   function handleFiles(selected: FileList | null) {
     if (!selected) return;
@@ -100,10 +115,12 @@ export default function Home() {
                 value={project}
                 onChange={(e) => setProject(e.target.value)}
               >
-                <option value="启航留学 / 线索增长">启航留学 / 线索增长</option>
-                <option value="启航留学 / 顾问日报">启航留学 / 顾问日报</option>
-                <option value="云杉贸易 / 订单同步">云杉贸易 / 订单同步</option>
-                <option value="新企业 / 默认项目">新企业 / 默认项目</option>
+                {workspace?.projects.map((item) => {
+                  const enterprise = workspace.enterprises.find((enterpriseItem) => enterpriseItem.id === item.enterpriseId);
+                  const label = `${enterprise?.name ?? "未知企业"} / ${item.name}`;
+                  return <option key={item.id} value={label}>{label}</option>;
+                })}
+                {!workspace && <option value="启航留学 / 线索增长">启航留学 / 线索增长</option>}
               </select>
             </div>
             <button
