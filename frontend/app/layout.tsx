@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,9 +19,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <span className="win-dot green" />
           </div>
 
-          <a href="/" className="nav-item active">
+          <Link href="/" className="nav-item active">
             <span className="icon">✦</span> 新分析
-          </a>
+          </Link>
 
           <div className="section-label">历史</div>
           <div className="nav-item" style={{ color: "#aeaeb2", cursor: "default" }}>

@@ -12,10 +12,10 @@
   },
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "shared"
   ],
   "devDependencies": {
     "typescript": "^5.8.3"
   }
 }
-
