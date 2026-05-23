@@ -1,628 +1,330 @@
-# Enterprise Flow Hub Plan
+# Screenshot-to-Workflow Plan
 
-## 1. One-Sentence Positioning
+## 1. Core Idea
 
-Enterprise Flow Hub is a lightweight information integration and automation platform for small businesses that already use scattered tools but lack a technical owner to connect them.
+Enterprise Flow Hub should start as a screenshot-first AI workflow analyst.
 
-In plain language:
+The user does not connect APIs first. The user does not configure a workflow first. The user uploads screenshots of messy business tools and says what they want.
 
-> We help small companies connect spreadsheets, chat tools, CRM records, forms, payment status, documents, and team follow-ups so owners can see the real business state and employees stop moving data by hand.
+One sentence:
 
-## 2. Why This Direction Exists
+> Drop in screenshots of your business process. AI reads the mess, extracts the workflow, and gives you a clean automation plan.
 
-Many small companies do not have a software shortage. They already use many tools:
+Chinese positioning:
 
-- WeChat or WeCom for customer communication
-- Feishu or DingTalk for internal collaboration
-- Excel or online sheets for customer and order tracking
-- lightweight CRM systems
-- payment records from bank, Stripe, Alipay, WeChat Pay, or manual finance sheets
-- email for external communication
-- cloud drives for contracts and documents
+> 截图给 AI，说出需求，它帮你看懂业务流程、拆字段、找问题、生成自动化方案。
 
-The real pain is that these tools do not form one operating system. Information is repeated, delayed, forgotten, or invisible to the owner.
+## 2. Why This Is Sharper Than A Traditional SaaS
 
-Typical symptoms:
+The original platform idea was useful but too broad: connectors, dashboards, workflows, CRM, tasks, reports. That is a real product direction, but it asks the user to trust us before seeing value.
 
-- leads are scattered across chat, forms, and spreadsheets
-- employees forget to follow up after a quote or consultation
-- finance, sales, and operations each maintain separate versions of the truth
-- the owner asks for updates in group chats instead of seeing a live dashboard
-- approvals and todos sit in different systems
-- failed syncs are invisible until a customer complains
+The screenshot-first idea gives value in the first minute:
 
-The opportunity is to become a lightweight automation CTO for these companies.
+1. upload screenshots
+2. describe the business pain
+3. AI analyzes what is on screen
+4. AI outputs fields, workflow, problems, and automation suggestions
+5. later, the platform can turn the analysis into templates, connectors, and runnable workflows
 
-## 3. What We Learned From The Reference Code
+This avoids the biggest early problem of enterprise SaaS: onboarding friction.
 
-The studied enterprise API projects are not ideal startup products, but they reveal real enterprise integration patterns.
+## 3. Product Promise
 
-### 3.1 Common Structure
+The first product promise is not "we integrate everything."
 
-The reference projects often separate code into:
+The promise is:
 
-- boot module: customer-specific controllers, services, scheduled jobs, and startup configuration
-- common module: HTTP clients, retry utilities, response wrappers, logging, shared configuration
-- standard module: shared DTOs for users, departments, claims, vouchers, invoices, workflows, todos, files, and master data
-- log module: API request logging and exception handling
+> I can look at your current business software, spreadsheets, chats, and dashboards, then tell you exactly how to clean up the process and automate it.
 
-This suggests a useful product architecture:
+This can be sold as:
 
-- product frontend
-- public API backend
-- connector runtime
-- shared object model
-- workflow engine
-- log and retry center
+- AI workflow diagnosis
+- screenshot-to-table
+- screenshot-to-automation
+- process cleanup report
+- lightweight automation CTO
 
-### 3.2 Repeated Enterprise Integration Themes
+## 4. User Input
 
-The most repeated business domains are:
+The MVP input should be brutally simple:
 
-- user and department synchronization
-- approval workflow callbacks
-- todo push and todo status update
-- finance or invoice callbacks
-- budget and rule checks
-- master data synchronization
-- scheduled repair jobs
-- message push to chat tools
-- API logging and failure handling
+- 1 to 8 screenshots
+- one sentence need
+- optional company type
+- optional current tools
 
-For our product, these become generic modules:
+Examples:
 
-- Identity Connector
-- Workflow Event Router
-- Todo Center
-- Finance Sync
-- Master Data Hub
-- Rule Engine
-- Notification Connector
-- Retry and Audit Center
+- "帮我减少客户漏跟进。"
+- "这个表格太乱，帮我整理成销售流程。"
+- "帮我看这个 CRM 页面该怎么自动提醒顾问。"
+- "帮我把订单、付款、交付状态串起来。"
+- "我想知道这个后台里哪些信息应该变成老板看板。"
 
-### 3.3 What To Avoid
+## 5. AI Output
 
-The reference projects are heavy, customer-specific, and difficult to productize directly.
+The MVP output should be structured, not just a chat reply.
 
-Avoid:
+### 5.1 Screenshot Understanding
 
-- building a giant Spring Boot multi-module system before product validation
-- hardcoding one customer's workflow into the platform core
-- starting with enterprise-grade complexity such as full BPMN, full ERP, or full custom workflow designer
-- selling "a platform" before solving one painful workflow
+AI should identify:
 
-## 4. Target Customer Segment
+- screenshot type: spreadsheet, CRM, chat, order system, finance page, dashboard, form, document list
+- visible entities: customer, lead, order, payment, task, user, department, product, invoice, approval
+- visible fields: name, source, status, owner, amount, date, next step, remark
+- visible statuses: pending, quoted, signed, paid, delivered, overdue, rejected
 
-The first version should not target every small business. It should start with a segment where:
+### 5.2 Business Interpretation
 
-- the owner cares about process visibility
-- the team already uses multiple tools
-- lost follow-up directly loses revenue
-- workflows are repetitive enough to templatize
-- the buying decision can be made by one owner or manager
+AI should infer:
 
-Recommended first segments:
+- current workflow
+- current data model
+- where ownership is unclear
+- where follow-up can be lost
+- where manual copy-paste likely happens
+- where a dashboard would help
+- where automation is safe
+- where human confirmation is still needed
 
-1.留学/移民/教育咨询机构
+### 5.3 Generated Assets
 
-- lead sources are scattered: Xiaohongshu, WeChat, forms, referrals, websites
-- customer status is long-running: new lead, consulted, quoted, signed, document preparation, submitted, completed
-- many documents and reminders are involved
-- owners care strongly about conversion rate and consultant performance
+AI should produce:
 
-2.小型 B2B 销售公司
+- recommended fields
+- recommended table structure
+- workflow stages
+- automation rules
+- owner dashboard metrics
+- task/reminder list
+- failure and audit requirements
+- suggested implementation path
 
-- sales cycle is longer than one conversation
-- quotes, contracts, payment, delivery, and renewal need tracking
-- CRM is often incomplete or poorly maintained
-
-3.小型贸易/经销团队
-
-- orders, inventory, customer status, payment, delivery, and after-sales are fragmented
-- the owner needs a daily operating dashboard
-
-Recommended first choice:
-
-> 留学/移民/教育咨询机构
-
-Reason: the workflow is understandable, reachable through founder network, and does not require deep integration with complex ERP systems at the beginning.
-
-## 5. MVP Scope
-
-The MVP should solve one core promise:
-
-> No lead or customer follow-up is forgotten, and the owner can see the real business pipeline every day.
-
-### 5.1 MVP Features
-
-1. Lead Intake
-
-- manual lead entry
-- CSV import
-- form webhook endpoint
-- basic source field: WeChat, Xiaohongshu, referral, website, walk-in, other
-
-2. Customer Pipeline
-
-Default stages:
-
-- new lead
-- contacted
-- consultation booked
-- consultation completed
-- quoted
-- signed
-- document preparation
-- submitted
-- completed
-- lost
-
-3. Follow-Up Rules
-
-Basic rules:
+Example automation rules:
 
 - if a new lead has no owner after 2 hours, alert manager
-- if a lead has no follow-up for 2 days, create task
-- if quoted but not signed after 3 days, remind consultant
-- if signed and documents are incomplete, remind responsible person
+- if a quoted customer has no follow-up after 3 days, create task
+- if payment status changed to paid, notify operations
+- if a document checklist item is missing before deadline, notify responsible person
 
-4. Owner Dashboard
+## 6. What We Learned From The Reference Code
 
-Dashboard cards:
+The reference enterprise API projects are still useful. They show what happens after the screenshot analysis becomes real implementation.
 
-- new leads this week
-- leads by source
-- conversion by stage
-- overdue follow-ups
-- signed amount this month
-- consultant workload
+Important patterns to steal:
 
-5. Task Inbox
+- common module for HTTP clients, retry, response wrappers, and logging
+- standard DTO layer for users, departments, invoices, workflows, todos, files, and master data
+- boot/customer module for customer-specific endpoints and jobs
+- log module for request records and exception handling
+- scheduled repair jobs for failed integrations
+- todo synchronization and workflow callbacks
+- master data synchronization
+- notification push to enterprise chat tools
 
-- assigned user
-- due date
-- related customer
-- task status
-- task source: manual, rule, webhook, import
+Translated into our product:
 
-6. Activity Timeline
+- AI Analysis Layer: reads screenshots and extracts workflow structure
+- Template Layer: turns extracted structure into reusable tables and rules
+- Connector Layer: later connects Feishu, WeCom, sheets, CRM, email, payment, and forms
+- Workflow Layer: runs triggers and actions
+- Audit Layer: logs every automation and failed sync
+- Repair Layer: retries or asks a human to repair failed actions
 
-Each customer should have:
+The first version only needs the AI Analysis Layer and Template Layer. The rest becomes the execution layer after validation.
 
-- stage changes
-- notes
-- tasks
-- file checklist events
-- imported messages or external events
+## 7. MVP Screens
 
-7. Weekly Report
+The product can start with only three screens.
 
-Automatically generate a weekly summary:
+### 7.1 Analyze
 
-- new leads
-- signed customers
-- lost customers
-- overdue follow-ups
-- consultant ranking
-- suggested actions
+Inputs:
 
-8. Audit And Failure Log
+- screenshot uploader
+- need text box
+- business type selector
 
-Every automation should record:
+Main action:
 
-- trigger time
-- input payload
-- action result
-- failure reason
-- retry count
-- manual retry button later
+- Analyze workflow
 
-This is directly inspired by the enterprise API samples. Sync failure visibility is a product feature, not an internal detail.
+### 7.2 Results
 
-## 6. Product Architecture
+Sections:
 
-## 6.1 Monorepo Layout
+- detected objects
+- detected fields
+- inferred workflow
+- process problems
+- automation opportunities
+- recommended dashboard
+- suggested table schema
 
-```text
-enterprise-flow-hub/
-  frontend/
-    app/
-    components/
-    features/
-    lib/
-  backend/
-    src/
-      api/
-      auth/
-      connectors/
-      workflows/
-      jobs/
-      audit/
-      domain/
-      db/
-  docs/
-  scripts/
-```
+### 7.3 Export
 
-## 6.2 Frontend Responsibilities
+Export formats:
 
-The frontend is the operating console.
+- Markdown diagnosis report
+- CSV table template
+- JSON workflow rules
+- Feishu/Airtable/Notion schema later
+- n8n workflow later
 
-Main surfaces:
+## 8. MVP Technical Plan
 
-- login and organization switcher
-- owner dashboard
-- customer pipeline board
-- customer detail timeline
-- task inbox
-- workflow rules page
-- connector settings
-- import center
-- sync/failure logs
-- weekly report page
+### 8.1 Frontend
 
-Design direction:
+Stack:
 
-- dense, clear, operational interface
-- no marketing-style homepage inside the product
-- tables, filters, tabs, side panels, and dashboards
-- optimized for repeated daily use by owners and small teams
+- Next.js
+- React
+- plain CSS first
 
-## 6.3 Backend Responsibilities
+Frontend modules:
 
-The backend is the integration and automation core.
+- upload panel
+- prompt panel
+- analysis result view
+- export buttons
+- history later
 
-Main modules:
+### 8.2 Backend
 
-- API module: REST endpoints for frontend and external webhooks
-- Domain module: customers, leads, tasks, stages, users, organizations
-- Connector module: Feishu, WeCom, CSV, forms, email, future CRM connectors
-- Workflow module: triggers, conditions, actions
-- Job module: scheduled checks and async processing
-- Audit module: event logs, request logs, failure logs
-- Report module: weekly summaries and dashboard aggregation
+Stack:
 
-## 6.4 Data Model Draft
+- Fastify
+- TypeScript
+- PostgreSQL later
+- object storage later
 
-Core tables:
+Backend endpoints:
 
-- organizations
-- users
-- memberships
-- customers
-- customer_stages
-- customer_activities
-- tasks
-- workflow_rules
-- workflow_runs
-- connectors
-- connector_accounts
-- webhook_events
-- audit_logs
-- sync_failures
-- report_snapshots
+- `POST /analysis`
+- `GET /analysis/:id`
+- `POST /analysis/:id/export`
+- `GET /health`
 
-Important normalized objects:
+### 8.3 AI Contract
 
-- Person
-- Organization
-- Customer
-- Lead
-- Task
-- WorkflowEvent
-- ExternalAccount
-- ExternalMessage
-- FileChecklist
-- PaymentStatus
-
-## 7. Technical Stack
-
-Recommended MVP stack:
-
-- Language: TypeScript
-- Frontend: Next.js
-- Backend: Fastify or NestJS
-- Database: PostgreSQL
-- ORM: Drizzle or Prisma
-- Queue: BullMQ
-- Cache and queue backend: Redis
-- Auth: Auth.js for web MVP or custom JWT if API-first
-- Deployment: Vercel for frontend, Railway/Fly.io/Render/VPS for backend and database
-- Observability: structured logs first, then OpenTelemetry later
-
-Preferred first implementation:
-
-- Next.js frontend
-- Fastify backend
-- PostgreSQL + Drizzle
-- Redis + BullMQ
-
-Reason:
-
-- fast enough to build
-- easier than Java Spring Boot for one founder
-- less ceremony than NestJS
-- good fit for webhook-heavy products
-- TypeScript can share schemas between frontend and backend
-
-## 8. Connector Strategy
-
-The connector system should be productized from day one, but not overengineered.
-
-### 8.1 Connector Interface
-
-Each connector should expose:
-
-- config schema
-- auth method
-- test connection
-- pull data
-- push data
-- receive webhook
-- normalize event
-- retry policy
-
-Example interface:
-
-```ts
-type Connector = {
-  key: string;
-  name: string;
-  testConnection(config: unknown): Promise<ConnectorHealth>;
-  handleWebhook(payload: unknown): Promise<WorkflowEvent[]>;
-  pushAction(action: ConnectorAction): Promise<ConnectorResult>;
-};
-```
-
-### 8.2 First Connectors
-
-Do not start with every platform.
-
-First connector list:
-
-- CSV import
-- manual form webhook
-- Feishu bot notification
-- WeCom or WeChat notification if feasible
-- email notification
-
-Second wave:
-
-- Feishu sheet
-- Airtable
-- Google Sheets
-- Notion database
-- simple CRM import
-
-Third wave:
-
-- payment systems
-- accounting systems
-- e-commerce systems
-- industry-specific CRMs
-
-## 9. Workflow Engine
-
-Start with simple rule-based automation, not a full visual workflow engine.
-
-Rule format:
-
-- trigger
-- condition
-- action
-- schedule or delay
-
-Example:
+The AI should return strict JSON:
 
 ```json
 {
-  "trigger": "customer.stage_changed",
-  "conditions": [
-    { "field": "stage", "equals": "quoted" }
+  "summary": "This looks like a lead tracking spreadsheet for an education agency.",
+  "screenshotTypes": ["spreadsheet", "chat"],
+  "businessObjects": ["Lead", "Consultant", "FollowUpTask"],
+  "fields": [
+    { "name": "customerName", "label": "Customer Name", "type": "text" },
+    { "name": "stage", "label": "Stage", "type": "enum" }
   ],
-  "actions": [
-    { "type": "create_task", "delayHours": 72, "title": "Follow up quoted customer" },
-    { "type": "notify_user", "channel": "feishu" }
-  ]
+  "workflowStages": ["new", "contacted", "quoted", "signed", "lost"],
+  "problems": [
+    "No next follow-up date is visible.",
+    "Owner field is missing for several leads."
+  ],
+  "automationRules": [
+    {
+      "trigger": "lead.stage_changed",
+      "condition": "stage == quoted",
+      "action": "create_follow_up_task_after_3_days"
+    }
+  ],
+  "dashboardMetrics": ["new leads", "overdue follow-ups", "conversion rate"],
+  "implementationPlan": ["Create normalized lead table", "Add overdue reminder rule"]
 }
 ```
 
-MVP triggers:
+## 9. First Demo Scenario
 
-- customer.created
-- customer.stage_changed
-- task.overdue
-- form.submitted
-- file.missing
-- schedule.daily
-- schedule.weekly
+Use an education or migration agency scenario.
 
-MVP actions:
+Demo input:
 
-- create task
-- send notification
-- change stage
-- add timeline note
-- create weekly report
+- screenshot of messy lead spreadsheet
+- screenshot of chat follow-up
+- user need: "帮我减少客户漏跟进，让老板每天看到顾问状态。"
 
-## 10. Go-To-Market Plan
+Demo output:
 
-### 10.1 First 10 Customers
+- recognizes lead pipeline
+- recommends stages
+- detects missing owner and next follow-up date
+- creates schema
+- creates follow-up rules
+- proposes owner dashboard
+- exports an implementation report
 
-Target:
+## 10. Business Model
 
-- small education agencies
-- immigration consultants
-- study abroad consultants
-- training institutions with sales consultants
+Start as productized service:
 
-Outreach message:
-
-> 我帮你把客户线索、顾问跟进、材料状态和老板看板串起来。先不换你现有工具，只把漏跟进、重复填表、老板看不到状态的问题解决掉。
-
-Offer:
-
-- free 30-minute workflow diagnosis
-- paid setup package after diagnosis
-- 2-week pilot
-
-### 10.2 Service-First Pricing
-
-Do not sell pure SaaS first.
-
-Suggested pricing:
-
-- workflow diagnosis: RMB 499-1999
+- free sample analysis for one screenshot
+- paid workflow diagnosis report: RMB 199-999
 - setup package: RMB 3000-15000
-- monthly maintenance: RMB 599-2999
-- SaaS subscription later: RMB 199-999 per month depending on seats and automation volume
+- monthly automation maintenance: RMB 599-2999
 
-Reason:
+Later SaaS:
 
-- early customers need confidence, not a login page
-- service revenue funds product development
-- repeated service work reveals templates
+- analysis credits
+- workflow template generation
+- connector execution
+- team workspace
+- audit and retry center
 
-### 10.3 Productization Path
+## 11. 14-Day Build Plan
 
-Phase 1:
+### Days 1-2
 
-- manual setup
-- CSV import
-- custom fields
-- dashboard
-- reminders
+- update product positioning
+- build upload-first UI
+- define AI JSON output schema
 
-Phase 2:
+### Days 3-5
 
-- reusable templates by industry
-- connector setup UI
-- workflow rule UI
-- weekly AI report
+- implement backend analysis endpoint
+- support local mocked analysis response
+- add screenshot metadata handling
 
-Phase 3:
+### Days 6-8
 
-- marketplace of connectors
-- advanced permissions
-- more robust audit and compliance
-- self-serve onboarding
+- connect real vision-capable model
+- render structured result sections
+- add export to Markdown
 
-## 11. First 30-Day Build Plan
+### Days 9-11
 
-### Week 1: Foundation
+- create education agency demo data
+- polish result quality
+- add workflow rule JSON export
 
-- create monorepo
-- choose backend framework
-- set up PostgreSQL schema
-- implement organizations, users, customers, tasks
-- implement customer pipeline stages
-- create frontend shell and dashboard layout
+### Days 12-14
 
-### Week 2: Core Workflow
+- record demo
+- test with 5 real screenshots from target users
+- convert useful outputs into a paid diagnosis offer
 
-- customer CRUD
-- stage changes
-- activity timeline
-- task inbox
-- overdue task detection
-- basic rule engine
+## 12. What Not To Build Yet
 
-### Week 3: Integration Layer
+Do not build these in the MVP:
 
-- CSV import
-- generic webhook endpoint
-- notification action
-- audit logs
-- failure logs
-- manual retry skeleton
+- full connector marketplace
+- full workflow visual builder
+- full CRM
+- multi-tenant billing
+- enterprise permissions
+- deep Feishu/WeCom integrations
+- complex database modeling UI
 
-### Week 4: Demo And Pilot
+Those come after users prove they want to act on the AI diagnosis.
 
-- owner dashboard
-- weekly report generator
-- seed demo data for education agency
-- create demo script
-- interview 10 target users
-- sell 1 paid setup pilot
+## 13. Definition Of Done
 
-## 12. Key Risks
+The MVP is useful when:
 
-### Risk 1: Becoming Custom Outsourcing
-
-Mitigation:
-
-- choose one vertical first
-- every custom feature must map to a reusable template
-- limit integrations in pilot
-- charge setup fees
-
-### Risk 2: Tool Fragmentation
-
-Mitigation:
-
-- start with CSV, webhook, and notification
-- do not promise deep integration until a customer pays
-
-### Risk 3: Trust And Data Sensitivity
-
-Mitigation:
-
-- clear permission model
-- audit logs
-- do not store unnecessary chat history
-- allow customers to export data
-- keep secrets out of code
-
-### Risk 4: Building Too Much Platform
-
-Mitigation:
-
-- first promise is follow-up visibility
-- no full workflow designer in MVP
-- no marketplace in MVP
-- no full ERP replacement
-
-## 13. Product Principles
-
-1. Do not replace existing tools unless necessary.
-2. Every automation must be visible and auditable.
-3. Failed automation must become a human task.
-4. Start with one vertical and one painful workflow.
-5. Prefer boring reliable integrations over fancy AI.
-6. AI should summarize, classify, and suggest. It should not be the core dependency for basic operations.
-7. The owner dashboard is the product's emotional center.
-
-## 14. AI Usage
-
-AI should be added where it reduces manual operations:
-
-- classify lead intent from notes
-- summarize weekly pipeline changes
-- generate follow-up suggestions
-- detect risky customers from inactivity
-- extract fields from uploaded spreadsheets
-- produce owner-facing reports
-
-AI should not be required for:
-
-- task creation
-- reminders
-- audit logs
-- stage changes
-- permission checks
-- billing
-
-## 15. Initial Definition Of Done
-
-The first useful demo is done when:
-
-- a demo education agency has 100 sample leads
-- the owner dashboard shows pipeline and overdue follow-ups
-- a consultant can move customers across stages
-- a rule can create a follow-up task after inactivity
-- a weekly report can be generated
-- all workflow runs are logged
-- failed notification events appear in a failure log
-
-At that point, the product is good enough to show to real business owners.
+- user uploads screenshots and enters a need
+- AI returns a structured business interpretation
+- output includes fields, workflow stages, problems, automation rules, and dashboard metrics
+- user can export a diagnosis report
+- at least 5 target users say the analysis correctly understood their workflow
 
