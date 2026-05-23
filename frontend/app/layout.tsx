@@ -9,6 +9,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const projects = [
+    "启航留学 / 线索增长",
+    "启航留学 / 顾问日报",
+    "云杉贸易 / 订单同步",
+  ];
+
   const enterpriseGroups = [
     {
       name: "启航留学",
@@ -34,7 +40,28 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <span className="icon">✦</span> 新分析
           </Link>
 
-          <div className="section-label">历史</div>
+          <div className="sidebar-section-header">
+            <span>项目</span>
+            <div className="sidebar-section-actions">
+              <button aria-label="项目更多操作" className="icon-action" type="button">
+                …
+              </button>
+              <button aria-label="新增项目" className="icon-action add-project-action" type="button">
+                新增项目
+              </button>
+            </div>
+          </div>
+
+          <div className="project-list">
+            {projects.map((item, index) => (
+              <button className={`project-item ${index === 0 ? "active" : ""}`} key={item} type="button">
+                <span className="project-item-icon">▱</span>
+                <span>{item}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="section-label">对话</div>
           <div className="history-groups">
             {enterpriseGroups.map((group) => (
               <section className="history-group" key={group.name}>

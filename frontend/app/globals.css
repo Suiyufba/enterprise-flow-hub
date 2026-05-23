@@ -96,6 +96,80 @@ body {
   padding: 20px 12px 4px;
 }
 
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 8px 6px 12px;
+  color: #8c8c8c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sidebar-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-action {
+  border: 0;
+  border-radius: 8px;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  color: #a6a6a6;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.icon-action:hover {
+  background: #2a2a2a;
+  color: #f0f0f0;
+}
+
+.add-project-action {
+  min-width: 68px;
+}
+
+.project-list {
+  display: grid;
+  gap: 4px;
+}
+
+.project-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  color: #9b9b9b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-item:hover,
+.project-item.active {
+  background: #303030;
+  color: #f1f1f1;
+}
+
+.project-item-icon {
+  width: 18px;
+  color: #8f8f8f;
+  font-size: 14px;
+  text-align: center;
+}
+
 .sidebar .spacer {
   flex: 1;
 }
@@ -733,6 +807,8 @@ body {
 
   .sidebar .win-controls,
   .sidebar .section-label,
+  .sidebar-section-header,
+  .project-list,
   .sidebar .spacer,
   .sidebar .sidebar-footer {
     display: none;
