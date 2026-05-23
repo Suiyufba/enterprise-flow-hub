@@ -75,14 +75,14 @@ export default function Home() {
 
   return (
     <div className="main-inner">
-      <h1 className="main-title">我们该做什么？</h1>
+      <h1 className="main-title">想优化哪个业务流程？</h1>
 
       {/* Prompt Card */}
       <div className="prompt-card">
         <div className="prompt-input-row">
           <textarea
-            placeholder="尽管问"
-            rows={2}
+            placeholder="例如：帮我看这组客户表和聊天记录，怎么减少顾问漏跟进？"
+            rows={3}
             value={need}
             onChange={(e) => setNeed(e.target.value)}
             onKeyDown={(e) => {
@@ -96,35 +96,42 @@ export default function Home() {
 
         <div className="prompt-main-row">
           <div className="prompt-left-actions">
+            <div className="project-picker">
+              <span className="project-icon">▱</span>
+              <select
+                aria-label="选择企业项目"
+                className="project-select"
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+              >
+                <option value="启航留学 / 线索增长">启航留学 / 线索增长</option>
+                <option value="启航留学 / 顾问日报">启航留学 / 顾问日报</option>
+                <option value="云杉贸易 / 订单同步">云杉贸易 / 订单同步</option>
+                <option value="新企业 / 默认项目">新企业 / 默认项目</option>
+              </select>
+            </div>
             <button
               className="attach-btn"
               onClick={() => fileInputRef.current?.click()}
-              title="上传截图"
+              title="添加资料"
             >
               +
             </button>
             <button className="access-select" type="button">
-              <span className="shield-icon">!</span>
-              完全访问权限
+              <span className="shield-icon">✓</span>
+              仅分析当前项目资料
               <span className="chevron">⌄</span>
             </button>
           </div>
 
           <div className="prompt-right-actions">
-            <span className="model-select">
-              5.5&nbsp; 中
-              <span className="chevron">⌄</span>
-            </span>
-            <button className="mic-btn" type="button" title="语音输入">
-              ♫
-            </button>
             <button
               className="submit-btn"
               onClick={submit}
               disabled={!need.trim()}
               title="开始分析"
             >
-              ↑
+              开始诊断
             </button>
           </div>
         </div>
@@ -136,20 +143,6 @@ export default function Home() {
           </div>
         )}
 
-        <div className="project-row">
-          <span className="project-icon">▱</span>
-          <select
-            aria-label="选择企业项目"
-            className="project-select"
-            value={project}
-            onChange={(e) => setProject(e.target.value)}
-          >
-            <option value="启航留学 / 线索增长">进入项目工作：启航留学 / 线索增长</option>
-            <option value="启航留学 / 顾问日报">进入项目工作：启航留学 / 顾问日报</option>
-            <option value="云杉贸易 / 订单同步">进入项目工作：云杉贸易 / 订单同步</option>
-            <option value="新企业 / 默认项目">进入项目工作：新企业 / 默认项目</option>
-          </select>
-        </div>
       </div>
 
       {/* Hidden file input */}
