@@ -9,8 +9,6 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 export default function Home() {
   const router = useRouter();
   const [need, setNeed] = useState("");
-  const [businessType, setBusinessType] = useState("");
-  const [tools, setTools] = useState("");
   const [project, setProject] = useState("启航留学 / 线索增长");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -39,8 +37,6 @@ export default function Home() {
     try {
       const body: AnalysisRequest = {
         need: need.trim(),
-        businessType: businessType || undefined,
-        tools: tools || undefined,
         screenshotCount: files.length || 1,
       };
 
@@ -212,26 +208,6 @@ export default function Home() {
           <p>留学中介的线索管理优化报告</p>
         </div>
       </div>
-
-      {/* More Options */}
-      <details className="more-options">
-        <summary>更多选项</summary>
-        <div className="more-fields">
-          <select value={businessType} onChange={(e) => setBusinessType(e.target.value)}>
-            <option value="">公司类型（可选）</option>
-            <option value="留学/移民中介">留学/移民中介</option>
-            <option value="教育培训">教育培训</option>
-            <option value="企业服务">企业服务</option>
-            <option value="电商">电商</option>
-          </select>
-          <input
-            type="text"
-            placeholder="当前使用的工具（可选）如：飞书、Excel"
-            value={tools}
-            onChange={(e) => setTools(e.target.value)}
-          />
-        </div>
-      </details>
     </div>
   );
 }

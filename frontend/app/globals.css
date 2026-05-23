@@ -34,7 +34,7 @@ body {
 .sidebar .win-controls {
   display: flex;
   gap: 6px;
-  padding: 4px 4px 16px;
+  padding: 4px 4px 14px;
 }
 
 .sidebar .win-dot {
@@ -54,6 +54,11 @@ body {
 
 .sidebar .win-dot.green {
   background: #62c554;
+}
+
+.primary-nav {
+  display: grid;
+  gap: 4px;
 }
 
 .sidebar .nav-item {
@@ -83,7 +88,8 @@ body {
   background: #303030;
 }
 
-.sidebar .nav-item .icon {
+.sidebar .nav-item .icon,
+.history-chat .icon {
   font-size: 16px;
   width: 22px;
   text-align: center;
@@ -757,37 +763,6 @@ body {
 }
 
 /* ---- More Options ---- */
-.more-options {
-  margin-top: 24px;
-  text-align: center;
-}
-
-.more-options summary {
-  font-size: 12px;
-  color: #86868b;
-  cursor: pointer;
-}
-
-.more-fields {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 320px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.more-fields select,
-.more-fields input {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #d2d2d7;
-  font-size: 13px;
-  background: #fff;
-  font-family: inherit;
-}
-
 /* ---- Responsive ---- */
 @media (max-width: 800px) {
   body {
@@ -809,6 +784,7 @@ body {
   .sidebar .section-label,
   .sidebar-section-header,
   .project-list,
+  .primary-nav .nav-item:not(.active),
   .sidebar .spacer,
   .sidebar .sidebar-footer {
     display: none;

@@ -36,9 +36,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <span className="win-dot green" />
           </div>
 
-          <Link href="/" className="nav-item active">
-            <span className="icon">✦</span> 新分析
-          </Link>
+          <nav className="primary-nav" aria-label="主导航">
+            <Link href="/" className="nav-item active">
+              <span className="icon">✎</span> 新对话
+            </Link>
+            <button className="nav-item" type="button">
+              <span className="icon">⌕</span> 搜索
+            </button>
+            <button className="nav-item" type="button">
+              <span className="icon">⌘</span> 插件
+            </button>
+            <button className="nav-item" type="button">
+              <span className="icon">◷</span> 自动化
+            </button>
+          </nav>
 
           <div className="sidebar-section-header">
             <span>项目</span>
