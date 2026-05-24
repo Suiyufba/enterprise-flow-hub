@@ -3,8 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { AnalysisResult } from "shared";
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+import { fetchJson } from "../lib/api";
 
 function ResultsContent() {
   const searchParams = useSearchParams();
@@ -26,8 +25,7 @@ function ResultsContent() {
       return;
     }
 
-    fetch(`${API}/analysis/${id}`)
-      .then((r) => (r.ok ? r.json() : null))
+    fetchJson<AnalysisResult>(`/analysis/${id}`)
       .then((d) => {
         setData(d);
         setLoading(false);
@@ -35,26 +33,26 @@ function ResultsContent() {
       .catch(() => setLoading(false));
   }, [id]);
 
-  function exportResult(format: "markdown" | "json") {
+  async function exportResult(format: "markdown" | "json") {
     if (!id) return;
-    fetch(`${API}/analysis/${id}/export`, {
+    const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    const res = await fetch(`${API}/analysis/${id}/export`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ format }),
-    })
-      .then((r) => (format === "json" ? r.json() : r.text()))
-      .then((content) => {
-        const body = typeof content === "string" ? content : JSON.stringify(content, null, 2);
-        const mime = format === "markdown" ? "text/markdown" : "application/json";
-        const ext = format === "markdown" ? "md" : "json";
-        const blob = new Blob([body], { type: mime });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `analysis-${id}.${ext}`;
-        a.click();
-        URL.revokeObjectURL(url);
-      });
+    });
+    if (!res.ok) return;
+    const content = format === "json" ? await res.json() : await res.text();
+    const body = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+    const mime = format === "markdown" ? "text/markdown" : "application/json";
+    const ext = format === "markdown" ? "md" : "json";
+    const blob = new Blob([body], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analysis-${id}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   if (loading) {
@@ -70,9 +68,7 @@ function ResultsContent() {
   if (!data) {
     return (
       <div className="results-inner">
-        <p style={{ textAlign: "center", color: "#86868b", paddingTop: 60 }}>
-          未找到分析结果
-        </p>
+        <p className="results-empty">未找到分析结果</p>
         <div style={{ textAlign: "center", marginTop: 16 }}>
           <button className="export-btn" onClick={() => router.push("/")}>
             ← 新建分析
@@ -184,7 +180,7 @@ function ResultsContent() {
       {/* Implementation Plan */}
       <div className="result-card">
         <h3>实施建议</h3>
-        <ol style={{ paddingLeft: 20, fontSize: 13, lineHeight: 1.8 }}>
+        <ol className="result-ol">
           {data.implementationPlan.map((s, i) => (
             <li key={i}>{s}</li>
           ))}

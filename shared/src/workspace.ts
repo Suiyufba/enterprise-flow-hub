@@ -18,15 +18,29 @@ export const ConversationSchema = z.object({
   enterpriseId: z.string(),
   projectId: z.string(),
   title: z.string(),
+  tags: z.array(z.string()),
   createdAt: z.string(),
+});
+
+export const MessageSchema = z.object({
+  id: z.string(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  createdAt: z.string(),
+});
+
+export const ConversationDetailSchema = ConversationSchema.extend({
+  messages: z.array(MessageSchema),
 });
 
 export const LibraryItemSchema = z.object({
   id: z.string(),
+  enterpriseId: z.string(),
   projectId: z.string(),
   name: z.string(),
   type: z.enum(["screenshot", "spreadsheet", "document", "note"]),
   summary: z.string(),
+  visibility: z.enum(["public", "private"]),
   createdAt: z.string(),
 });
 
@@ -42,7 +56,64 @@ export const AutomationSchema = z.object({
   projectId: z.string(),
   name: z.string(),
   trigger: z.string(),
+  triggerType: z.enum(["schedule", "message", "webhook", "email", "file", "manual"]),
   action: z.string(),
+  actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser"]),
+  agentModel: z.string().optional(),
+  systemPrompt: z.string().optional(),
+  enabled: z.boolean(),
+  runCount: z.number(),
+  lastRun: z.string().optional(),
+});
+
+export const ToolDefinitionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  kind: z.enum(["mcp", "cli", "http", "browser"]),
+  status: z.enum(["enabled", "needs_config", "disabled"]),
+  risk: z.enum(["read_only", "write", "admin"]),
+  inputSchema: z.string(),
+  examplePrompt: z.string(),
+  createdAt: z.string(),
+});
+
+export const ToolRunSchema = z.object({
+  id: z.string(),
+  toolId: z.string(),
+  status: z.enum(["success", "error"]),
+  input: z.record(z.unknown()),
+  output: z.string(),
+  createdAt: z.string(),
+});
+
+export const AgentSkillSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  toolIds: z.array(z.string()),
+  prompt: z.string(),
+  enabled: z.boolean(),
+  createdAt: z.string(),
+});
+
+export const AgentPersonaSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.string(),
+  description: z.string(),
+  systemPrompt: z.string(),
+  defaultSkillIds: z.array(z.string()),
+  providerId: z.string(),
+  enabled: z.boolean(),
+});
+
+export const ModelProviderSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  baseUrl: z.string(),
+  model: z.string(),
+  configured: z.boolean(),
   enabled: z.boolean(),
 });
 
@@ -53,6 +124,11 @@ export const WorkspaceSchema = z.object({
   libraryItems: z.array(LibraryItemSchema),
   plugins: z.array(PluginSchema),
   automations: z.array(AutomationSchema),
+  tools: z.array(ToolDefinitionSchema),
+  recentToolRuns: z.array(ToolRunSchema),
+  skills: z.array(AgentSkillSchema),
+  personas: z.array(AgentPersonaSchema),
+  providers: z.array(ModelProviderSchema),
 });
 
 export const CreateProjectRequestSchema = z.object({
@@ -63,26 +139,99 @@ export const CreateProjectRequestSchema = z.object({
 });
 
 export const CreateLibraryItemRequestSchema = z.object({
+  enterpriseId: z.string(),
   projectId: z.string(),
   name: z.string().min(1).max(120),
   type: z.enum(["screenshot", "spreadsheet", "document", "note"]),
   summary: z.string().min(1).max(500),
+  visibility: z.enum(["public", "private"]),
 });
 
 export const CreateAutomationRequestSchema = z.object({
   projectId: z.string(),
   name: z.string().min(1).max(120),
   trigger: z.string().min(1).max(200),
+  triggerType: z.enum(["schedule", "message", "webhook", "email", "file", "manual"]),
   action: z.string().min(1).max(200),
+  actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser"]),
+  agentModel: z.string().optional(),
+  systemPrompt: z.string().max(500).optional(),
+});
+
+export const CreateConversationRequestSchema = z.object({
+  enterpriseId: z.string(),
+  projectId: z.string(),
+  title: z.string().min(1).max(120),
+});
+
+export const UpdateConversationRequestSchema = z.object({
+  projectId: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  title: z.string().min(1).max(120).optional(),
+});
+
+export const AddMessageRequestSchema = z.object({
+  content: z.string().min(1).max(2000),
+  personaId: z.string().optional(),
+  skillIds: z.array(z.string()).optional(),
+  contextScope: z.enum(["current_project", "selected_projects"]).optional(),
+  contextProjectIds: z.array(z.string()).optional(),
+});
+
+export const UpdateProjectRequestSchema = z.object({
+  name: z.string().min(1).max(80).optional(),
+  description: z.string().max(300).optional(),
+});
+
+export const UpdateLibraryItemRequestSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  type: z.enum(["screenshot", "spreadsheet", "document", "note"]).optional(),
+  summary: z.string().min(1).max(500).optional(),
+  visibility: z.enum(["public", "private"]).optional(),
+});
+
+export const RunToolRequestSchema = z.object({
+  input: z.record(z.unknown()).default({}),
+  dryRun: z.boolean().optional(),
+});
+
+export const CreateSkillRequestSchema = z.object({
+  name: z.string().min(1).max(80),
+  description: z.string().min(1).max(300),
+  toolIds: z.array(z.string()).default([]),
+  prompt: z.string().min(1).max(800),
+});
+
+export const UpdateSkillRequestSchema = z.object({
+  enabled: z.boolean().optional(),
+  name: z.string().min(1).max(80).optional(),
+  description: z.string().min(1).max(300).optional(),
+  toolIds: z.array(z.string()).optional(),
+  prompt: z.string().min(1).max(800).optional(),
 });
 
 export type Enterprise = z.infer<typeof EnterpriseSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;
+export type Message = z.infer<typeof MessageSchema>;
+export type ConversationDetail = z.infer<typeof ConversationDetailSchema>;
+export type CreateConversationRequest = z.infer<typeof CreateConversationRequestSchema>;
+export type UpdateConversationRequest = z.infer<typeof UpdateConversationRequestSchema>;
 export type LibraryItem = z.infer<typeof LibraryItemSchema>;
 export type Plugin = z.infer<typeof PluginSchema>;
 export type Automation = z.infer<typeof AutomationSchema>;
+export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
+export type ToolRun = z.infer<typeof ToolRunSchema>;
+export type AgentSkill = z.infer<typeof AgentSkillSchema>;
+export type AgentPersona = z.infer<typeof AgentPersonaSchema>;
+export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>;
 export type CreateLibraryItemRequest = z.infer<typeof CreateLibraryItemRequestSchema>;
 export type CreateAutomationRequest = z.infer<typeof CreateAutomationRequestSchema>;
+export type AddMessageRequest = z.infer<typeof AddMessageRequestSchema>;
+export type UpdateProjectRequest = z.infer<typeof UpdateProjectRequestSchema>;
+export type UpdateLibraryItemRequest = z.infer<typeof UpdateLibraryItemRequestSchema>;
+export type RunToolRequest = z.infer<typeof RunToolRequestSchema>;
+export type CreateSkillRequest = z.infer<typeof CreateSkillRequestSchema>;
+export type UpdateSkillRequest = z.infer<typeof UpdateSkillRequestSchema>;

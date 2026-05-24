@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { Workspace } from "shared";
+import type { ConversationDetail, Workspace } from "shared";
 import { fetchJson } from "../lib/api";
 
 const fallbackWorkspace: Workspace = {
@@ -13,20 +13,31 @@ const fallbackWorkspace: Workspace = {
   libraryItems: [],
   plugins: [],
   automations: [],
+  tools: [],
+  recentToolRuns: [],
+  skills: [],
+  personas: [],
+  providers: [],
 };
 
 export function Sidebar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [workspace, setWorkspace] = useState<Workspace>(fallbackWorkspace);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
+  const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   async function refresh() {
     try {
       const data = await fetchJson<Workspace>("/workspace");
       setWorkspace(data);
       setExpanded(new Set(data.enterprises.map((e) => e.id)));
+      setChatExpanded(new Set(data.enterprises.map((e) => e.id)));
     } catch {
       setWorkspace(fallbackWorkspace);
     }
@@ -45,6 +56,15 @@ export function Sidebar() {
     });
   }
 
+  function toggleChatGroup(id: string) {
+    setChatExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function addProject(enterpriseId: string) {
     if (!newName.trim()) return;
     await fetchJson("/projects", {
@@ -56,28 +76,96 @@ export function Sidebar() {
     await refresh();
   }
 
+  async function addConversation(enterpriseId: string) {
+    const projects = workspace.projects.filter((p) => p.enterpriseId === enterpriseId);
+    if (projects.length === 0) return;
+    const detail = await fetchJson<ConversationDetail>("/conversations", {
+      method: "POST",
+      body: JSON.stringify({
+        enterpriseId,
+        projectId: projects[0].id,
+        title: "新对话",
+      }),
+    });
+    await refresh();
+    router.push(`/chat/${detail.id}`);
+  }
+
+  async function removeConversation(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    await fetchJson(`/conversations/${id}`, { method: "DELETE" });
+    await refresh();
+  }
+
+  async function removeProject(id: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    await fetchJson(`/projects/${id}`, { method: "DELETE" });
+    await refresh();
+    if (pathname === `/projects/${id}`) {
+      router.push("/");
+    }
+  }
+
+  function startRenameProject(id: string, name: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setRenamingProjectId(id);
+    setRenamingConversationId(null);
+    setRenameValue(name);
+  }
+
+  function startRenameConversation(id: string, title: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setRenamingConversationId(id);
+    setRenamingProjectId(null);
+    setRenameValue(title);
+  }
+
+  async function submitProjectRename(id: string) {
+    if (!renameValue.trim()) return;
+    await fetchJson(`/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: renameValue.trim() }),
+    });
+    setRenamingProjectId(null);
+    setRenameValue("");
+    await refresh();
+  }
+
+  async function submitConversationRename(id: string) {
+    if (!renameValue.trim()) return;
+    await fetchJson(`/conversations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title: renameValue.trim() }),
+    });
+    setRenamingConversationId(null);
+    setRenameValue("");
+    await refresh();
+  }
+
+  function cancelRename() {
+    setRenamingProjectId(null);
+    setRenamingConversationId(null);
+    setRenameValue("");
+  }
+
   return (
     <aside className="sidebar">
-      <div className="win-controls">
-        <span className="win-dot red" />
-        <span className="win-dot yellow" />
-        <span className="win-dot green" />
-      </div>
-
       <nav className="primary-nav" aria-label="主导航">
-        <Link href="/" className="nav-item active">
+        <Link href="/" className={`nav-item ${pathname === "/" ? "active" : ""}`}>
           <span className="icon">✎</span> 新对话
         </Link>
-        <Link href="/search" className="nav-item">
+        <Link href="/search" className={`nav-item ${pathname === "/search" ? "active" : ""}`}>
           <span className="icon">⌕</span> 搜索
         </Link>
-        <Link href="/library" className="nav-item">
+        <Link href="/library" className={`nav-item ${pathname === "/library" ? "active" : ""}`}>
           <span className="icon">▣</span> 资料库
         </Link>
-        <Link href="/plugins" className="nav-item">
+        <Link href="/plugins" className={`nav-item ${pathname === "/plugins" ? "active" : ""}`}>
           <span className="icon">⌘</span> 插件
         </Link>
-        <Link href="/automation" className="nav-item">
+        <Link href="/automation" className={`nav-item ${pathname === "/automation" ? "active" : ""}`}>
           <span className="icon">◷</span> 自动化
         </Link>
       </nav>
@@ -85,8 +173,8 @@ export function Sidebar() {
       <div className="sidebar-section-header">
         <span>项目</span>
         <div className="sidebar-section-actions">
-          <Link aria-label="新增企业" className="icon-action add-project-action" href="/projects/new">
-            新增企业
+          <Link aria-label="新增项目" className="icon-action add-project-action" href="/projects/new">
+            新增项目
           </Link>
         </div>
       </div>
@@ -112,14 +200,35 @@ export function Sidebar() {
               {isOpen && (
                 <div className="sub-list">
                   {projects.map((project) => (
-                    <Link
-                      className="sub-item"
-                      href={`/projects/${project.id}`}
-                      key={project.id}
-                    >
-                      <span className="sub-item-icon">▱</span>
-                      <span>{project.name}</span>
-                    </Link>
+                    renamingProjectId === project.id ? (
+                      <div className="sidebar-rename-row" key={project.id}>
+                        <input
+                          className="inline-input"
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") submitProjectRename(project.id);
+                            if (e.key === "Escape") cancelRename();
+                          }}
+                        />
+                        <button className="inline-confirm" onClick={() => submitProjectRename(project.id)} type="button">✓</button>
+                        <button className="inline-cancel" onClick={cancelRename} type="button">×</button>
+                      </div>
+                    ) : (
+                      <Link
+                        className={`sub-item sidebar-editable-row ${pathname === `/projects/${project.id}` ? "active" : ""}`}
+                        href={`/projects/${project.id}`}
+                        key={project.id}
+                      >
+                        <span className="sub-item-icon">▱</span>
+                        <span className="sidebar-row-title">{project.name}</span>
+                        <span className="sidebar-row-actions">
+                          <button className="sidebar-mini-action" onClick={(e) => startRenameProject(project.id, project.name, e)} title="重命名项目" type="button">改</button>
+                          <button className="sidebar-mini-action danger" onClick={(e) => removeProject(project.id, e)} title="删除项目" type="button">×</button>
+                        </span>
+                      </Link>
+                    )
                   ))}
 
                   {addingTo === enterprise.id ? (
@@ -172,31 +281,74 @@ export function Sidebar() {
         })}
       </div>
 
-      <div className="section-label">对话</div>
+      <div className="sidebar-section-header">
+        <span>对话</span>
+        <div className="sidebar-section-actions">
+          <button
+            aria-label="新增对话"
+            className="icon-action"
+            type="button"
+            onClick={() => {
+              const first = workspace.enterprises[0];
+              if (first) addConversation(first.id);
+            }}
+          >
+            新增
+          </button>
+        </div>
+      </div>
+
       <div className="history-groups">
         {workspace.enterprises.map((enterprise) => {
           const conversations = workspace.conversations.filter(
             (item) => item.enterpriseId === enterprise.id,
           );
           if (conversations.length === 0) return null;
+          const isOpen = chatExpanded.has(enterprise.id);
+
           return (
             <section className="history-group" key={enterprise.id}>
-              <div className="history-company">{enterprise.name}</div>
-              {conversations.map((conversation) => (
-                <button
-                  className="history-chat"
-                  key={conversation.id}
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/projects/${conversation.projectId}?chat=${conversation.id}`,
-                    )
-                  }
-                >
-                  <span className="icon">💬</span>
-                  {conversation.title}
-                </button>
-              ))}
+              <button
+                className="history-company"
+                type="button"
+                onClick={() => toggleChatGroup(enterprise.id)}
+              >
+                <span className={`tree-chevron ${isOpen ? "open" : ""}`}>▸</span>
+                {enterprise.name}
+              </button>
+              {isOpen &&
+                conversations.map((conversation) => (
+                  renamingConversationId === conversation.id ? (
+                    <div className="sidebar-rename-row history-rename-row" key={conversation.id}>
+                      <input
+                        className="inline-input"
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") submitConversationRename(conversation.id);
+                          if (e.key === "Escape") cancelRename();
+                        }}
+                      />
+                      <button className="inline-confirm" onClick={() => submitConversationRename(conversation.id)} type="button">✓</button>
+                      <button className="inline-cancel" onClick={cancelRename} type="button">×</button>
+                    </div>
+                  ) : (
+                    <button
+                      className={`history-chat sidebar-editable-row ${pathname === `/chat/${conversation.id}` ? "active" : ""}`}
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => router.push(`/chat/${conversation.id}`)}
+                    >
+                      <span className="icon">💬</span>
+                      <span className="history-chat-title sidebar-row-title">{conversation.title}</span>
+                      <span className="sidebar-row-actions">
+                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话">改</span>
+                        <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话">×</span>
+                      </span>
+                    </button>
+                  )
+                ))}
             </section>
           );
         })}

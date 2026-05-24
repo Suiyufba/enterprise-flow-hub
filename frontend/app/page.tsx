@@ -5,27 +5,35 @@ import { useRouter } from "next/navigation";
 import type { AnalysisResult, AnalysisRequest, Workspace } from "shared";
 import { fetchJson } from "./lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 export default function Home() {
   const router = useRouter();
   const [need, setNeed] = useState("");
-  const [project, setProject] = useState("启航留学 / 线索增长");
+  const [projectId, setProjectId] = useState("proj-qihang-growth");
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [personaId, setPersonaId] = useState("persona-ops-cto");
+  const [contextScope, setContextScope] = useState("current_project");
+  const [contextEnterpriseId, setContextEnterpriseId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchJson<Workspace>("/workspace")
       .then((data) => {
         setWorkspace(data);
-        const firstProject = data.projects[0];
-        const enterprise = data.enterprises.find((item) => item.id === firstProject?.enterpriseId);
-        if (firstProject && enterprise) {
-          setProject(`${enterprise.name} / ${firstProject.name}`);
+        const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
+        if (urlProjectId && data.projects.some((p) => p.id === urlProjectId)) {
+          setProjectId(urlProjectId);
+          const proj = data.projects.find((p) => p.id === urlProjectId);
+          if (proj) setContextEnterpriseId(proj.enterpriseId);
+        } else if (data.projects[0]) {
+          setProjectId(data.projects[0].id);
+          setContextEnterpriseId(data.projects[0].enterpriseId);
+        }
+        if (data.personas[0]) {
+          setPersonaId(data.personas[0].id);
         }
       })
       .catch(() => undefined);
@@ -44,26 +52,27 @@ export default function Home() {
     setPreviews((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  function updateScope(value: string) {
+    setContextScope(value);
+    if (value === "selected_projects" && !contextEnterpriseId) {
+      const currentProject = workspace?.projects.find((project) => project.id === projectId);
+      setContextEnterpriseId(currentProject?.enterpriseId ?? workspace?.enterprises[0]?.id ?? "");
+    }
+  }
+
   async function submit() {
     if (!need.trim()) return;
     setLoading(true);
     setError("");
 
     try {
-      const body: AnalysisRequest = {
-        need: need.trim(),
-        screenshotCount: files.length || 1,
-      };
-
-      const res = await fetch(`${API}/analysis`, {
+      const data = await fetchJson<AnalysisResult>("/analysis", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          need: need.trim(),
+          screenshotCount: files.length || 1,
+        } satisfies AnalysisRequest),
       });
-
-      if (!res.ok) throw new Error("分析失败，请重试");
-
-      const data: AnalysisResult = await res.json();
       sessionStorage.setItem(`analysis:${data.id}`, JSON.stringify(data));
       router.push(`/results?id=${data.id}`);
     } catch (e) {
@@ -107,34 +116,56 @@ export default function Home() {
 
         <div className="prompt-main-row">
           <div className="prompt-left-actions">
+            <button
+              className="attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              title="上传文件"
+              type="button"
+            >
+              +
+            </button>
             <div className="project-picker">
               <span className="project-icon">▱</span>
               <select
                 aria-label="选择企业项目"
                 className="project-select"
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
+                value={projectId}
+                onChange={(e) => {
+                  setProjectId(e.target.value);
+                  const project = workspace?.projects.find((item) => item.id === e.target.value);
+                  if (project && contextScope === "selected_projects") {
+                    setContextEnterpriseId(project.enterpriseId);
+                  }
+                }}
               >
                 {workspace?.projects.map((item) => {
                   const enterprise = workspace.enterprises.find((enterpriseItem) => enterpriseItem.id === item.enterpriseId);
                   const label = `${enterprise?.name ?? "未知企业"} / ${item.name}`;
-                  return <option key={item.id} value={label}>{label}</option>;
+                  return <option key={item.id} value={item.id}>{label}</option>;
                 })}
-                {!workspace && <option value="启航留学 / 线索增长">启航留学 / 线索增长</option>}
+                {!workspace && <option value="proj-qihang-growth">启航留学 / 线索增长</option>}
               </select>
             </div>
-            <button
-              className="attach-btn"
-              onClick={() => fileInputRef.current?.click()}
-              title="添加资料"
-            >
+            <span className="prompt-decor-plus" aria-hidden="true">
               +
-            </button>
-            <button className="access-select" type="button">
-              <span className="shield-icon">✓</span>
-              仅分析当前项目资料
-              <span className="chevron">⌄</span>
-            </button>
+            </span>
+            <select className="access-select" value={personaId} onChange={(e) => setPersonaId(e.target.value)} aria-label="选择角色">
+              {workspace?.personas.map((persona) => (
+                <option key={persona.id} value={persona.id}>{persona.name}</option>
+              ))}
+              {!workspace && <option value="persona-ops-cto">轻量自动化 CTO</option>}
+            </select>
+            <select className="access-select" value={contextScope} onChange={(e) => updateScope(e.target.value)} aria-label="选择资料范围">
+              <option value="current_project">仅分析当前项目资料</option>
+              <option value="selected_projects">结合指定项目资料</option>
+            </select>
+            {contextScope === "selected_projects" && (
+              <select className="access-select" value={contextEnterpriseId} onChange={(e) => setContextEnterpriseId(e.target.value)} aria-label="选择要结合的企业资料">
+                {workspace?.enterprises.map((enterprise) => (
+                  <option key={enterprise.id} value={enterprise.id}>{enterprise.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="prompt-right-actions">
@@ -162,7 +193,7 @@ export default function Home() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.xlsx,.xls,.csv,.pdf,.doc,.docx,.txt"
         multiple
         hidden
         onChange={(e) => handleFiles(e.target.files)}
@@ -172,26 +203,11 @@ export default function Home() {
       {previews.length > 0 && (
         <div className="screenshot-previews">
           {previews.map((url, i) => (
-            <div key={i} style={{ position: "relative" }}>
+            <div key={i} className="screenshot-preview-item">
               <img src={url} alt={`Screenshot ${i + 1}`} className="screenshot-thumb" />
               <button
                 onClick={() => removeFile(i)}
-                style={{
-                  position: "absolute",
-                  top: -6,
-                  right: -6,
-                  width: 20,
-                  height: 20,
-                  borderRadius: "50%",
-                  background: "#ff3b30",
-                  color: "#fff",
-                  border: "none",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+                className="screenshot-remove"
               >
                 ×
               </button>
@@ -202,7 +218,7 @@ export default function Home() {
 
       {/* Error */}
       {error && (
-        <div style={{ color: "#d20f39", fontSize: 13, marginBottom: 12, textAlign: "center" }}>
+        <div className="error-message">
           {error}
         </div>
       )}
@@ -214,12 +230,12 @@ export default function Home() {
           <h3>上传业务截图</h3>
           <p>上传 Excel、CRM 页面或聊天记录，AI 自动识别流程</p>
         </div>
-        <div className="action-card">
+        <div className="action-card" onClick={() => setNeed("帮我分析销售跟进流程，找出漏跟进的线索并设计自动化提醒规则。")}>
           <div className="card-icon blue">📋</div>
           <h3>选择模板场景</h3>
           <p>销售跟进、订单管理、客户服务等预设分析模板</p>
         </div>
-        <div className="action-card">
+        <div className="action-card" onClick={() => setNeed("帮我分析留学中介的线索管理流程，生成优化报告。")}>
           <div className="card-icon green">📊</div>
           <h3>查看诊断案例</h3>
           <p>留学中介的线索管理优化报告</p>

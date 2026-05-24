@@ -1,17 +1,36 @@
 import type { FastifyInstance } from "fastify";
 import {
+  AddMessageRequestSchema,
   CreateAutomationRequestSchema,
+  CreateConversationRequestSchema,
   CreateLibraryItemRequestSchema,
   CreateProjectRequestSchema,
+  CreateSkillRequestSchema,
+  UpdateConversationRequestSchema,
+  UpdateLibraryItemRequestSchema,
+  UpdateProjectRequestSchema,
+  UpdateSkillRequestSchema,
 } from "shared";
 import {
+  addMessage,
   createAutomation,
+  createConversation,
   createLibraryItem,
   createProject,
+  createSkill,
+  deleteAutomation,
+  deleteConversation,
+  deleteLibraryItem,
+  deleteProject,
+  getConversation,
   getProject,
   getWorkspace,
   setAutomationEnabled,
   setPluginEnabled,
+  updateConversation,
+  updateLibraryItem,
+  updateProject,
+  updateSkill,
 } from "../store.js";
 
 export async function workspaceRoutes(app: FastifyInstance) {
@@ -41,6 +60,28 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return reply.status(201).send(createProject(parsed.data));
   });
 
+  app.patch("/projects/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = UpdateProjectRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const project = updateProject(id, parsed.data);
+    if (!project) {
+      return reply.status(404).send({ error: "Project not found" });
+    }
+    return project;
+  });
+
+  app.delete("/projects/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const ok = deleteProject(id);
+    if (!ok) {
+      return reply.status(404).send({ error: "Project not found" });
+    }
+    return reply.status(204).send();
+  });
+
   app.post("/library", async (request, reply) => {
     const parsed = CreateLibraryItemRequestSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -51,6 +92,28 @@ export async function workspaceRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Project not found" });
     }
     return reply.status(201).send(item);
+  });
+
+  app.patch("/library/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = UpdateLibraryItemRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const item = updateLibraryItem(id, parsed.data);
+    if (!item) {
+      return reply.status(404).send({ error: "Library item not found" });
+    }
+    return item;
+  });
+
+  app.delete("/library/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const ok = deleteLibraryItem(id);
+    if (!ok) {
+      return reply.status(404).send({ error: "Library item not found" });
+    }
+    return reply.status(204).send();
   });
 
   app.patch("/plugins/:id", async (request, reply) => {
@@ -89,5 +152,87 @@ export async function workspaceRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Automation not found" });
     }
     return automation;
+  });
+
+  app.delete("/automations/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const ok = deleteAutomation(id);
+    if (!ok) {
+      return reply.status(404).send({ error: "Automation not found" });
+    }
+    return reply.status(204).send();
+  });
+
+  app.get("/conversations/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const detail = getConversation(id);
+    if (!detail) {
+      return reply.status(404).send({ error: "Conversation not found" });
+    }
+    return detail;
+  });
+
+  app.patch("/conversations/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = UpdateConversationRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const detail = updateConversation(id, parsed.data);
+    if (!detail) {
+      return reply.status(404).send({ error: "Conversation not found" });
+    }
+    return detail;
+  });
+
+  app.post("/conversations", async (request, reply) => {
+    const parsed = CreateConversationRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    return reply.status(201).send(createConversation(parsed.data));
+  });
+
+  app.post("/skills", async (request, reply) => {
+    const parsed = CreateSkillRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    return reply.status(201).send(createSkill(parsed.data));
+  });
+
+  app.patch("/skills/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = UpdateSkillRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const skill = updateSkill(id, parsed.data);
+    if (!skill) {
+      return reply.status(404).send({ error: "Skill not found" });
+    }
+    return skill;
+  });
+
+  app.delete("/conversations/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const ok = deleteConversation(id);
+    if (!ok) {
+      return reply.status(404).send({ error: "Conversation not found" });
+    }
+    return reply.status(204).send();
+  });
+
+  app.post("/conversations/:id/messages", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = AddMessageRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const msg = addMessage(id, parsed.data);
+    if (!msg) {
+      return reply.status(404).send({ error: "Conversation not found" });
+    }
+    return reply.status(201).send(msg);
   });
 }
