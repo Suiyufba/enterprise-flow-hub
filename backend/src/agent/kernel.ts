@@ -13,6 +13,11 @@ type ChatMessage = {
   content: string;
   tool_call_id?: string;
   name?: string;
+  tool_calls?: Array<{
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }>;
 };
 
 export type AgentRuntimeProvider = ModelProvider & {
@@ -49,13 +54,38 @@ export type AgentKernelResult = {
 function buildFunctionDefs(tools: ToolDefinition[]): FunctionDef[] {
   return tools
     .filter((t) => t.status === "enabled")
-    .map((t) => ({
-      name: t.id,
-      description: t.description,
-      parameters: t.inputSchema
-        ? { type: "object", properties: t.inputSchema as unknown as Record<string, unknown>, required: [] }
-        : { type: "object", properties: {}, required: [] },
-    }));
+    .map((t) => {
+      let properties: Record<string, unknown> = {};
+      let required: string[] = [];
+      try {
+        // inputSchema is a JSON string of example input like {"command":"ls","cwd":"/app"}
+        // Infer types from example values to build a JSON Schema
+        const example = typeof t.inputSchema === "string"
+          ? JSON.parse(t.inputSchema)
+          : (t.inputSchema || {});
+        if (example && typeof example === "object" && !Array.isArray(example)) {
+          for (const [key, value] of Object.entries(example as Record<string, unknown>)) {
+            const typ = typeof value;
+            properties[key] = {
+              type: typ === "number" ? "number" : typ === "boolean" ? "boolean" : "string",
+              description: key,
+            };
+          }
+          required = Object.keys(properties);
+        }
+      } catch {
+        properties = {};
+      }
+      return {
+        name: t.id,
+        description: t.description,
+        parameters: {
+          type: "object",
+          properties,
+          required,
+        },
+      };
+    });
 }
 
 function buildSystemPrompt(input: AgentKernelInput): string {
@@ -98,16 +128,6 @@ function historyToMessages(history: Message[]): ChatMessage[] {
   }));
 }
 
-function toolRunsToMessages(toolCalls: ToolCall[], results: Array<{ toolId: string; output: string }>): ChatMessage[] {
-  // Assistant message with tool_calls is not needed in text form when we use
-  // native function calling — we send tool result messages directly
-  return results.map((r, i) => ({
-    role: "tool" as const,
-    tool_call_id: toolCalls[i]?.id ?? r.toolId,
-    content: r.output,
-  }));
-}
-
 export async function runAgentKernel(input: AgentKernelInput): Promise<AgentKernelResult> {
   const toolsById = new Map(input.tools.map((t) => [t.id, t]));
   const functionDefs = buildFunctionDefs(input.tools);
@@ -137,12 +157,15 @@ export async function runAgentKernel(input: AgentKernelInput): Promise<AgentKern
     // Execute tool calls
     const results: Array<{ toolId: string; output: string }> = [];
 
-    // Add assistant response (may have content + tool_calls)
+    // Add assistant response with tool_calls so API can correlate results
     messages.push({
       role: "assistant",
       content: resp.content || "",
-      // Note: native tool_calls are not added as text; the API expects
-      // tool result messages to follow with matching tool_call_id
+      tool_calls: resp.toolCalls.map((tc) => ({
+        id: tc.id,
+        type: "function" as const,
+        function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+      })),
     });
 
     for (const tc of resp.toolCalls) {
