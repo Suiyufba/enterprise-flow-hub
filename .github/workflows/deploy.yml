@@ -69,7 +69,7 @@ jobs:
       - name: Upload deployment files
         run: |
           SSH_OPTS="-i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o PubkeyAcceptedAlgorithms=+ssh-rsa -o HostkeyAlgorithms=+ssh-rsa"
-          ssh ${SSH_OPTS} "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "mkdir -p /opt/enterprise-flow-hub"
+          ssh ${SSH_OPTS} "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "sudo mkdir -p /opt/enterprise-flow-hub && sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /opt/enterprise-flow-hub"
           scp ${SSH_OPTS} deploy/docker-compose.yml deploy/nginx.conf "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/enterprise-flow-hub/"
 
       - name: Deploy on server
