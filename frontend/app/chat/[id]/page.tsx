@@ -147,8 +147,8 @@ export default function ChatPage() {
       setLocalMessages((prev) => [...prev, aiMsg]);
     } catch {
       showToast("消息发送失败，请重试", "error");
-      // Keep user message visible instead of removing it
       setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+      setInput(userMsg.content);
     } finally {
       setSending(false);
     }
