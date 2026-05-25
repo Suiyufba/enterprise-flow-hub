@@ -1,91 +1,18 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import type { AnalysisResult, AnalysisRequest } from "shared";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ConversationDetail } from "shared";
 import { fetchJson } from "./lib/api";
 import { useWorkspace } from "./lib/workspace-context";
-import MarkdownMessage from "./components/MarkdownMessage";
-
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
-
-// Safety helper: AI may return objects where strings are expected
-function s(v: unknown): string {
-  if (typeof v === "string") return v;
-  if (v != null && typeof v === "object") return JSON.stringify(v, null, 2);
-  return String(v ?? "");
-}
-
-function formatResult(result: AnalysisResult): string {
-  const lines: string[] = [];
-  const summary = s(result.summary);
-  if (summary) {
-    lines.push(`## ${summary}`);
-    lines.push("");
-  }
-
-  if (result.screenshotTypes.length > 0) {
-    lines.push("### 截图识别");
-    lines.push(result.screenshotTypes.map((t) => `- ${s(t)}`).join("\n"));
-    lines.push("");
-  }
-  if (result.businessObjects.length > 0) {
-    lines.push("### 业务对象");
-    lines.push(result.businessObjects.map((o) => `- ${s(o)}`).join("\n"));
-    lines.push("");
-  }
-  if (result.fields.length > 0) {
-    lines.push("### 提取字段");
-    for (const f of result.fields) {
-      const missing = f.missing ? " ⚠️ 缺失" : "";
-      lines.push(`- **${s(f.label)}** (\`${s(f.name)}\`) → ${s(f.type)}${missing}`);
-    }
-    lines.push("");
-  }
-  if (result.workflowStages.length > 0) {
-    lines.push("### 流程阶段");
-    lines.push(result.workflowStages.map((stage, i) => `${i + 1}. ${s(stage)}`).join("\n"));
-    lines.push("");
-  }
-  if (result.problems.length > 0) {
-    lines.push("### ⚠️ 流程问题");
-    for (const p of result.problems) {
-      lines.push(`- ⚠️ ${s(p)}`);
-    }
-    lines.push("");
-  }
-  if (result.automationRules.length > 0) {
-    lines.push("### 🔔 自动化规则建议");
-    for (const r of result.automationRules) {
-      lines.push(`- IF **${s(r.trigger)}** AND **${s(r.condition)}** → ${s(r.action)}`);
-    }
-    lines.push("");
-  }
-  if (result.dashboardMetrics.length > 0) {
-    lines.push("### 📊 建议仪表盘指标");
-    lines.push(result.dashboardMetrics.map((m) => `- ${s(m)}`).join("\n"));
-    lines.push("");
-  }
-  if (result.implementationPlan.length > 0) {
-    lines.push("### 实施建议");
-    for (const step of result.implementationPlan) {
-      lines.push(`1. ${s(step)}`);
-    }
-    lines.push("");
-  }
-  return lines.join("\n");
-}
 
 export default function Home() {
+  const router = useRouter();
   const [need, setNeed] = useState("");
   const [projectId, setProjectId] = useState("proj-qihang-growth");
-  const { workspace } = useWorkspace();
+  const { workspace, refresh } = useWorkspace();
   const [personaId, setPersonaId] = useState("persona-ops-cto");
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
@@ -99,58 +26,53 @@ export default function Home() {
     }
   }, [workspace.projects, workspace.personas]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
   async function submit() {
     if (!need.trim() || loading) return;
-
-    const userMessage = need.trim();
-    setNeed("");
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
 
     try {
-      const data = await fetchJson<AnalysisResult>("/analysis", {
+      // 1. Create a conversation so it persists in the sidebar
+      const project = workspace.projects.find((p) => p.id === projectId);
+      const enterpriseId = project?.enterpriseId ?? workspace.enterprises[0]?.id;
+      if (!enterpriseId) {
+        setLoading(false);
+        return;
+      }
+
+      const conversation = await fetchJson<ConversationDetail>("/conversations", {
         method: "POST",
         body: JSON.stringify({
-          need: userMessage,
-          screenshotCount: 1,
-        } satisfies AnalysisRequest),
+          enterpriseId,
+          projectId,
+          title: need.trim().slice(0, 30),
+        }),
       });
-      sessionStorage.setItem(`analysis:${data.id}`, JSON.stringify(data));
-      setMessages((prev) => [...prev, { role: "assistant", content: formatResult(data) }]);
+
+      // 2. Send first message through the agent (conversation API)
+      await fetchJson(`/conversations/${conversation.id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          content: need.trim(),
+          personaId,
+          skillIds: [],
+          contextScope: "current_project",
+        }),
+      });
+
+      // 3. Refresh workspace so sidebar picks up the new conversation
+      await refresh();
+
+      // 4. Navigate to the chat page
+      router.push(`/chat/${conversation.id}`);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "抱歉，分析请求失败，请稍后重试。" },
-      ]);
-    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="main-inner" style={{ maxWidth: 800 }}>
-      {/* Messages area */}
-      {messages.length > 0 ? (
-        <div className="chat-messages" style={{ marginBottom: 20 }}>
-          {messages.map((msg, i) => (
-            <MarkdownMessage key={i} content={msg.content} role={msg.role} />
-          ))}
-          {loading && (
-            <div className="chat-msg chat-msg-assistant chat-typing">
-              <div className="chat-msg-content">正在分析</div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      ) : (
-        <h1 className="main-title">今天想做什么？</h1>
-      )}
+    <div className="main-inner" style={{ maxWidth: 800, paddingTop: 60 }}>
+      <h1 className="main-title">今天想做什么？</h1>
 
-      {/* Input area */}
       <div className="chat-composer">
         <textarea
           className="chat-input"
@@ -171,7 +93,7 @@ export default function Home() {
             onClick={submit}
             disabled={!need.trim() || loading}
           >
-            发送
+            {loading ? "创建中..." : "发送"}
           </button>
         </div>
 
