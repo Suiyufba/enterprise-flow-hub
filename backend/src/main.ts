@@ -7,6 +7,13 @@ import { exportRoutes } from "./routes/export.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { toolRoutes } from "./routes/tools.js";
 import { workspaceRoutes } from "./routes/workspace.js";
+import { registerTool } from "./tools/registry.js";
+import { csvProfile } from "./tools/executors/csv-profile.js";
+import { bashExecute } from "./tools/executors/bash-executor.js";
+
+// Register tool executors so agent can actually execute tools
+registerTool("tool-csv-profile", csvProfile);
+registerTool("tool-bash", bashExecute);
 
 const API_KEY = process.env.API_KEY;
 

@@ -97,6 +97,17 @@ INSERT OR IGNORE INTO ai_tools (id, name, description, kind, status, risk, input
     '{"projectId":"proj-qihang-growth","query":"线索阶段定义"}',
     '先查资料库里的线索阶段定义，再设计自动化流程。',
     '2026-05-20T00:00:00.000Z'
+  ),
+  (
+    'tool-bash',
+    'Bash 命令执行',
+    '在服务器上执行 bash 命令：构建部署、安装依赖、git 操作、文件管理、重启服务等。Agent 可以用这个工具真正执行操作而不只是给建议。',
+    'cli',
+    'enabled',
+    'read_only',
+    '{"command":"npm run build","cwd":"/app"}',
+    '帮我把代码部署到生产环境。',
+    '2026-05-25T00:00:00.000Z'
   );
 
 -- Agent Skills
