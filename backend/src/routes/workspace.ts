@@ -234,10 +234,17 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const msg = await addMessage(id, parsed.data);
-    if (!msg) {
-      return reply.status(404).send({ error: "Conversation not found" });
+    try {
+      const msg = await addMessage(id, parsed.data);
+      if (!msg) {
+        return reply.status(404).send({ error: "Conversation not found" });
+      }
+      return reply.status(201).send(msg);
+    } catch (e) {
+      return reply.status(502).send({
+        error: "AI 处理失败，请检查模型配置或稍后重试",
+        detail: e instanceof Error ? e.message : String(e),
+      });
     }
-    return reply.status(201).send(msg);
   });
 }
