@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Sidebar } from "./components/Sidebar";
-import { ThemeToggle } from "./components/ThemeToggle";
+import { AuthGate } from "./components/AuthGate";
 import { AuthProvider } from "./lib/auth-context";
 import { ToastProvider } from "./lib/toast-context";
 import { WorkspaceProvider } from "./lib/workspace-context";
@@ -26,11 +25,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ToastProvider>
           <WorkspaceProvider>
             <AuthProvider>
-              <Sidebar />
-              <main className="main">
-                <ThemeToggle />
+              <AuthGate>
                 {children}
-              </main>
+              </AuthGate>
             </AuthProvider>
           </WorkspaceProvider>
         </ToastProvider>

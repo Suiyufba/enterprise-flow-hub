@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AgentSkill, Automation, LibraryItem, Plugin, Project, ToolDefinition, Workspace } from "shared";
+import type { AgentSkill, Automation, LibraryItem, Plugin, Project, ToolDefinition } from "shared";
 import { fetchJson } from "../lib/api";
 import { useWorkspace } from "../lib/workspace-context";
 
@@ -1096,4 +1096,3 @@ function PageShell({ title, description, children }: { title: string; descriptio
     </div>
   );
 }
-
