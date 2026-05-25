@@ -5,6 +5,14 @@ INSERT OR IGNORE INTO enterprises (id, name) VALUES
   ('ent-qihang',  '启航留学'),
   ('ent-yunshan', '云杉贸易');
 
+-- Users (password for all demo users is: demo123)
+INSERT OR IGNORE INTO users (id, enterprise_id, username, password_hash, display_name, role, created_at) VALUES
+  ('user-qihang-admin', 'ent-qihang',  'admin',   'seed-static-salt-:ff4970a0669605b999b76d4504b923203ed2d30da227f2b903f41cb084e6a6154851fed3758829ae294ecf249a3c1a37dadfe9a755d861011b0793df48b6daed', '张总',    'admin',  '2026-05-01T00:00:00.000Z'),
+  ('user-qihang-li',    'ent-qihang',  'lina',    'seed-static-salt-:ff4970a0669605b999b76d4504b923203ed2d30da227f2b903f41cb084e6a6154851fed3758829ae294ecf249a3c1a37dadfe9a755d861011b0793df48b6daed', '李娜',    'member', '2026-05-01T00:00:00.000Z'),
+  ('user-qihang-wang',  'ent-qihang',  'wangwei', 'seed-static-salt-:ff4970a0669605b999b76d4504b923203ed2d30da227f2b903f41cb084e6a6154851fed3758829ae294ecf249a3c1a37dadfe9a755d861011b0793df48b6daed', '王伟',    'member', '2026-05-01T00:00:00.000Z'),
+  ('user-yunshan-liu',  'ent-yunshan', 'liu',     'seed-static-salt-:ff4970a0669605b999b76d4504b923203ed2d30da227f2b903f41cb084e6a6154851fed3758829ae294ecf249a3c1a37dadfe9a755d861011b0793df48b6daed', '刘总',    'admin',  '2026-05-03T00:00:00.000Z'),
+  ('user-yunshan-chen', 'ent-yunshan', 'chen',    'seed-static-salt-:ff4970a0669605b999b76d4504b923203ed2d30da227f2b903f41cb084e6a6154851fed3758829ae294ecf249a3c1a37dadfe9a755d861011b0793df48b6daed', '陈运营',  'member', '2026-05-03T00:00:00.000Z');
+
 -- Projects
 INSERT OR IGNORE INTO projects (id, enterprise_id, name, description, created_at) VALUES
   ('proj-qihang-growth',  'ent-qihang',  '线索增长',   '优化线索来源、顾问跟进和签约转化。',       '2026-05-01T00:00:00.000Z'),

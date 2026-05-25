@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { ConversationDetail, Message, Workspace } from "shared";
 import { fetchJson } from "../../lib/api";
+import MarkdownMessage from "../../components/MarkdownMessage";
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -149,13 +150,8 @@ export default function ChatPage() {
       });
       setLocalMessages((prev) => [...prev, aiMsg]);
     } catch {
-      const errMsg: Message = {
-        id: nextMsgId(),
-        role: "assistant",
-        content: "抱歉，消息发送失败，请重试。",
-        createdAt: new Date().toISOString(),
-      };
-      setLocalMessages((prev) => [...prev, errMsg]);
+      setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+      setInput(userMsg.content);
     } finally {
       setSending(false);
     }
@@ -254,20 +250,11 @@ export default function ChatPage() {
           <div className="chat-empty">暂无消息记录</div>
         )}
         {localMessages.map((msg) => (
-          <div
-            className={`chat-msg ${msg.role === "user" ? "chat-msg-user" : "chat-msg-assistant"}`}
-            key={msg.id}
-          >
-            <div className="chat-msg-role">
-              {msg.role === "user" ? "💬 你" : "🤖 AI 分析"}
-            </div>
-            <div className="chat-msg-content">{msg.content}</div>
-          </div>
+          <MarkdownMessage key={msg.id} content={msg.content} role={msg.role} />
         ))}
         {sending && (
-          <div className="chat-msg chat-msg-assistant">
-            <div className="chat-msg-role">🤖 AI 分析</div>
-            <div className="chat-msg-content chat-typing">正在思考...</div>
+          <div className="chat-msg chat-msg-assistant chat-typing">
+            <div className="chat-msg-content">正在思考...</div>
           </div>
         )}
         <div ref={messagesEndRef} />

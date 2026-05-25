@@ -17,8 +17,10 @@ import {
   MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import "./WorkflowEditor.css";
 import { fetchJson } from "../lib/api";
-import type { Automation, Workspace } from "shared";
+import { useWorkspace } from "../lib/workspace-context";
+import type { Automation } from "shared";
 
 const nodeTypes = {
   trigger: { label: "触发器", icon: "⚡", color: "#1a2535", border: "#4a90e6" },
@@ -107,17 +109,12 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   const [saving, setSaving] = useState(false);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [savedMessage, setSavedMessage] = useState("");
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const { workspace, refresh: refreshWorkspace } = useWorkspace();
   const [selectedProjectId, setSelectedProjectId] = useState("proj-qihang-growth");
 
   useEffect(() => {
-    fetchJson<Workspace>("/workspace")
-      .then((data) => {
-        setWorkspace(data);
-        if (data.projects[0]) setSelectedProjectId(data.projects[0].id);
-      })
-      .catch(() => undefined);
-  }, []);
+    if (workspace.projects[0]) setSelectedProjectId(workspace.projects[0].id);
+  }, [workspace.projects]);
 
   async function saveWorkflow() {
     if (!workflowName.trim()) return;
@@ -148,6 +145,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       });
 
       setSavedMessage("保存成功");
+      await refreshWorkspace();
       setTimeout(() => setSavedMessage(""), 2000);
     } catch {
       setSavedMessage("保存失败");
@@ -246,7 +244,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
           value={selectedProjectId}
           onChange={(e) => setSelectedProjectId(e.target.value)}
         >
-          {workspace?.projects.map((p) => {
+          {workspace.projects.map((p) => {
             const ent = workspace.enterprises.find((e) => e.id === p.enterpriseId);
             return <option key={p.id} value={p.id}>{ent?.name ?? ""} / {p.name}</option>;
           })}

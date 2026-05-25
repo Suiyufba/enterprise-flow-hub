@@ -1,4 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
+import { runAgentKernel, type AgentRuntimeProvider } from "./agent/kernel.js";
+import { aiChat } from "./ai/client.js";
+import { getExecutor } from "./tools/registry.js";
 import type {
   AddMessageRequest,
   AgentPersona,
@@ -14,10 +17,12 @@ import type {
   CreateSkillRequest,
   Enterprise,
   LibraryItem,
+  LoginRequest,
   Message,
   ModelProvider,
   Plugin,
   Project,
+  RegisterUserRequest,
   RunToolRequest,
   ToolDefinition,
   ToolRun,
@@ -25,6 +30,7 @@ import type {
   UpdateLibraryItemRequest,
   UpdateProjectRequest,
   UpdateSkillRequest,
+  User,
   Workspace,
 } from "shared";
 import { getDb } from "./db/index.js";
@@ -149,6 +155,83 @@ export function updateProject(id: string, input: UpdateProjectRequest): Project 
 
 export function deleteProject(id: string): boolean {
   const result = db().prepare("DELETE FROM projects WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
+// ---- Users ----
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  const check = scryptSync(password, salt, 64).toString("hex");
+  return check === hash;
+}
+
+function rowToUser(r: Record<string, unknown>): User {
+  return {
+    id: r.id as string,
+    enterpriseId: r.enterprise_id as string,
+    username: r.username as string,
+    displayName: r.display_name as string,
+    role: r.role as User["role"],
+    createdAt: r.created_at as string,
+  };
+}
+
+export function registerUser(input: RegisterUserRequest): User | undefined {
+  const enterprise = db().prepare("SELECT id FROM enterprises WHERE id = ?").get(input.enterpriseId);
+  if (!enterprise) return undefined;
+
+  const existing = db().prepare("SELECT id FROM users WHERE username = ?").get(input.username);
+  if (existing) return undefined;
+
+  const user: User = {
+    id: `user-${randomUUID()}`,
+    enterpriseId: input.enterpriseId,
+    username: input.username.trim(),
+    displayName: input.displayName.trim(),
+    role: "member",
+    createdAt: new Date().toISOString(),
+  };
+
+  db()
+    .prepare("INSERT INTO users (id, enterprise_id, username, password_hash, display_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(user.id, user.enterpriseId, user.username, hashPassword(input.password), user.displayName, user.role, user.createdAt);
+
+  return user;
+}
+
+export function loginUser(input: LoginRequest): User | undefined {
+  const row = db()
+    .prepare("SELECT * FROM users WHERE username = ?")
+    .get(input.username.trim()) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+
+  const valid = verifyPassword(input.password, row.password_hash as string);
+  if (!valid) return undefined;
+
+  return rowToUser(row);
+}
+
+export function listUsers(enterpriseId?: string): User[] {
+  if (enterpriseId) {
+    return (db().prepare("SELECT * FROM users WHERE enterprise_id = ? ORDER BY created_at ASC").all(enterpriseId) as Record<string, unknown>[]).map(rowToUser);
+  }
+  return (db().prepare("SELECT * FROM users ORDER BY enterprise_id, created_at ASC").all() as Record<string, unknown>[]).map(rowToUser);
+}
+
+export function getUser(id: string): User | undefined {
+  const row = db().prepare("SELECT * FROM users WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  return row ? rowToUser(row) : undefined;
+}
+
+export function deleteUser(id: string): boolean {
+  const result = db().prepare("DELETE FROM users WHERE id = ?").run(id);
   return result.changes > 0;
 }
 
@@ -347,21 +430,49 @@ export function setToolStatus(id: string, status: ToolDefinition["status"]): Too
   return { ...tool, status };
 }
 
-function simulateToolOutput(tool: ToolDefinition, input: Record<string, unknown>, dryRun: boolean): string {
+async function simulateToolOutput(tool: ToolDefinition, input: Record<string, unknown>, dryRun: boolean): Promise<string> {
   const mode = dryRun ? "dry-run" : "live";
-  if (tool.kind === "cli") {
-    return `[${mode}] CLI adapter would run a sandboxed parser for ${tool.name}. Input keys: ${Object.keys(input).join(", ") || "none"}.`;
+
+  // Try real executor first (live mode)
+  if (!dryRun) {
+    const executor = getExecutor(tool.id);
+    if (executor) {
+      try {
+        const output = await executor(input);
+        return output;
+      } catch (e) {
+        return JSON.stringify({ error: e instanceof Error ? e.message : "Executor failed" });
+      }
+    }
   }
-  if (tool.kind === "mcp") {
-    return `[${mode}] MCP adapter would expose scoped enterprise context through tool ${tool.id}.`;
+
+  // Fallback: AI-simulated output
+  try {
+    const prompt = typeof input.prompt === "string" ? input.prompt : JSON.stringify(input);
+    const result = await aiChat({
+      systemPrompt: `你是工具执行 Agent，负责模拟工具 ${tool.name}（${tool.kind}）的执行结果。根据用户输入给出具体、有用的输出，不要只说"已执行"。
+工具描述：${tool.description}
+示例提示：${tool.examplePrompt}`,
+      userMessage: prompt,
+      temperature: 0.5,
+      maxTokens: 1024,
+    });
+    return `[${mode}] ${result}`;
+  } catch {
+    if (tool.kind === "cli") {
+      return `[${mode}] CLI adapter would run a sandboxed parser for ${tool.name}.`;
+    }
+    if (tool.kind === "mcp") {
+      return `[${mode}] MCP adapter would expose scoped enterprise context through tool ${tool.id}.`;
+    }
+    if (tool.kind === "browser") {
+      return `[${mode}] Browser adapter would open the target page and return structured observations.`;
+    }
+    return `[${mode}] HTTP adapter would call a configured webhook with a signed payload.`;
   }
-  if (tool.kind === "browser") {
-    return `[${mode}] Browser adapter would open the target page and return structured observations.`;
-  }
-  return `[${mode}] HTTP adapter would call a configured webhook with a signed payload.`;
 }
 
-export function runTool(toolId: string, input: RunToolRequest): ToolRun | undefined {
+export async function runTool(toolId: string, input: RunToolRequest): Promise<ToolRun | undefined> {
   const tool = getTool(toolId);
   if (!tool) return undefined;
 
@@ -371,7 +482,7 @@ export function runTool(toolId: string, input: RunToolRequest): ToolRun | undefi
   const status: ToolRun["status"] = tool.status === "disabled" ? "error" : "success";
   const output = tool.status === "disabled"
     ? `Tool ${tool.name} is disabled.`
-    : simulateToolOutput(tool, input.input, dryRun);
+    : await simulateToolOutput(tool, input.input, dryRun);
 
   db()
     .prepare("INSERT INTO tool_runs (id, tool_id, status, input, output, created_at) VALUES (?, ?, ?, ?, ?, ?)")
@@ -416,6 +527,13 @@ function rowToProvider(r: Record<string, unknown>): ModelProvider {
     model: r.model as string,
     configured: Boolean(process.env[keyName]),
     enabled: (r.enabled as number) === 1,
+  };
+}
+
+function rowToRuntimeProvider(r: Record<string, unknown>): AgentRuntimeProvider {
+  return {
+    ...rowToProvider(r),
+    apiKeyEnv: r.api_key_env as string,
   };
 }
 
@@ -475,6 +593,81 @@ export function listPersonas(): AgentPersona[] {
 
 export function listProviders(): ModelProvider[] {
   return (db().prepare("SELECT * FROM model_providers ORDER BY id").all() as Record<string, unknown>[]).map(rowToProvider);
+}
+
+function getRuntimeProvider(id?: string): AgentRuntimeProvider | undefined {
+  const row = id
+    ? db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(id)
+    : db().prepare("SELECT * FROM model_providers WHERE enabled = 1 ORDER BY id LIMIT 1").get();
+  return row ? rowToRuntimeProvider(row as Record<string, unknown>) : undefined;
+}
+
+export function createProvider(input: { name: string; baseUrl: string; model: string; apiKeyEnv: string }): ModelProvider {
+  const id = `provider-${randomUUID()}`;
+  db()
+    .prepare("INSERT INTO model_providers (id, name, base_url, model, api_key_env, enabled) VALUES (?, ?, ?, ?, ?, 1)")
+    .run(id, input.name.trim(), input.baseUrl.trim(), input.model.trim(), input.apiKeyEnv.trim());
+  return rowToProvider(db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function deleteProvider(id: string): boolean {
+  const result = db().prepare("DELETE FROM model_providers WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
+export async function testProviderConnection(id: string): Promise<{ ok: boolean; message: string }> {
+  const provider = db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!provider) return { ok: false, message: "Provider not found" };
+  const apiKey = process.env[provider.api_key_env as string];
+  if (!apiKey) return { ok: false, message: `环境变量 ${provider.api_key_env} 未配置` };
+  try {
+    const res = await fetch(`${provider.base_url}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: provider.model, messages: [{ role: "user", content: "hi" }], max_tokens: 5 }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) return { ok: true, message: "连接成功" };
+    const text = await res.text();
+    return { ok: false, message: `HTTP ${res.status}: ${text.slice(0, 150)}` };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "连接失败" };
+  }
+}
+
+export function createPersona(input: { name: string; role: string; description: string; systemPrompt: string; providerId: string }): AgentPersona {
+  const id = `persona-${randomUUID()}`;
+  db()
+    .prepare("INSERT INTO agent_personas (id, name, role, description, system_prompt, default_skill_ids, provider_id, enabled) VALUES (?, ?, ?, ?, ?, '[]', ?, 1)")
+    .run(id, input.name.trim(), input.role.trim(), input.description.trim(), input.systemPrompt.trim(), input.providerId);
+  return rowToPersona(db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function updatePersona(id: string, input: { name?: string; role?: string; description?: string; systemPrompt?: string; providerId?: string; enabled?: boolean }): AgentPersona | undefined {
+  const row = db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const current = rowToPersona(row);
+  const next: Record<string, unknown> = {
+    name: input.name ?? current.name,
+    role: input.role ?? current.role,
+    description: input.description ?? current.description,
+    system_prompt: input.systemPrompt ?? current.systemPrompt,
+    provider_id: input.providerId ?? current.providerId,
+    enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : (current.enabled ? 1 : 0),
+  };
+  db()
+    .prepare("UPDATE agent_personas SET name=?, role=?, description=?, system_prompt=?, provider_id=?, enabled=? WHERE id=?")
+    .run(next.name, next.role, next.description, next.system_prompt, next.provider_id, next.enabled, id);
+  return rowToPersona(db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function deletePersona(id: string): boolean {
+  const result = db().prepare("DELETE FROM agent_personas WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
+export function listAllPersonas(): AgentPersona[] {
+  return (db().prepare("SELECT * FROM agent_personas ORDER BY enabled DESC, id").all() as Record<string, unknown>[]).map(rowToPersona);
 }
 
 // ---- Conversations ----
@@ -564,9 +757,53 @@ export function deleteConversation(id: string): boolean {
   return result.changes > 0;
 }
 
-export function addMessage(conversationId: string, input: AddMessageRequest): Message | undefined {
-  const conv = db().prepare("SELECT id FROM conversations WHERE id = ?").get(conversationId);
+function buildProjectContext(enterpriseId: string, projectIds: string[]): string {
+  const placeholders = projectIds.map(() => "?").join(",");
+  if (!placeholders) return "";
+
+  const projects = db()
+    .prepare(`SELECT * FROM projects WHERE enterprise_id = ? AND id IN (${placeholders}) ORDER BY created_at ASC`)
+    .all(enterpriseId, ...projectIds) as Record<string, unknown>[];
+  const allowedProjectIds = projects.map((project) => project.id as string);
+  if (allowedProjectIds.length === 0) return "";
+
+  const allowedPlaceholders = allowedProjectIds.map(() => "?").join(",");
+  const libraryItems = db()
+    .prepare(`SELECT * FROM library_items WHERE project_id IN (${allowedPlaceholders}) ORDER BY created_at DESC LIMIT 16`)
+    .all(...allowedProjectIds) as Record<string, unknown>[];
+  const automations = db()
+    .prepare(`SELECT * FROM automations WHERE project_id IN (${allowedPlaceholders}) ORDER BY enabled DESC, run_count DESC LIMIT 16`)
+    .all(...allowedProjectIds) as Record<string, unknown>[];
+  const conversations = db()
+    .prepare(`SELECT * FROM conversations WHERE project_id IN (${allowedPlaceholders}) ORDER BY created_at DESC LIMIT 12`)
+    .all(...allowedProjectIds) as Record<string, unknown>[];
+
+  const projectLines = projects.map((project) => {
+    return `- ${project.name}: ${(project.description as string | null) || "无描述"} (id: ${project.id})`;
+  });
+  const libraryLines = libraryItems.map((item) => {
+    return `- [${item.type}] ${item.name}: ${item.summary}`;
+  });
+  const automationLines = automations.map((automation) => {
+    const enabled = (automation.enabled as number) === 1 ? "enabled" : "disabled";
+    return `- ${automation.name} (${enabled}): 当 ${automation.trigger_desc} -> ${automation.action_desc}`;
+  });
+  const conversationLines = conversations.map((conversation) => {
+    return `- ${conversation.title}: tags ${conversation.tags}`;
+  });
+
+  return [
+    `Projects:\n${projectLines.join("\n") || "- 无"}`,
+    `Library:\n${libraryLines.join("\n") || "- 无"}`,
+    `Automations:\n${automationLines.join("\n") || "- 无"}`,
+    `Recent conversations:\n${conversationLines.join("\n") || "- 无"}`,
+  ].join("\n\n");
+}
+
+export async function addMessage(conversationId: string, input: AddMessageRequest): Promise<Message | undefined> {
+  const conv = db().prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId) as Record<string, unknown> | undefined;
   if (!conv) return undefined;
+  const conversation = rowToConversation(conv);
 
   const userMsg: Message = {
     id: `msg-${randomUUID()}`,
@@ -574,39 +811,72 @@ export function addMessage(conversationId: string, input: AddMessageRequest): Me
     content: input.content,
     createdAt: new Date().toISOString(),
   };
-  db()
-    .prepare("INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)")
-    .run(userMsg.id, conversationId, userMsg.role, userMsg.content, userMsg.createdAt);
+  const insertMsg = db().prepare(
+    "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+  );
+  const deleteMsg = db().prepare("DELETE FROM messages WHERE id = ?");
+
+  insertMsg.run(userMsg.id, conversationId, userMsg.role, userMsg.content, userMsg.createdAt);
 
   const personas = listPersonas();
   const skills = listSkills();
+  const tools = listTools();
   const persona = personas.find((item) => item.id === input.personaId) ?? personas[0];
   const selectedSkillIds = input.skillIds?.length ? input.skillIds : persona?.defaultSkillIds ?? [];
   const selectedSkills = skills.filter((item) => selectedSkillIds.includes(item.id));
-  const providers = listProviders();
-  const provider = providers.find((item) => item.id === persona?.providerId) ?? providers[0];
-  const contextLabel = input.contextScope === "selected_projects"
+  const provider = getRuntimeProvider(persona?.providerId) ?? getRuntimeProvider();
+  const contextLabel =
+    input.contextScope === "selected_projects"
       ? `结合 ${input.contextProjectIds?.length ?? 0} 个指定项目资料`
       : "仅分析当前项目资料";
+  const contextProjectIds =
+    input.contextScope === "selected_projects" && input.contextProjectIds?.length
+      ? input.contextProjectIds
+      : [conversation.projectId];
+  const projectContext = buildProjectContext(conversation.enterpriseId, contextProjectIds);
 
-  const aiReply: Message = {
-    id: `msg-${randomUUID()}`,
-    role: "assistant",
-    content: [
-      `${persona?.name ?? "Agent"} 已接手。`,
-      `模型：${provider?.name ?? "未配置"} / ${provider?.model ?? "unknown"}${provider?.configured ? "" : "（待配置 API Key）"}`,
-      `资料范围：${contextLabel}`,
-      selectedSkills.length > 0 ? `启用能力：${selectedSkills.map((item) => item.name).join("、")}` : "启用能力：无",
-      "",
-      "我会先按所选资料范围检索项目上下文，再调用匹配的 skill/tool 形成诊断。当前回复仍是编排层模拟，下一步可接 DeepSeek chat completions 生成正式答案。",
-    ].join("\n"),
-    createdAt: new Date().toISOString(),
-  };
-  db()
-    .prepare("INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)")
-    .run(aiReply.id, conversationId, aiReply.role, aiReply.content, aiReply.createdAt);
+  try {
+    const historyRows = db()
+      .prepare("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC")
+      .all(conversationId) as Record<string, unknown>[];
+    const history = historyRows.map(rowToMessage);
 
-  return aiReply;
+    const result = await runAgentKernel({
+      userContent: input.content,
+      history,
+      persona,
+      skills: selectedSkills,
+      tools,
+      provider,
+      context: {
+        conversationTitle: conversation.title,
+        contextLabel,
+        projectContext,
+      },
+      runTool: (toolId, toolInput, options) =>
+        runTool(toolId, {
+          input: {
+            ...toolInput,
+            _agentReason: options.reason,
+          },
+          dryRun: options.dryRun,
+        }),
+    });
+
+    const aiReply: Message = {
+      id: `msg-${randomUUID()}`,
+      role: "assistant",
+      content: result.content,
+      createdAt: new Date().toISOString(),
+    };
+    insertMsg.run(aiReply.id, conversationId, aiReply.role, aiReply.content, aiReply.createdAt);
+
+    return aiReply;
+  } catch (e) {
+    console.error("Agent kernel failed:", e);
+    deleteMsg.run(userMsg.id);
+    throw e;
+  }
 }
 
 // ---- Workspace (aggregate query) ----
@@ -615,6 +885,7 @@ export function getWorkspace(): Workspace {
   const d = db();
 
   const enterprises = (d.prepare("SELECT * FROM enterprises ORDER BY id").all() as Record<string, unknown>[]).map(rowToEnterprise);
+  const users = listUsers();
   const projects = (d.prepare("SELECT * FROM projects ORDER BY created_at ASC").all() as Record<string, unknown>[]).map(rowToProject);
   const conversations = (d.prepare("SELECT * FROM conversations ORDER BY created_at ASC").all() as Record<string, unknown>[]).map(rowToConversation);
   const libraryItems = (d.prepare("SELECT * FROM library_items ORDER BY created_at ASC").all() as Record<string, unknown>[]).map(rowToLibraryItem);
@@ -626,5 +897,5 @@ export function getWorkspace(): Workspace {
   const personas = listPersonas();
   const providers = listProviders();
 
-  return { enterprises, projects, conversations, libraryItems, plugins, automations, tools, recentToolRuns, skills, personas, providers };
+  return { enterprises, users, projects, conversations, libraryItems, plugins, automations, tools, recentToolRuns, skills, personas, providers };
 }

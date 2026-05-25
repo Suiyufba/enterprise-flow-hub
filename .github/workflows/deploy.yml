@@ -1,0 +1,114 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set image names
+        run: |
+          OWNER_LC="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE_PREFIX="ghcr.io/${OWNER_LC}/enterprise-flow-hub"
+          echo "BACKEND_IMAGE=${IMAGE_PREFIX}-backend:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE=${IMAGE_PREFIX}-frontend:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "BACKEND_IMAGE_LATEST=${IMAGE_PREFIX}-backend:latest" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE_LATEST=${IMAGE_PREFIX}-frontend:latest" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}
+            ${{ env.BACKEND_IMAGE_LATEST }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}
+            ${{ env.FRONTEND_IMAGE_LATEST }}
+
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload deployment files
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "mkdir -p /opt/enterprise-flow-hub"
+          scp -i ~/.ssh/deploy_key deploy/docker-compose.yml deploy/nginx.conf "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/enterprise-flow-hub/"
+
+      - name: Deploy on server
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            BACKEND_IMAGE="${BACKEND_IMAGE}" \
+            FRONTEND_IMAGE="${FRONTEND_IMAGE}" \
+            GHCR_USER="${{ github.actor }}" \
+            GHCR_TOKEN="${GHCR_TOKEN}" \
+            DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
+            DEPLOY_HOST="${{ secrets.SSH_HOST }}" \
+            'bash -s' <<'EOF'
+          set -euo pipefail
+          cd /opt/enterprise-flow-hub
+
+          cat > .env <<ENVEOF
+          BACKEND_IMAGE=${BACKEND_IMAGE}
+          FRONTEND_IMAGE=${FRONTEND_IMAGE}
+          CORS_ORIGIN=http://${DEPLOY_HOST}
+          DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+          DEEPSEEK_BASE_URL=https://api.deepseek.com
+          DEEPSEEK_MODEL=deepseek-chat
+          ENVEOF
+
+          echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+          docker compose pull
+          docker compose up -d
+
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 delete poke-card-api || true
+            pm2 save || true
+          fi
+
+          sudo cp /opt/enterprise-flow-hub/nginx.conf /etc/nginx/sites-available/enterprise-flow-hub
+          sudo ln -sf /etc/nginx/sites-available/enterprise-flow-hub /etc/nginx/sites-enabled/enterprise-flow-hub
+          sudo rm -f /etc/nginx/sites-enabled/poke-card-emulator
+          sudo nginx -t
+          sudo systemctl reload nginx
+          docker compose ps
+          EOF

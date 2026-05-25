@@ -5,6 +5,19 @@ CREATE TABLE IF NOT EXISTS enterprises (
   name       TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  display_name  TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_enterprise ON users(enterprise_id);
+CREATE INDEX IF NOT EXISTS idx_users_username  ON users(username);
+
 CREATE TABLE IF NOT EXISTS projects (
   id            TEXT PRIMARY KEY,
   enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,

@@ -20,11 +20,71 @@ Health check endpoint.
 
 ---
 
+## Auth
+
+### `POST /auth/register`
+
+Register a new user under an enterprise.
+
+**Request body**
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| enterpriseId | string | yes | existing enterprise ID |
+| username | string | yes | 2–40 chars, unique |
+| password | string | yes | 4–100 chars |
+| displayName | string | yes | 1–60 chars |
+
+**Response 201** — the created `User`
+
+**Response 409** — `{ "error": "用户名已存在或企业不存在" }`
+
+### `POST /auth/login`
+
+Login with username and password.
+
+**Request body**
+
+| Field | Type | Required |
+|-------|------|----------|
+| username | string | yes |
+| password | string | yes |
+
+**Response 200** — the `User` object (without password)
+
+**Response 401** — `{ "error": "用户名或密码错误" }`
+
+### `GET /users`
+
+List users, optionally filtered by enterprise.
+
+**Query params**
+
+| Param | Type | Required |
+|-------|------|----------|
+| enterpriseId | string | no |
+
+**Response 200** — `User[]`
+
+### `GET /users/:id`
+
+Get a single user.
+
+**Response 200** — `User` | **Response 404**
+
+### `DELETE /users/:id`
+
+Delete a user.
+
+**Response 204** | **Response 404**
+
+---
+
 ## Workspace
 
 ### `GET /workspace`
 
-Returns the full workspace: enterprises, projects, conversations, library items, plugins, and automations.
+Returns the full workspace: enterprises, users, projects, conversations, library items, plugins, and automations.
 
 **Response 200**
 
@@ -350,7 +410,7 @@ Add a user message and let the selected agent role handle it.
 | content | string | yes |
 | personaId | string | no |
 | skillIds | string[] | no |
-| contextScope | string | no, `current_project` \| `selected_projects` \| `all_projects` |
+| contextScope | string | no, `current_project` \| `selected_projects` \ |
 | contextProjectIds | string[] | no |
 
 ---
@@ -633,3 +693,100 @@ Or for validation errors:
   }
 }
 ```
+
+---
+
+## Authentication
+
+When `API_KEY` is configured in the server environment, all endpoints (except `/health`) require the header:
+
+```
+Authorization: Bearer <api-key>
+```
+
+Requests without a valid key receive `401 { "error": "Unauthorized" }`. In development mode (`API_KEY` not set), authentication is skipped.
+
+---
+
+## Settings
+
+### `GET /settings/providers`
+
+List all configured model providers.
+
+**Response 200** — `{ "providers": [...] }`
+
+### `POST /settings/providers`
+
+Add a new model provider.
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| name | string | yes | 1–60 chars, custom display name |
+| baseUrl | string | yes | 1–200 chars, API base URL |
+| model | string | yes | 1–60 chars, model identifier |
+| apiKeyEnv | string | yes | 1–60 chars, env variable name holding the key |
+
+**Response 201** — the created `ModelProvider`
+
+### `DELETE /settings/providers/:id`
+
+Remove a model provider.
+
+**Response 204** | **Response 404**
+
+### `POST /settings/providers/:id/test`
+
+Test connectivity to a model provider by sending a minimal API call.
+
+**Response 200** — `{ "ok": true, "message": "连接成功" }` or `{ "ok": false, "message": "..." }`
+
+### `GET /settings/personas`
+
+List all agent personas (including disabled ones).
+
+**Response 200** — `{ "personas": [...] }`
+
+### `POST /settings/personas`
+
+Create a new agent persona.
+
+| Field | Type | Required | Constraints |
+|-------|------|----------|-------------|
+| name | string | yes | 1–60 chars |
+| role | string | yes | 1–60 chars |
+| description | string | yes | 1–300 chars |
+| systemPrompt | string | yes | 1–2000 chars |
+| providerId | string | yes | must match a provider ID |
+
+**Response 201** — the created `AgentPersona`
+
+### `PATCH /settings/personas/:id`
+
+Update a persona. All fields optional.
+
+**Response 200** — updated `AgentPersona` | **Response 404**
+
+### `DELETE /settings/personas/:id`
+
+**Response 204** | **Response 404**
+
+### `POST /settings/generate-prompt`
+
+Use AI to generate a system prompt based on a description.
+
+| Field | Type | Required |
+|-------|------|----------|
+| description | string | yes, 1–500 chars |
+
+**Response 200** — `{ "prompt": "..." }`
+
+---
+
+## Tools
+
+### `GET /tools/:id`
+
+Get a single tool definition by ID.
+
+**Response 200** — `ToolDefinition` | **Response 404**

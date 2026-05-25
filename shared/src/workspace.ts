@@ -5,6 +5,27 @@ export const EnterpriseSchema = z.object({
   name: z.string(),
 });
 
+export const UserSchema = z.object({
+  id: z.string(),
+  enterpriseId: z.string(),
+  username: z.string(),
+  displayName: z.string(),
+  role: z.enum(["admin", "member"]),
+  createdAt: z.string(),
+});
+
+export const RegisterUserRequestSchema = z.object({
+  enterpriseId: z.string(),
+  username: z.string().min(2).max(40),
+  password: z.string().min(4).max(100),
+  displayName: z.string().min(1).max(60),
+});
+
+export const LoginRequestSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+
 export const ProjectSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
@@ -119,6 +140,7 @@ export const ModelProviderSchema = z.object({
 
 export const WorkspaceSchema = z.object({
   enterprises: z.array(EnterpriseSchema),
+  users: z.array(UserSchema),
   projects: z.array(ProjectSchema),
   conversations: z.array(ConversationSchema),
   libraryItems: z.array(LibraryItemSchema),
@@ -211,6 +233,9 @@ export const UpdateSkillRequestSchema = z.object({
 });
 
 export type Enterprise = z.infer<typeof EnterpriseSchema>;
+export type User = z.infer<typeof UserSchema>;
+export type RegisterUserRequest = z.infer<typeof RegisterUserRequestSchema>;
+export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;
 export type Message = z.infer<typeof MessageSchema>;

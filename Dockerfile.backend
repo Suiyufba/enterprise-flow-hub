@@ -1,0 +1,24 @@
+FROM node:22-alpine
+
+RUN corepack enable
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY backend/package.json backend/package.json
+COPY frontend/package.json frontend/package.json
+COPY shared/package.json shared/package.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=4000
+ENV DB_PATH=/data/efh.db
+
+EXPOSE 4000
+
+CMD ["pnpm", "--filter", "backend", "exec", "tsx", "src/main.ts"]
+

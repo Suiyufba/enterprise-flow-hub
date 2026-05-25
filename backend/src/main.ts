@@ -2,13 +2,34 @@ import "./config/env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { analysisRoutes } from "./routes/analysis.js";
+import { authRoutes } from "./routes/auth.js";
 import { exportRoutes } from "./routes/export.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { toolRoutes } from "./routes/tools.js";
 import { workspaceRoutes } from "./routes/workspace.js";
 
+const API_KEY = process.env.API_KEY;
+
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: true });
+await app.register(cors, {
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim())
+    : ["http://localhost:3000", "http://localhost:3001"],
+});
+
+// API key auth hook — skipped when API_KEY is not configured (dev mode)
+app.addHook("onRequest", async (request, reply) => {
+  if (!API_KEY) return;
+  if (request.url === "/health") return;
+  if (request.method === "OPTIONS") return;
+
+  const header = request.headers.authorization;
+  const key = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
+  if (key !== API_KEY) {
+    return reply.status(401).send({ error: "Unauthorized" });
+  }
+});
 
 app.get("/health", async () => ({
   ok: true,
@@ -16,7 +37,9 @@ app.get("/health", async () => ({
 }));
 
 await app.register(analysisRoutes);
+await app.register(authRoutes);
 await app.register(exportRoutes);
+await app.register(settingsRoutes);
 await app.register(toolRoutes);
 await app.register(workspaceRoutes);
 

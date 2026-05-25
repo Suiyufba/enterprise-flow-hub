@@ -229,7 +229,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const msg = addMessage(id, parsed.data);
+    const msg = await addMessage(id, parsed.data);
     if (!msg) {
       return reply.status(404).send({ error: "Conversation not found" });
     }

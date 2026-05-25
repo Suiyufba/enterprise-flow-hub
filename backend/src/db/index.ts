@@ -37,7 +37,8 @@ export function getDb(): Database.Database {
     const skillCount = db.prepare("SELECT COUNT(*) as cnt FROM agent_skills").get() as { cnt: number };
     const personaCount = db.prepare("SELECT COUNT(*) as cnt FROM agent_personas").get() as { cnt: number };
     const providerCount = db.prepare("SELECT COUNT(*) as cnt FROM model_providers").get() as { cnt: number };
-    if (skillCount.cnt === 0 || personaCount.cnt === 0 || providerCount.cnt === 0) {
+    const userCount = db.prepare("SELECT COUNT(*) as cnt FROM users").get() as { cnt: number };
+    if (skillCount.cnt === 0 || personaCount.cnt === 0 || providerCount.cnt === 0 || userCount.cnt === 0) {
       const seed = readFileSync(join(__dirname, "seed.sql"), "utf-8");
       db.exec(seed);
     }

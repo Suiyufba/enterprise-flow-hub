@@ -4,35 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentSkill, Automation, LibraryItem, Plugin, Project, ToolDefinition, Workspace } from "shared";
 import { fetchJson } from "../lib/api";
-
-const emptyWorkspace: Workspace = {
-  enterprises: [],
-  projects: [],
-  conversations: [],
-  libraryItems: [],
-  plugins: [],
-  automations: [],
-  tools: [],
-  recentToolRuns: [],
-  skills: [],
-  personas: [],
-  providers: [],
-};
-
-function useWorkspace() {
-  const [workspace, setWorkspace] = useState<Workspace>(emptyWorkspace);
-  const [loading, setLoading] = useState(true);
-
-  async function refresh() {
-    setWorkspace(await fetchJson<Workspace>("/workspace"));
-  }
-
-  useEffect(() => {
-    refresh().finally(() => setLoading(false));
-  }, []);
-
-  return { workspace, loading, refresh };
-}
+import { useWorkspace } from "../lib/workspace-context";
 
 export function SearchPage() {
   const router = useRouter();
@@ -817,6 +789,7 @@ export function NewProjectPage() {
 }
 
 export function ProjectDetailPage({ id }: { id: string }) {
+  const router = useRouter();
   const { workspace } = useWorkspace();
   const project = workspace.projects.find((item) => item.id === id);
   const enterprise = project ? workspace.enterprises.find((item) => item.id === project.enterpriseId) : undefined;
@@ -825,21 +798,290 @@ export function ProjectDetailPage({ id }: { id: string }) {
     return <PageShell title="项目" description="正在加载项目详情。" />;
   }
 
+  const conversations = workspace.conversations.filter((item) => item.projectId === id);
+  const libraryItems = workspace.libraryItems.filter((item) => item.projectId === id);
+  const automations = workspace.automations.filter((item) => item.projectId === id);
+  const activeAutomations = automations.filter((a) => a.enabled);
+
+  const typeIcon: Record<string, string> = {
+    screenshot: "🖼",
+    spreadsheet: "📊",
+    document: "📄",
+    note: "📝",
+  };
+  const typeClass: Record<string, string> = {
+    screenshot: "image",
+    spreadsheet: "sheet",
+    document: "doc",
+    note: "doc",
+  };
+  const recentConversations = [...conversations]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 4);
+  const recentLibrary = [...libraryItems]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3);
+  const recentAutomations = [...automations].slice(0, 3);
+
+  function timeAgo(iso: string) {
+    const diff = Date.now() - new Date(iso).getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return "刚刚";
+    if (min < 60) return `${min} 分钟前`;
+    const hours = Math.floor(min / 60);
+    if (hours < 24) return `${hours} 小时前`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} 天前`;
+    return new Date(iso).toLocaleDateString("zh-CN");
+  }
+
   return (
-    <PageShell title={`${enterprise?.name ?? "企业"} / ${project.name}`} description={project.description ?? "暂无项目说明。"}>
-      <div className="page-stats">
-        <Stat label="对话" value={workspace.conversations.filter((item) => item.projectId === id).length} />
-        <Stat label="资料" value={workspace.libraryItems.filter((item) => item.projectId === id).length} />
-        <Stat label="自动化" value={workspace.automations.filter((item) => item.projectId === id).length} />
+    <div className="page-shell">
+      {/* ── Hero Banner ── */}
+      <div className="project-hero">
+        <div className="project-hero-breadcrumb">
+          <span className="ent-name">{enterprise?.name ?? "企业"}</span>
+          <span className="sep">›</span>
+          <span className="proj-name">{project.name}</span>
+        </div>
+        <h1 className="project-hero-title">{project.name}</h1>
+        <p className="project-hero-desc">
+          {project.description ?? "项目子集合，承载业务流程的诊断、资料沉淀与自动化规则。"}
+        </p>
+        <div className="project-hero-actions">
+          <button
+            className="project-hero-btn primary"
+            onClick={() => router.push(`/?projectId=${project.id}`)}
+            type="button"
+          >
+            ⚡ 开始诊断
+          </button>
+          <button
+            className="project-hero-btn secondary"
+            onClick={() => router.push("/automation")}
+            type="button"
+          >
+            + 新建自动化
+          </button>
+          <button
+            className="project-hero-btn secondary"
+            onClick={() => router.push("/library")}
+            type="button"
+          >
+            + 添加资料
+          </button>
+        </div>
       </div>
-      <div className="page-card-grid">
-        <article className="page-card">
-          <span>子类</span>
-          <h3>{project.name}</h3>
-          <p>这是 {enterprise?.name} 下的项目子集合，后续新增的资料、对话和自动化都会归在这里。</p>
-        </article>
+
+      {/* ── Metric Grid ── */}
+      <div className="project-metrics">
+        <div className="project-metric">
+          <div className="project-metric-icon conversations">💬</div>
+          <div className="project-metric-value">{conversations.length}</div>
+          <div className="project-metric-label">诊断对话</div>
+          {conversations.length > 0 && (
+            <div className="project-metric-sub">
+              最近 {timeAgo(conversations.reduce((latest, c) =>
+                c.createdAt > latest ? c.createdAt : latest, conversations[0].createdAt
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="project-metric">
+          <div className="project-metric-icon library">📚</div>
+          <div className="project-metric-value">{libraryItems.length}</div>
+          <div className="project-metric-label">业务资料</div>
+        </div>
+        <div className="project-metric">
+          <div className="project-metric-icon automations">⚙</div>
+          <div className="project-metric-value">{automations.length}</div>
+          <div className="project-metric-label">自动化规则</div>
+          {automations.length > 0 && (
+            <div className="project-metric-sub">
+              <span className="project-metric-indicator on" />
+              <span className="highlight">{activeAutomations.length}</span> 个运行中
+            </div>
+          )}
+        </div>
+        <div className="project-metric">
+          <div className="project-metric-icon analysis">🎯</div>
+          <div className="project-metric-value">{conversations.length}</div>
+          <div className="project-metric-label">分析次数</div>
+          <div className="project-metric-sub">
+            覆盖 {enterprise?.name ?? "—"} 线索流程
+          </div>
+        </div>
       </div>
-    </PageShell>
+
+      {/* ── Two-column Content ── */}
+      <div className="project-content-grid">
+        {/* Left: Recent Conversations Timeline */}
+        <div className="project-section">
+          <div className="project-section-header">
+            <span className="project-section-title">最近对话</span>
+            {conversations.length > 4 && (
+              <span className="project-section-link">查看全部 →</span>
+            )}
+          </div>
+          {recentConversations.length === 0 ? (
+            <div className="project-empty">暂无诊断对话</div>
+          ) : (
+            <div className="project-timeline" style={{ position: "relative" }}>
+              {recentConversations.length > 1 && (
+                <div className="project-timeline-line" />
+              )}
+              {recentConversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  className="project-timeline-item"
+                  onClick={() => router.push(`/chat/${conv.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") router.push(`/chat/${conv.id}`);
+                  }}
+                >
+                  <div className="project-timeline-dot" />
+                  <div className="project-timeline-content">
+                    <div className="project-timeline-title">{conv.title}</div>
+                    <div className="project-timeline-meta">{timeAgo(conv.createdAt)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: Resources & Automations */}
+        <div style={{ display: "grid", gap: "14px", alignContent: "start" }}>
+          {/* Library */}
+          <div className="project-section">
+            <div className="project-section-header">
+              <span className="project-section-title">业务资料</span>
+              <button
+                className="project-section-link"
+                onClick={() => router.push("/library")}
+                type="button"
+              >
+                资料库 →
+              </button>
+            </div>
+            {recentLibrary.length === 0 ? (
+              <div className="project-empty">暂无业务资料</div>
+            ) : (
+              <div className="project-resource-list">
+                {recentLibrary.map((item) => (
+                  <div
+                    key={item.id}
+                    className="project-resource-card"
+                    onClick={() => router.push("/library")}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") router.push("/library");
+                    }}
+                  >
+                    <div className={`project-resource-icon ${typeClass[item.type]}`}>
+                      {typeIcon[item.type]}
+                    </div>
+                    <div className="project-resource-info">
+                      <div className="project-resource-name">{item.name}</div>
+                      <div className="project-resource-sub">{item.type === "screenshot" ? "截图" : item.type === "spreadsheet" ? "表格" : item.type === "document" ? "文档" : "备注"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Automations */}
+          <div className="project-section">
+            <div className="project-section-header">
+              <span className="project-section-title">自动化规则</span>
+              <button
+                className="project-section-link"
+                onClick={() => router.push("/automation")}
+                type="button"
+              >
+                管理 →
+              </button>
+            </div>
+            {recentAutomations.length === 0 ? (
+              <div className="project-empty">暂无自动化规则</div>
+            ) : (
+              <div className="project-resource-list">
+                {recentAutomations.map((auto) => (
+                  <div
+                    key={auto.id}
+                    className="project-resource-card"
+                    onClick={() => router.push("/automation")}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") router.push("/automation");
+                    }}
+                  >
+                    <div className="project-resource-icon bot">🤖</div>
+                    <div className="project-resource-info">
+                      <div className="project-resource-name">{auto.name}</div>
+                      <div className="project-resource-sub">
+                        运行 {auto.runCount} 次
+                      </div>
+                    </div>
+                    <span className={`project-resource-badge ${auto.enabled ? "active" : "paused"}`}>
+                      {auto.enabled ? "运行中" : "已暂停"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Quick Actions ── */}
+      <div className="project-quick-actions">
+        <div
+          className="project-quick-action"
+          onClick={() => router.push(`/?projectId=${project.id}`)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") router.push(`/?projectId=${project.id}`);
+          }}
+        >
+          <span className="project-quick-action-icon">🔍</span>
+          <h4>业务流程诊断</h4>
+          <p>上传截图或描述流程，AI 自动分析瓶颈与优化机会</p>
+        </div>
+        <div
+          className="project-quick-action"
+          onClick={() => router.push("/library")}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") router.push("/library");
+          }}
+        >
+          <span className="project-quick-action-icon">📁</span>
+          <h4>管理项目资料</h4>
+          <p>上传 Excel、截图、文档，沉淀业务知识与数据</p>
+        </div>
+        <div
+          className="project-quick-action"
+          onClick={() => router.push("/automation")}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") router.push("/automation");
+          }}
+        >
+          <span className="project-quick-action-icon">⚡</span>
+          <h4>配置自动化</h4>
+          <p>设置触发规则与 AI 动作，让重复流程自动运行</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -855,11 +1097,3 @@ function PageShell({ title, description, children }: { title: string; descriptio
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="page-stat">
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}

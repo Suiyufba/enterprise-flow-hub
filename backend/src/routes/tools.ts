@@ -36,7 +36,7 @@ export async function toolRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const result = runTool(id, parsed.data);
+    const result = await runTool(id, parsed.data);
     if (!result) {
       return reply.status(404).send({ error: "Tool not found" });
     }

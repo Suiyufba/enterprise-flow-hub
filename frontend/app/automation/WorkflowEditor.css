@@ -1,0 +1,237 @@
+/* ---- Workflow Editor ---- */
+.wf-editor-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-151515);
+}
+
+.wf-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--c-303030);
+  background: var(--c-1d1d1d);
+  flex-shrink: 0;
+  min-height: 56px;
+}
+
+.wf-topbar .chat-back {
+  flex-shrink: 0;
+}
+
+.wf-project-select {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.wf-title-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--c-f4f4f4);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.wf-title-input::placeholder {
+  color: var(--c-777777);
+}
+
+.wf-topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.wf-saved-msg {
+  font-size: 12px;
+  color: var(--c-6ecf8a);
+  white-space: nowrap;
+}
+
+.wf-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.wf-palette {
+  width: 180px;
+  border-right: 1px solid var(--c-303030);
+  background: var(--c-1d1d1d);
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.wf-palette-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-8f8f8f);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wf-palette-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid;
+  border-radius: 10px;
+  background: var(--c-202020);
+  color: var(--c-d4d4d4);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.wf-palette-item:hover {
+  background: var(--c-2a2a2a);
+}
+
+.wf-palette-item:active {
+  cursor: grabbing;
+}
+
+.wf-palette-icon {
+  font-size: 18px;
+}
+
+.wf-palette-hint {
+  font-size: 11px;
+  color: var(--c-737373);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.wf-canvas {
+  flex: 1;
+  background: var(--c-151515);
+}
+
+/* Override react-flow light theme defaults */
+.wf-canvas .react-flow__controls-button {
+  background: var(--c-202020);
+  border: 1px solid var(--c-303030);
+  fill: var(--c-d4d4d4);
+  color: var(--c-d4d4d4);
+}
+
+.wf-canvas .react-flow__controls-button:hover {
+  background: var(--c-2a2a2a);
+}
+
+.wf-canvas .react-flow__controls-button svg {
+  fill: var(--c-d4d4d4);
+}
+
+.wf-canvas .react-flow__minimap {
+  background: var(--c-1d1d1d);
+  border: 1px solid var(--c-303030);
+}
+
+.wf-canvas .react-flow__attribution {
+  display: none;
+}
+
+/* node inner */
+.wf-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+}
+
+.wf-node-icon {
+  font-size: 22px;
+}
+
+.wf-node-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* props panel */
+.wf-props {
+  width: 260px;
+  border-left: 1px solid var(--c-303030);
+  background: var(--c-1d1d1d);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.wf-props-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--c-303030);
+}
+
+.wf-props-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-f4f4f4);
+}
+
+.wf-props-delete {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--c-8c8c8c);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wf-props-delete:hover {
+  background: rgba(255, 59, 48, 0.15);
+  color: var(--c-ff3b30);
+}
+
+.wf-props-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wf-props-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-8f8f8f);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wf-props-input {
+  width: 100%;
+  margin-bottom: 4px;
+}

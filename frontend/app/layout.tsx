@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { AuthProvider } from "./lib/auth-context";
+import { ToastProvider } from "./lib/toast-context";
+import { WorkspaceProvider } from "./lib/workspace-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,11 +23,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        <Sidebar />
-        <main className="main">
-          <ThemeToggle />
-          {children}
-        </main>
+        <ToastProvider>
+          <WorkspaceProvider>
+            <AuthProvider>
+              <Sidebar />
+              <main className="main">
+                <ThemeToggle />
+                {children}
+              </main>
+            </AuthProvider>
+          </WorkspaceProvider>
+        </ToastProvider>
       </body>
     </html>
   );

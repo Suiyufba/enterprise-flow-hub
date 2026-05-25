@@ -2,14 +2,15 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import type { AnalysisResult, AnalysisRequest, Workspace } from "shared";
+import type { AnalysisResult, AnalysisRequest } from "shared";
 import { fetchJson } from "./lib/api";
+import { useWorkspace } from "./lib/workspace-context";
 
 export default function Home() {
   const router = useRouter();
   const [need, setNeed] = useState("");
   const [projectId, setProjectId] = useState("proj-qihang-growth");
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const { workspace } = useWorkspace();
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -20,24 +21,19 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchJson<Workspace>("/workspace")
-      .then((data) => {
-        setWorkspace(data);
-        const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
-        if (urlProjectId && data.projects.some((p) => p.id === urlProjectId)) {
-          setProjectId(urlProjectId);
-          const proj = data.projects.find((p) => p.id === urlProjectId);
-          if (proj) setContextEnterpriseId(proj.enterpriseId);
-        } else if (data.projects[0]) {
-          setProjectId(data.projects[0].id);
-          setContextEnterpriseId(data.projects[0].enterpriseId);
-        }
-        if (data.personas[0]) {
-          setPersonaId(data.personas[0].id);
-        }
-      })
-      .catch(() => undefined);
-  }, []);
+    const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
+    if (urlProjectId && workspace.projects.some((p) => p.id === urlProjectId)) {
+      setProjectId(urlProjectId);
+      const proj = workspace.projects.find((p) => p.id === urlProjectId);
+      if (proj) setContextEnterpriseId(proj.enterpriseId);
+    } else if (workspace.projects[0]) {
+      setProjectId(workspace.projects[0].id);
+      setContextEnterpriseId(workspace.projects[0].enterpriseId);
+    }
+    if (workspace.personas[0]) {
+      setPersonaId(workspace.personas[0].id);
+    }
+  }, [workspace.projects, workspace.personas]);
 
   function handleFiles(selected: FileList | null) {
     if (!selected) return;
@@ -232,13 +228,13 @@ export default function Home() {
         </div>
         <div className="action-card" onClick={() => setNeed("帮我分析销售跟进流程，找出漏跟进的线索并设计自动化提醒规则。")}>
           <div className="card-icon blue">📋</div>
-          <h3>选择模板场景</h3>
-          <p>销售跟进、订单管理、客户服务等预设分析模板</p>
+          <h3>销售跟进诊断</h3>
+          <p>分析线索分配、跟进频率，找出漏跟问题并设计自动提醒</p>
         </div>
-        <div className="action-card" onClick={() => setNeed("帮我分析留学中介的线索管理流程，生成优化报告。")}>
+        <div className="action-card" onClick={() => router.push("/chat/chat-qihang-leads")}>
           <div className="card-icon green">📊</div>
           <h3>查看诊断案例</h3>
-          <p>留学中介的线索管理优化报告</p>
+          <p>点击查看线索管理的完整诊断对话案例</p>
         </div>
       </div>
     </div>

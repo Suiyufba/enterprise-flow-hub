@@ -35,10 +35,14 @@ function ResultsContent() {
 
   async function exportResult(format: "markdown" | "json") {
     if (!id) return;
-    const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-    const res = await fetch(`${API}/analysis/${id}/export`, {
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (process.env.NEXT_PUBLIC_API_KEY) {
+      headers["Authorization"] = `Bearer ${process.env.NEXT_PUBLIC_API_KEY}`;
+    }
+    const res = await fetch(`${API_BASE}/analysis/${id}/export`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ format }),
     });
     if (!res.ok) return;

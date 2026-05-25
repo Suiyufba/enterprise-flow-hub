@@ -3,27 +3,18 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { ConversationDetail, Workspace } from "shared";
+import type { ConversationDetail } from "shared";
 import { fetchJson } from "../lib/api";
-
-const fallbackWorkspace: Workspace = {
-  enterprises: [],
-  projects: [],
-  conversations: [],
-  libraryItems: [],
-  plugins: [],
-  automations: [],
-  tools: [],
-  recentToolRuns: [],
-  skills: [],
-  personas: [],
-  providers: [],
-};
+import { useAuth } from "../lib/auth-context";
+import { useWorkspace } from "../lib/workspace-context";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { SettingsModal } from "./SettingsModal";
 
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [workspace, setWorkspace] = useState<Workspace>(fallbackWorkspace);
+  const { workspace, refresh } = useWorkspace();
+  const { user, logout } = useAuth();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
   const [addingTo, setAddingTo] = useState<string | null>(null);
@@ -31,21 +22,16 @@ export function Sidebar() {
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-
-  async function refresh() {
-    try {
-      const data = await fetchJson<Workspace>("/workspace");
-      setWorkspace(data);
-      setExpanded(new Set(data.enterprises.map((e) => e.id)));
-      setChatExpanded(new Set(data.enterprises.map((e) => e.id)));
-    } catch {
-      setWorkspace(fallbackWorkspace);
-    }
-  }
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: "project" | "conversation" } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    refresh();
-  }, []);
+    if (workspace.enterprises.length > 0) {
+      setExpanded(new Set(workspace.enterprises.map((e) => e.id)));
+      setChatExpanded(new Set(workspace.enterprises.map((e) => e.id)));
+    }
+  }, [workspace.enterprises]);
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -91,20 +77,38 @@ export function Sidebar() {
     router.push(`/chat/${detail.id}`);
   }
 
-  async function removeConversation(id: string, e: React.MouseEvent) {
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      if (deleteTarget.type === "project") {
+        await fetchJson(`/projects/${deleteTarget.id}`, { method: "DELETE" });
+        await refresh();
+        if (pathname === `/projects/${deleteTarget.id}`) router.push("/");
+      } else {
+        await fetchJson(`/conversations/${deleteTarget.id}`, { method: "DELETE" });
+        await refresh();
+      }
+    } catch {
+      // handled by toast in future step
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  }
+
+  function showDeleteConfirm(id: string, name: string, type: "project" | "conversation", e: React.MouseEvent) {
     e.stopPropagation();
-    await fetchJson(`/conversations/${id}`, { method: "DELETE" });
-    await refresh();
+    e.preventDefault();
+    setDeleteTarget({ id, name, type });
+  }
+
+  async function removeConversation(id: string, e: React.MouseEvent) {
+    showDeleteConfirm(id, workspace.conversations.find((c) => c.id === id)?.title ?? "对话", "conversation", e);
   }
 
   async function removeProject(id: string, e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    await fetchJson(`/projects/${id}`, { method: "DELETE" });
-    await refresh();
-    if (pathname === `/projects/${id}`) {
-      router.push("/");
-    }
+    showDeleteConfirm(id, workspace.projects.find((p) => p.id === id)?.name ?? "项目", "project", e);
   }
 
   function startRenameProject(id: string, name: string, e: React.MouseEvent) {
@@ -224,7 +228,7 @@ export function Sidebar() {
                         <span className="sub-item-icon">▱</span>
                         <span className="sidebar-row-title">{project.name}</span>
                         <span className="sidebar-row-actions">
-                          <button className="sidebar-mini-action" onClick={(e) => startRenameProject(project.id, project.name, e)} title="重命名项目" type="button">改</button>
+                          <button className="sidebar-mini-action" onClick={(e) => startRenameProject(project.id, project.name, e)} title="重命名项目" type="button">✏</button>
                           <button className="sidebar-mini-action danger" onClick={(e) => removeProject(project.id, e)} title="删除项目" type="button">×</button>
                         </span>
                       </Link>
@@ -343,7 +347,7 @@ export function Sidebar() {
                       <span className="icon">💬</span>
                       <span className="history-chat-title sidebar-row-title">{conversation.title}</span>
                       <span className="sidebar-row-actions">
-                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话">改</span>
+                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话">✏</span>
                         <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话">×</span>
                       </span>
                     </button>
@@ -355,7 +359,39 @@ export function Sidebar() {
       </div>
 
       <div className="spacer" />
-      <div className="sidebar-footer">v0.1.0 MVP</div>
+
+      <div className="sidebar-footer">
+        {user ? (
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-top">
+              <div className="sidebar-avatar">👤</div>
+              <div className="sidebar-user-detail">
+                <span className="sidebar-username">{user.displayName}</span>
+                <span className="sidebar-user-role">{user.role === "admin" ? "管理员" : "成员"}</span>
+              </div>
+              <button className="sidebar-settings-btn" onClick={() => setSettingsOpen(true)} title="设置" type="button">⚙</button>
+            </div>
+            <button className="sidebar-logout-btn" onClick={() => { logout(); router.push("/login"); }} type="button">
+              退出登录
+            </button>
+          </div>
+        ) : (
+          <button className="sidebar-login-link" onClick={() => router.push("/login")} type="button">
+            👤 登录
+          </button>
+        )}
+      </div>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="确认删除"
+        message={`确定要删除${deleteTarget?.type === "project" ? "项目" : "对话"}「${deleteTarget?.name ?? ""}」吗？此操作不可撤销。`}
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </aside>
   );
 }
