@@ -34,17 +34,24 @@ JSON 必须包含这些字段：
       });
 
       const parsed = JSON.parse(aiResponse.replace(/```json\n?|\n?```/g, "").trim());
+
+      // Normalize: AI may return objects where strings are expected
+      const str = (v: unknown): string =>
+        typeof v === "string" ? v : (v != null && typeof v === "object" ? JSON.stringify(v, null, 2) : String(v ?? ""));
+      const strs = (arr: unknown): string[] =>
+        (Array.isArray(arr) ? arr : []).map(str);
+
       result = {
         id: randomUUID(),
-        summary: parsed.summary ?? `针对"${need}"的诊断分析`,
-        screenshotTypes: parsed.screenshotTypes ?? [],
-        businessObjects: parsed.businessObjects ?? [],
-        fields: parsed.fields ?? [],
-        workflowStages: parsed.workflowStages ?? [],
-        problems: parsed.problems ?? [],
-        automationRules: parsed.automationRules ?? [],
-        dashboardMetrics: parsed.dashboardMetrics ?? [],
-        implementationPlan: parsed.implementationPlan ?? [],
+        summary: str(parsed.summary) || `针对"${need}"的诊断分析`,
+        screenshotTypes: strs(parsed.screenshotTypes),
+        businessObjects: strs(parsed.businessObjects),
+        fields: Array.isArray(parsed.fields) ? parsed.fields : [],
+        workflowStages: strs(parsed.workflowStages),
+        problems: strs(parsed.problems),
+        automationRules: Array.isArray(parsed.automationRules) ? parsed.automationRules : [],
+        dashboardMetrics: strs(parsed.dashboardMetrics),
+        implementationPlan: strs(parsed.implementationPlan),
         createdAt: new Date().toISOString(),
       };
     } catch (e) {

@@ -11,57 +11,67 @@ type Message = {
   content: string;
 };
 
+// Safety helper: AI may return objects where strings are expected
+function s(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v != null && typeof v === "object") return JSON.stringify(v, null, 2);
+  return String(v ?? "");
+}
+
 function formatResult(result: AnalysisResult): string {
   const lines: string[] = [];
-  lines.push(`## ${result.summary}`);
-  lines.push("");
+  const summary = s(result.summary);
+  if (summary) {
+    lines.push(`## ${summary}`);
+    lines.push("");
+  }
 
   if (result.screenshotTypes.length > 0) {
     lines.push("### 截图识别");
-    lines.push(result.screenshotTypes.map((t) => `- ${t}`).join("\n"));
+    lines.push(result.screenshotTypes.map((t) => `- ${s(t)}`).join("\n"));
     lines.push("");
   }
   if (result.businessObjects.length > 0) {
     lines.push("### 业务对象");
-    lines.push(result.businessObjects.map((o) => `- ${o}`).join("\n"));
+    lines.push(result.businessObjects.map((o) => `- ${s(o)}`).join("\n"));
     lines.push("");
   }
   if (result.fields.length > 0) {
     lines.push("### 提取字段");
     for (const f of result.fields) {
       const missing = f.missing ? " ⚠️ 缺失" : "";
-      lines.push(`- **${f.label}** (\`${f.name}\`) → ${f.type}${missing}`);
+      lines.push(`- **${s(f.label)}** (\`${s(f.name)}\`) → ${s(f.type)}${missing}`);
     }
     lines.push("");
   }
   if (result.workflowStages.length > 0) {
     lines.push("### 流程阶段");
-    lines.push(result.workflowStages.map((s, i) => `${i + 1}. ${s}`).join("\n"));
+    lines.push(result.workflowStages.map((stage, i) => `${i + 1}. ${s(stage)}`).join("\n"));
     lines.push("");
   }
   if (result.problems.length > 0) {
     lines.push("### ⚠️ 流程问题");
     for (const p of result.problems) {
-      lines.push(`- ⚠️ ${p}`);
+      lines.push(`- ⚠️ ${s(p)}`);
     }
     lines.push("");
   }
   if (result.automationRules.length > 0) {
     lines.push("### 🔔 自动化规则建议");
     for (const r of result.automationRules) {
-      lines.push(`- IF **${r.trigger}** AND **${r.condition}** → ${r.action}`);
+      lines.push(`- IF **${s(r.trigger)}** AND **${s(r.condition)}** → ${s(r.action)}`);
     }
     lines.push("");
   }
   if (result.dashboardMetrics.length > 0) {
     lines.push("### 📊 建议仪表盘指标");
-    lines.push(result.dashboardMetrics.map((m) => `- ${m}`).join("\n"));
+    lines.push(result.dashboardMetrics.map((m) => `- ${s(m)}`).join("\n"));
     lines.push("");
   }
   if (result.implementationPlan.length > 0) {
     lines.push("### 实施建议");
-    for (const s of result.implementationPlan) {
-      lines.push(`1. ${s}`);
+    for (const step of result.implementationPlan) {
+      lines.push(`1. ${s(step)}`);
     }
     lines.push("");
   }
