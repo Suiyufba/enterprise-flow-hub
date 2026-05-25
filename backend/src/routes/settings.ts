@@ -58,7 +58,7 @@ export async function settingsRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
-  app.post("/settings/providers/:id/test", async (request, reply) => {
+  app.get("/settings/providers/:id/test", async (request) => {
     const { id } = request.params as { id: string };
     return testProviderConnection(id);
   });

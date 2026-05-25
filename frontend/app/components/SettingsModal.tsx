@@ -63,7 +63,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   async function testProvider(id: string) {
     setTestingId(id);
     try {
-      const res = await fetchJson<{ ok: boolean; message: string }>(`/settings/providers/${id}/test`, { method: "POST" });
+      const res = await fetchJson<{ ok: boolean; message: string }>(`/settings/providers/${id}/test`);
       setTestResults((prev) => ({ ...prev, [id]: (res.ok ? "✅ " : "❌ ") + res.message }));
     } catch {
       setTestResults((prev) => ({ ...prev, [id]: "❌ 测试请求失败" }));
