@@ -87,9 +87,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="login-hint">
-          演示账号：<code>admin</code> 密码：<code>demo123</code>
-        </p>
       </div>
     </div>
   );
