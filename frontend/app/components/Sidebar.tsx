@@ -7,6 +7,7 @@ import type { ConversationDetail } from "shared";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
+import { useToast } from "../lib/toast-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SettingsModal } from "./SettingsModal";
 
@@ -15,6 +16,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { workspace, refresh } = useWorkspace();
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
   const [addingTo, setAddingTo] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export function Sidebar() {
         await refresh();
       }
     } catch {
-      // handled by toast in future step
+      showToast("删除失败，请重试", "error");
     } finally {
       setDeleting(false);
       setDeleteTarget(null);

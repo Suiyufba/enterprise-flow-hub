@@ -5,8 +5,11 @@ import { loginUser, listUsers, getUser, deleteUser } from "../store.js";
 export function authRoutes(app: FastifyInstance): void {
   // Login
   app.post("/auth/login", async (request, reply) => {
-    const body = LoginRequestSchema.parse(request.body);
-    const user = loginUser(body);
+    const parsed = LoginRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const user = loginUser(parsed.data);
     if (!user) {
       return reply.status(401).send({ error: "用户名或密码错误" });
     }

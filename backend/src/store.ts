@@ -374,6 +374,27 @@ export function setAutomationEnabled(id: string, enabled: boolean): Automation |
   return { ...rowToAutomation(row), enabled };
 }
 
+export function updateAutomation(id: string, input: Partial<CreateAutomationRequest> & { enabled?: boolean }): Automation | undefined {
+  const row = db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const current = rowToAutomation(row);
+  const next: Record<string, unknown> = {
+    project_id: input.projectId ?? current.projectId,
+    name: input.name?.trim() ?? current.name,
+    trigger_desc: input.trigger?.trim() ?? current.trigger,
+    trigger_type: input.triggerType ?? current.triggerType,
+    action_desc: input.action?.trim() ?? current.action,
+    action_type: input.actionType ?? current.actionType,
+    agent_model: input.agentModel !== undefined ? (input.agentModel?.trim() || null) : (current.agentModel ?? null),
+    system_prompt: input.systemPrompt !== undefined ? (input.systemPrompt?.trim() || null) : (current.systemPrompt ?? null),
+    enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : (current.enabled ? 1 : 0),
+  };
+  db()
+    .prepare("UPDATE automations SET project_id=?, name=?, trigger_desc=?, trigger_type=?, action_desc=?, action_type=?, agent_model=?, system_prompt=?, enabled=? WHERE id=?")
+    .run(next.project_id, next.name, next.trigger_desc, next.trigger_type, next.action_desc, next.action_type, next.agent_model, next.system_prompt, next.enabled, id);
+  return rowToAutomation(db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
 export function deleteAutomation(id: string): boolean {
   const result = db().prepare("DELETE FROM automations WHERE id = ?").run(id);
   return result.changes > 0;

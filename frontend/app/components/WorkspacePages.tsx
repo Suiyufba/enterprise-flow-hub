@@ -407,10 +407,29 @@ export function LibraryPage() {
 export function PluginsPage() {
   const { workspace, refresh } = useWorkspace();
   const [showSkillForm, setShowSkillForm] = useState(false);
+  const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
   const [skillName, setSkillName] = useState("");
   const [skillDescription, setSkillDescription] = useState("");
   const [skillPrompt, setSkillPrompt] = useState("");
   const [skillToolIds, setSkillToolIds] = useState<string[]>([]);
+
+  function startEditSkill(skill: AgentSkill) {
+    setEditingSkillId(skill.id);
+    setSkillName(skill.name);
+    setSkillDescription(skill.description);
+    setSkillPrompt(skill.prompt);
+    setSkillToolIds([...skill.toolIds]);
+    setShowSkillForm(true);
+  }
+
+  function cancelSkillForm() {
+    setShowSkillForm(false);
+    setEditingSkillId(null);
+    setSkillName("");
+    setSkillDescription("");
+    setSkillPrompt("");
+    setSkillToolIds([]);
+  }
 
   async function togglePlugin(plugin: Plugin) {
     try {
@@ -419,8 +438,8 @@ export function PluginsPage() {
         body: JSON.stringify({ enabled: !plugin.enabled }),
       });
       await refresh();
-    } catch (e) {
-      console.error("切换插件状态失败", e);
+    } catch {
+      // silent — non-critical
     }
   }
 
@@ -432,31 +451,29 @@ export function PluginsPage() {
         body: JSON.stringify({ status: nextStatus }),
       });
       await refresh();
-    } catch (e) {
-      console.error("切换工具状态失败", e);
+    } catch {
+      // silent — non-critical
     }
   }
 
-  async function createSkill() {
+  async function saveSkill() {
     if (!skillName.trim() || !skillDescription.trim() || !skillPrompt.trim()) return;
     try {
-      await fetchJson<AgentSkill>("/skills", {
-        method: "POST",
-        body: JSON.stringify({
-          name: skillName,
-          description: skillDescription,
-          prompt: skillPrompt,
-          toolIds: skillToolIds,
-        }),
-      });
-      setSkillName("");
-      setSkillDescription("");
-      setSkillPrompt("");
-      setSkillToolIds([]);
-      setShowSkillForm(false);
+      const body = {
+        name: skillName.trim(),
+        description: skillDescription.trim(),
+        prompt: skillPrompt.trim(),
+        toolIds: skillToolIds,
+      };
+      if (editingSkillId) {
+        await fetchJson(`/skills/${editingSkillId}`, { method: "PATCH", body: JSON.stringify(body) });
+      } else {
+        await fetchJson<AgentSkill>("/skills", { method: "POST", body: JSON.stringify(body) });
+      }
+      cancelSkillForm();
       await refresh();
-    } catch (e) {
-      console.error("创建 skill 失败", e);
+    } catch {
+      // error handled by toast in future
     }
   }
 
@@ -467,8 +484,8 @@ export function PluginsPage() {
         body: JSON.stringify({ enabled: !skill.enabled }),
       });
       await refresh();
-    } catch (e) {
-      console.error("切换 skill 失败", e);
+    } catch {
+      // silent — non-critical
     }
   }
 
@@ -517,14 +534,22 @@ export function PluginsPage() {
               </label>
             ))}
           </div>
-          <button className="page-primary-button" onClick={createSkill} type="button">保存 Skill</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="page-primary-button" onClick={saveSkill} type="button">
+              {editingSkillId ? "更新 Skill" : "保存 Skill"}
+            </button>
+            <button className="page-secondary-button" onClick={cancelSkillForm} type="button">取消</button>
+          </div>
         </div>
       )}
 
       <div className="skill-grid">
         {workspace.skills.map((skill) => (
           <article className="page-card" key={skill.id}>
-            <span className={skill.enabled ? "skill-on" : "skill-off"}>{skill.enabled ? "已启用" : "已停用"}</span>
+            <div className="skill-card-top">
+              <span className={skill.enabled ? "skill-on" : "skill-off"}>{skill.enabled ? "已启用" : "已停用"}</span>
+              <button className="sidebar-mini-action" onClick={() => startEditSkill(skill)} title="编辑" type="button" style={{ display: "inline-flex" }}>✏</button>
+            </div>
             <h3>{skill.name}</h3>
             <p>{skill.description}</p>
             <div className="skill-tools">

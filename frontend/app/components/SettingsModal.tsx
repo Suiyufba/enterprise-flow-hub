@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import type { AgentPersona, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
+import { useToast } from "../lib/toast-context";
 import "./SettingsModal.css";
 
 type Tab = "providers" | "personas";
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>("providers");
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [personas, setPersonas] = useState<AgentPersona[]>([]);
@@ -51,7 +53,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       });
       setPName(""); setPBaseUrl(""); setPModel(""); setPKeyEnv("");
       await refresh();
-    } catch { /* ignore */ }
+    } catch { showToast("添加模型失败", "error"); }
     setLoading(false);
   }
 
@@ -82,7 +84,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       });
       setPRole(""); setPDesc(""); setPPrompt(""); setPProviderId("");
       await refresh();
-    } catch { /* ignore */ }
+    } catch { showToast("添加角色失败", "error"); }
   }
 
   async function deletePersona(id: string) {

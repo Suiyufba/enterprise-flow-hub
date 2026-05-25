@@ -40,7 +40,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const data = await fetchJson<Workspace>("/workspace");
       setWorkspace(data);
     } catch {
-      // keep last known state
+      // keep last known state — UI shows stale data rather than blank
     }
   }, []);
 

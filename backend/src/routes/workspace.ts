@@ -27,6 +27,7 @@ import {
   getWorkspace,
   setAutomationEnabled,
   setPluginEnabled,
+  updateAutomation,
   updateConversation,
   updateLibraryItem,
   updateProject,
@@ -143,14 +144,18 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.patch("/automations/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { enabled } = request.body as { enabled?: boolean };
-    if (typeof enabled !== "boolean") {
-      return reply.status(400).send({ error: "enabled must be boolean" });
+    const body = request.body as Record<string, unknown>;
+    // Toggle-only mode (backwards compatible)
+    if (typeof body.enabled === "boolean" && Object.keys(body).length === 1) {
+      const automation = setAutomationEnabled(id, body.enabled);
+      if (!automation) return reply.status(404).send({ error: "Automation not found" });
+      return automation;
     }
-    const automation = setAutomationEnabled(id, enabled);
-    if (!automation) {
-      return reply.status(404).send({ error: "Automation not found" });
-    }
+    // Full update mode
+    const parsed = CreateAutomationRequestSchema.partial().safeParse(body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const automation = updateAutomation(id, parsed.data);
+    if (!automation) return reply.status(404).send({ error: "Automation not found" });
     return automation;
   });
 

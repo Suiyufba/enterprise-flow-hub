@@ -113,8 +113,35 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   const [selectedProjectId, setSelectedProjectId] = useState("proj-qihang-growth");
 
   useEffect(() => {
-    if (workspace.projects[0]) setSelectedProjectId(workspace.projects[0].id);
-  }, [workspace.projects]);
+    if (workspace.projects[0] && !existingId) setSelectedProjectId(workspace.projects[0].id);
+  }, [workspace.projects, existingId]);
+
+  // Load existing automation data when editing
+  useEffect(() => {
+    if (!existingId) return;
+    const auto = workspace.automations.find((a) => a.id === existingId);
+    if (!auto) return;
+    setWorkflowName(auto.name);
+    setSelectedProjectId(auto.projectId);
+
+    const trigCfg: Record<string, string> = {
+      triggerType: auto.triggerType,
+      desc: auto.trigger,
+    };
+    const agentCfg: Record<string, string> = {};
+    if (auto.agentModel) agentCfg.model = auto.agentModel;
+    if (auto.systemPrompt) agentCfg.prompt = auto.systemPrompt;
+    const actionCfg: Record<string, string> = {
+      actionType: auto.actionType,
+      desc: auto.action,
+    };
+
+    setNodes([
+      { ...createNode("trigger", 100, 80), id: "trigger-1", data: { ...createNode("trigger", 100, 80).data, config: trigCfg } },
+      { ...createNode("agent", 100, 240), id: "agent-2", data: { ...createNode("agent", 100, 240).data, config: agentCfg } },
+      { ...createNode("action", 100, 400), id: "action-3", data: { ...createNode("action", 100, 400).data, config: actionCfg } },
+    ]);
+  }, [existingId, workspace.automations, setNodes]);
 
   async function saveWorkflow() {
     if (!workflowName.trim()) return;
@@ -130,19 +157,28 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       const agentCfg = (agentNode?.data.config ?? {}) as Record<string, string>;
       const actionCfg = (actionNode?.data.config ?? {}) as Record<string, string>;
 
-      await fetchJson<Automation>("/automations", {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: selectedProjectId,
-          name: workflowName.trim(),
-          trigger: triggerCfg.desc || "手动触发",
-          triggerType: triggerCfg.triggerType || "manual",
-          action: actionCfg.desc || "执行动作",
-          actionType: actionCfg.actionType || "notify",
-          agentModel: agentCfg.model || undefined,
-          systemPrompt: agentCfg.prompt || undefined,
-        }),
-      });
+      const body = {
+        projectId: selectedProjectId,
+        name: workflowName.trim(),
+        trigger: triggerCfg.desc || "手动触发",
+        triggerType: triggerCfg.triggerType || "manual",
+        action: actionCfg.desc || "执行动作",
+        actionType: actionCfg.actionType || "notify",
+        agentModel: agentCfg.model || undefined,
+        systemPrompt: agentCfg.prompt || undefined,
+      };
+
+      if (existingId) {
+        await fetchJson(`/automations/${existingId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      } else {
+        await fetchJson<Automation>("/automations", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
 
       setSavedMessage("保存成功");
       await refreshWorkspace();

@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type { ConversationDetail, Message, Workspace } from "shared";
 import { fetchJson } from "../../lib/api";
+import { useToast } from "../../lib/toast-context";
 import MarkdownMessage from "../../components/MarkdownMessage";
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { showToast } = useToast();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,9 +24,7 @@ export default function ChatPage() {
   const [contextScope, setContextScope] = useState<"current_project" | "selected_projects">("current_project");
   const [contextEnterpriseId, setContextEnterpriseId] = useState("");
   const [contextProjectIds, setContextProjectIds] = useState<string[]>([]);
-  const [selectedFileNames, setSelectedFileNames] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const msgCounterRef = useRef(0);
 
   function nextMsgId() {
@@ -49,6 +49,7 @@ export default function ChatPage() {
       }
     } catch {
       setError("对话不存在");
+      showToast("加载对话失败", "error");
     } finally {
       setLoading(false);
     }
@@ -70,8 +71,8 @@ export default function ChatPage() {
         body: JSON.stringify({ projectId }),
       });
       setDetail(updated);
-    } catch (e) {
-      console.error("切换项目失败", e);
+    } catch {
+      showToast("切换项目失败", "error");
     }
   }
 
@@ -91,11 +92,6 @@ export default function ChatPage() {
     setContextProjectIds(workspace?.projects.filter((project) => project.enterpriseId === enterpriseId).map((project) => project.id) ?? []);
   }
 
-  function handleFiles(files: FileList | null) {
-    if (!files) return;
-    setSelectedFileNames(Array.from(files).map((file) => file.name).slice(0, 5));
-  }
-
   async function addTag() {
     if (!detail || !tagInput.trim()) return;
     try {
@@ -107,8 +103,8 @@ export default function ChatPage() {
       setDetail(updated);
       setTagInput("");
       setEditingTag(false);
-    } catch (e) {
-      console.error("添加标签失败", e);
+    } catch {
+      showToast("添加标签失败", "error");
     }
   }
 
@@ -120,8 +116,8 @@ export default function ChatPage() {
         body: JSON.stringify({ tags: detail.tags.filter((t) => t !== tag) }),
       });
       setDetail(updated);
-    } catch (e) {
-      console.error("删除标签失败", e);
+    } catch {
+      showToast("删除标签失败", "error");
     }
   }
 
@@ -150,8 +146,9 @@ export default function ChatPage() {
       });
       setLocalMessages((prev) => [...prev, aiMsg]);
     } catch {
+      showToast("消息发送失败，请重试", "error");
+      // Keep user message visible instead of removing it
       setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
-      setInput(userMsg.content);
     } finally {
       setSending(false);
     }
@@ -284,17 +281,6 @@ export default function ChatPage() {
           发送
         </button>
         <div className="chat-composer-controls">
-          <button className="composer-upload" onClick={() => fileInputRef.current?.click()} type="button" title="上传文件">
-            +
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,.xlsx,.xls,.csv,.pdf,.doc,.docx,.txt"
-            multiple
-            hidden
-            onChange={(e) => handleFiles(e.target.files)}
-          />
           <select
             className="composer-select composer-project"
             value={detail.projectId}
@@ -349,12 +335,6 @@ export default function ChatPage() {
             </select>
           )}
         </div>
-
-        {selectedFileNames.length > 0 && (
-          <div className="composer-file-list">
-            {selectedFileNames.join("、")}
-          </div>
-        )}
 
       </div>
     </div>

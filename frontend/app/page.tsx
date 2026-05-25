@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ConversationDetail } from "shared";
 import { fetchJson } from "./lib/api";
 import { useWorkspace } from "./lib/workspace-context";
+import { useToast } from "./lib/toast-context";
 
 export default function Home() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function Home() {
   const { workspace, refresh } = useWorkspace();
   const [personaId, setPersonaId] = useState("persona-ops-cto");
   const [loading, setLoading] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
@@ -65,6 +67,7 @@ export default function Home() {
       // 4. Navigate to the chat page
       router.push(`/chat/${conversation.id}`);
     } catch {
+      showToast("创建对话失败，请重试", "error");
       setLoading(false);
     }
   }
