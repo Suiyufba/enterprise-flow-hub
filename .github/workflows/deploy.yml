@@ -113,6 +113,6 @@ jobs:
           sudo nginx -t
           sudo systemctl reload nginx
 
-          ( crontab -l 2>/dev/null | grep -v "/opt/enterprise-flow-hub/backup-db.sh"; echo "20 3 * * * /opt/enterprise-flow-hub/backup-db.sh >> /opt/enterprise-flow-hub/backups/backup.log 2>&1" ) | crontab -
+          ( (crontab -l 2>/dev/null || true) | grep -v "/opt/enterprise-flow-hub/backup-db.sh" || true; echo "20 3 * * * /opt/enterprise-flow-hub/backup-db.sh >> /opt/enterprise-flow-hub/backups/backup.log 2>&1" ) | crontab -
           docker compose ps
           EOF
