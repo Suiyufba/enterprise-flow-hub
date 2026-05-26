@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import type { AddMessageResponse, AgentPlanStep, ConversationDetail, Message, ToolRun, Workspace } from "shared";
 import { fetchJson } from "../../lib/api";
 import { useToast } from "../../lib/toast-context";
@@ -10,6 +10,7 @@ import MarkdownMessage from "../../components/MarkdownMessage";
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { showToast } = useToast();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -60,6 +61,60 @@ export default function ChatPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Auto-send initial message from URL param
+  const initialMsg = searchParams.get("msg");
+  const msgSent = useRef(false);
+  useEffect(() => {
+    if (!loading && workspace && initialMsg && !msgSent.current) {
+      msgSent.current = true;
+      const userMsg: Message = {
+        id: nextMsgId(),
+        role: "user",
+        content: decodeURIComponent(initialMsg),
+        createdAt: new Date().toISOString(),
+      };
+      setLocalMessages((prev) => [...prev, userMsg]);
+      // Trigger send
+      (async () => {
+        setSending(true);
+        setRunTools([]);
+        setRunPlan([
+          { id: "scope", title: "确认任务范围", detail: "正在识别本次请求的项目和资料范围。", status: "running" },
+          { id: "context", title: "读取项目资料", detail: "等待读取当前企业的资料、自动化和历史对话。", status: "pending" },
+          { id: "skills", title: "匹配 Agent 技能", detail: "等待选择适合的业务能力。", status: "pending" },
+          { id: "tools", title: "执行工具或生成方案", detail: "等待模型决定是否调用工具。", status: "pending" },
+          { id: "reply", title: "写入回复和执行记录", detail: "等待保存结果。", status: "pending" },
+        ]);
+        try {
+          const result = await fetchJson<AddMessageResponse>(`/conversations/${id}/messages`, {
+            method: "POST",
+            body: JSON.stringify({
+              content: userMsg.content,
+              personaId,
+              skillIds: [],
+              contextScope,
+              contextProjectIds,
+            }),
+          });
+          setRunPlan(result.planSteps);
+          setRunTools(result.toolRuns);
+          setLocalMessages((prev) => [...prev, result.message]);
+        } catch (e) {
+          let errMsg = "消息发送失败，请重试";
+          try {
+            const raw = (e as Error).message;
+            const body = JSON.parse(raw);
+            errMsg = body.error || body.detail || errMsg;
+          } catch { /* not JSON */ }
+          showToast(errMsg, "error");
+          setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+        } finally {
+          setSending(false);
+        }
+      })();
+    }
+  }, [loading, workspace, initialMsg]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

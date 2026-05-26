@@ -58,22 +58,9 @@ export default function Home() {
         }),
       });
 
-      // 2. Send first message through the agent (conversation API)
-      await fetchJson(`/conversations/${conversation.id}/messages`, {
-        method: "POST",
-        body: JSON.stringify({
-          content: need.trim(),
-          personaId,
-          skillIds: [],
-          contextScope: "current_project",
-        }),
-      });
-
-      // 3. Refresh workspace so sidebar picks up the new conversation
-      await refresh();
-
-      // 4. Navigate to the chat page
-      router.push(`/chat/${conversation.id}`);
+      // Immediately navigate to chat page with initial message
+      const msg = encodeURIComponent(need.trim());
+      router.push(`/chat/${conversation.id}?msg=${msg}`);
     } catch (e) {
       let errMsg = "创建对话失败，请重试";
       try {
