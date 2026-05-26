@@ -64,13 +64,27 @@ export default function ChatPage() {
   }, [localMessages]);
 
   async function updateProject(projectId: string) {
-    if (!detail) return;
+    if (!detail || !workspace) return;
+    const currentProject = workspace.projects.find((project) => project.id === detail.projectId);
+    const nextProject = workspace.projects.find((project) => project.id === projectId);
+    if (currentProject && nextProject && currentProject.enterpriseId !== nextProject.enterpriseId) {
+      showToast("不能把对话切换到其他企业的项目", "error");
+      return;
+    }
     try {
       const updated = await fetchJson<ConversationDetail>(`/conversations/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ projectId }),
       });
       setDetail(updated);
+      if (nextProject) {
+        setContextEnterpriseId(nextProject.enterpriseId);
+        setContextProjectIds(
+          contextScope === "current_project"
+            ? [projectId]
+            : workspace.projects.filter((project) => project.enterpriseId === nextProject.enterpriseId).map((project) => project.id),
+        );
+      }
     } catch {
       showToast("切换项目失败", "error");
     }
@@ -172,6 +186,10 @@ export default function ChatPage() {
     );
   }
 
+  const currentProject = workspace?.projects.find((project) => project.id === detail.projectId);
+  const currentEnterpriseId = currentProject?.enterpriseId ?? detail.enterpriseId;
+  const currentEnterpriseProjects = workspace?.projects.filter((project) => project.enterpriseId === currentEnterpriseId) ?? [];
+
   return (
     <div className="chat-shell">
       {/* Header */}
@@ -189,7 +207,7 @@ export default function ChatPage() {
                 value={detail.projectId}
                 onChange={(e) => updateProject(e.target.value)}
               >
-                {workspace?.projects.map((p) => (
+                {currentEnterpriseProjects.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -287,14 +305,11 @@ export default function ChatPage() {
             onChange={(e) => updateProject(e.target.value)}
             aria-label="选择项目"
           >
-            {workspace?.projects.map((p) => {
-              const enterprise = workspace.enterprises.find((item) => item.id === p.enterpriseId);
-              return (
-                <option key={p.id} value={p.id}>
-                  {enterprise?.name ?? "企业"} / {p.name}
-                </option>
-              );
-            })}
+            {currentEnterpriseProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
           </select>
           <span className="composer-plus" aria-hidden="true">
             +

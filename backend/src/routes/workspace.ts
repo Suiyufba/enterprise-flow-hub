@@ -195,7 +195,11 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    return reply.status(201).send(createConversation(parsed.data));
+    const detail = createConversation(parsed.data);
+    if (!detail) {
+      return reply.status(400).send({ error: "Project does not belong to enterprise" });
+    }
+    return reply.status(201).send(detail);
   });
 
   app.post("/skills", async (request, reply) => {

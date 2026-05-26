@@ -725,7 +725,18 @@ export function getConversation(id: string): ConversationDetail | undefined {
   };
 }
 
-export function createConversation(input: CreateConversationRequest): ConversationDetail {
+function projectBelongsToEnterprise(projectId: string, enterpriseId: string): boolean {
+  const project = db()
+    .prepare("SELECT id FROM projects WHERE id = ? AND enterprise_id = ?")
+    .get(projectId, enterpriseId);
+  return Boolean(project);
+}
+
+export function createConversation(input: CreateConversationRequest): ConversationDetail | undefined {
+  if (!projectBelongsToEnterprise(input.projectId, input.enterpriseId)) {
+    return undefined;
+  }
+
   const conversation: Conversation = {
     id: `chat-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
@@ -753,6 +764,9 @@ export function updateConversation(id: string, input: UpdateConversationRequest)
   const projectId = input.projectId ?? current.projectId;
   const title = input.title ?? current.title;
   const tags = input.tags ?? current.tags;
+  if (input.projectId && !projectBelongsToEnterprise(input.projectId, current.enterpriseId)) {
+    return undefined;
+  }
 
   db()
     .prepare("UPDATE conversations SET project_id = ?, title = ?, tags = ? WHERE id = ?")
