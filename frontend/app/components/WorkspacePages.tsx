@@ -90,21 +90,24 @@ export function SearchPage() {
   const typeCounts = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     const all = [
-      ...workspace.projects.map((item) => ({ type: "项目" as const, title: item.name })),
-      ...workspace.conversations.map((item) => ({ type: "对话" as const, title: item.title })),
-      ...workspace.libraryItems.map((item) => ({ type: "资料" as const, title: item.name })),
-      ...workspace.automations.map((item) => ({ type: "自动化" as const, title: item.name })),
+      ...workspace.projects.map((item) => ({ type: "项目" as const, title: item.name, enterpriseId: item.enterpriseId })),
+      ...workspace.conversations.map((item) => ({ type: "对话" as const, title: item.title, enterpriseId: item.enterpriseId })),
+      ...workspace.libraryItems.map((item) => ({ type: "资料" as const, title: item.name, enterpriseId: item.enterpriseId })),
+      ...workspace.automations.map((item) => {
+        const proj = workspace.projects.find((p) => p.id === item.projectId);
+        return { type: "自动化" as const, title: item.name, enterpriseId: proj?.enterpriseId ?? "" };
+      }),
     ];
-    const filtered = keyword
-      ? all.filter((item) => item.title.toLowerCase().includes(keyword))
-      : all;
+    let filtered = all;
+    if (keyword) filtered = filtered.filter((item) => item.title.toLowerCase().includes(keyword));
+    if (enterpriseFilter !== "全部") filtered = filtered.filter((item) => item.enterpriseId === enterpriseFilter);
     return {
       项目: filtered.filter((i) => i.type === "项目").length,
       对话: filtered.filter((i) => i.type === "对话").length,
       资料: filtered.filter((i) => i.type === "资料").length,
       自动化: filtered.filter((i) => i.type === "自动化").length,
     };
-  }, [query, workspace]);
+  }, [query, enterpriseFilter, workspace]);
 
   return (
     <PageShell title="搜索" description="跨企业、项目、对话、资料和自动化查找。">
