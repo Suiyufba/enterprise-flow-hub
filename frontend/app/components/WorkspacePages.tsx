@@ -1147,14 +1147,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
             </div>
           )}
         </div>
-        <div className="project-metric">
-          <div className="project-metric-icon analysis">🎯</div>
-          <div className="project-metric-value">{conversations.length}</div>
-          <div className="project-metric-label">分析次数</div>
-          <div className="project-metric-sub">
-            覆盖 {enterprise?.name ?? "—"} 线索流程
-          </div>
-        </div>
+
       </div>
 
       {/* ── Two-column Content ── */}
