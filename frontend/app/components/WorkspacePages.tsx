@@ -721,6 +721,13 @@ export function AutomationPage() {
                   {ent && <span className="lib-enterprise-tag auto-ent-tag">{ent.name}</span>}
                 </div>
                 <div className="workflow-card-actions">
+                  <button
+                    className="page-secondary-button"
+                    onClick={() => router.push(`/automation/workflow/${automation.id}`)}
+                    type="button"
+                  >
+                    编辑
+                  </button>
                   <button className="page-secondary-button" onClick={() => toggle(automation)} type="button">
                     {automation.enabled ? "暂停" : "启用"}
                   </button>
