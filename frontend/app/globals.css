@@ -1120,10 +1120,17 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  max-width: 260px;
   border-radius: 10px;
   background: var(--c-303030);
   padding: 7px 10px;
+}
+
+.enterprise-picker {
+  width: 190px;
+}
+
+.subproject-picker {
+  width: 170px;
 }
 
 .project-icon {
@@ -1143,6 +1150,13 @@ body {
   font-weight: 650;
   cursor: pointer;
   width: 100%;
+}
+
+.project-picker-label {
+  flex-shrink: 0;
+  color: var(--c-8c8c8c);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .mode-btn {

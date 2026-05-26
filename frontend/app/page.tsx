@@ -31,10 +31,10 @@ export default function Home() {
     } else if (workspace.projects[0] && !projectId) {
       setProjectId(workspace.projects[0].id);
     }
-    if (workspace.personas[0]) {
+    if (workspace.personas[0] && !personaId) {
       setPersonaId(workspace.personas[0].id);
     }
-  }, [workspace.projects, workspace.personas, workspace.enterprises]);
+  }, [enterpriseId, personaId, projectId, workspace.projects, workspace.personas, workspace.enterprises]);
 
   async function submit() {
     if (!need.trim() || loading) return;
@@ -114,7 +114,7 @@ export default function Home() {
         </div>
 
         <div className="chat-composer-controls">
-          <div className="project-picker">
+          <div className="project-picker enterprise-picker">
             <span className="project-icon">▱</span>
             <select
               aria-label="选择企业"
@@ -123,7 +123,7 @@ export default function Home() {
               onChange={(e) => {
                 setEnterpriseId(e.target.value);
                 const first = workspace?.projects.find((p) => p.enterpriseId === e.target.value);
-                if (first) setProjectId(first.id);
+                setProjectId(first?.id ?? "");
               }}
             >
               <option value="">选择企业</option>
@@ -131,6 +131,9 @@ export default function Home() {
                 <option key={ent.id} value={ent.id}>{ent.name}</option>
               ))}
             </select>
+          </div>
+          <div className="project-picker subproject-picker">
+            <span className="project-picker-label">子类</span>
             <select
               aria-label="选择项目"
               className="project-select"
