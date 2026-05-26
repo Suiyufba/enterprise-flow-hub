@@ -47,6 +47,16 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [pThinkingProviderId, setPThinkingProviderId] = useState("");
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
 
+  // Persona edit state
+  const [editingPersonaId, setEditingPersonaId] = useState<string | null>(null);
+  const [epName, setEpName] = useState("");
+  const [epRole, setEpRole] = useState("");
+  const [epDesc, setEpDesc] = useState("");
+  const [epPrompt, setEpPrompt] = useState("");
+  const [epProviderId, setEpProviderId] = useState("");
+  const [epThinkingProviderId, setEpThinkingProviderId] = useState("");
+  const [epSaving, setEpSaving] = useState(false);
+
   async function refresh() {
     const [p, per] = await Promise.all([
       fetchJson<{ providers: ModelProvider[] }>("/settings/providers"),
@@ -177,6 +187,39 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   async function deletePersona(id: string) {
     await fetchJson(`/settings/personas/${id}`, { method: "DELETE" });
     await refresh();
+  }
+
+  function startEditPersona(p: AgentPersona) {
+    setEditingPersonaId(p.id);
+    setEpName(p.name);
+    setEpRole(p.role);
+    setEpDesc(p.description);
+    setEpPrompt(p.systemPrompt);
+    setEpProviderId(p.providerId);
+    setEpThinkingProviderId(p.thinkingProviderId || "");
+  }
+
+  function cancelEditPersona() {
+    setEditingPersonaId(null);
+  }
+
+  async function saveEditPersona() {
+    if (!epName.trim() || !epRole.trim() || !epPrompt.trim() || !epProviderId) return;
+    setEpSaving(true);
+    try {
+      const body: Record<string, string> = {
+        name: epName, role: epRole, description: epDesc, systemPrompt: epPrompt, providerId: epProviderId,
+      };
+      if (epThinkingProviderId) body.thinkingProviderId = epThinkingProviderId;
+      await fetchJson(`/settings/personas/${editingPersonaId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      setEditingPersonaId(null);
+      await refresh();
+      showToast("保存成功", "success");
+    } catch { showToast("保存失败", "error"); }
+    setEpSaving(false);
   }
 
   async function generatePrompt() {
@@ -348,18 +391,48 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
             <div className="settings-list">
               {personas.map((p) => (
-                <div className="settings-card" key={p.id}>
-                  <div>
-                    <strong>{p.name}</strong>
-                    <span className="settings-meta">{p.role} · 回复: {providers.find(x => x.id === p.providerId)?.name ?? "未知模型"}{p.thinkingProviderId ? ` · 思考: ${providers.find(x => x.id === p.thinkingProviderId)?.name ?? "未知"}` : ""}</span>
-                    <span className={`settings-status ${p.enabled ? "on" : "off"}`}>
-                      {p.enabled ? "已启用" : "已停用"}
-                    </span>
-                  </div>
-                  <p className="settings-prompt-preview">{p.systemPrompt.slice(0, 120)}{p.systemPrompt.length > 120 ? "..." : ""}</p>
-                  <div className="settings-card-actions">
-                    <button className="page-secondary-button" onClick={() => deletePersona(p.id)}>删除</button>
-                  </div>
+                <div className={`settings-card ${editingPersonaId === p.id ? "settings-card-editing" : ""}`} key={p.id}>
+                  {editingPersonaId === p.id ? (
+                    <div className="settings-edit-form">
+                      <input className="page-input" value={epName} onChange={(e) => setEpName(e.target.value)} placeholder="角色名称" />
+                      <input className="page-input" value={epRole} onChange={(e) => setEpRole(e.target.value)} placeholder="角色说明" />
+                      <input className="page-input" value={epDesc} onChange={(e) => setEpDesc(e.target.value)} placeholder="角色描述" />
+                      <textarea className="page-textarea" value={epPrompt} onChange={(e) => setEpPrompt(e.target.value)} placeholder="System Prompt" rows={3} />
+                      <select className="page-input" value={epProviderId} onChange={(e) => setEpProviderId(e.target.value)}>
+                        <option value="">选择回复模型...</option>
+                        {providers.map((prov) => (
+                          <option key={prov.id} value={prov.id}>{prov.name} ({prov.model})</option>
+                        ))}
+                      </select>
+                      <select className="page-input" value={epThinkingProviderId} onChange={(e) => setEpThinkingProviderId(e.target.value)}>
+                        <option value="">思考模型（可选）</option>
+                        {providers.map((prov) => (
+                          <option key={prov.id} value={prov.id}>{prov.name} ({prov.model})</option>
+                        ))}
+                      </select>
+                      <div className="settings-card-actions">
+                        <button className="page-primary-button" onClick={saveEditPersona} disabled={epSaving} type="button">
+                          {epSaving ? "保存中..." : "保存"}
+                        </button>
+                        <button className="page-secondary-button" onClick={cancelEditPersona} type="button">取消</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <strong>{p.name}</strong>
+                        <span className="settings-meta">{p.role} · 回复: {providers.find(x => x.id === p.providerId)?.name ?? "未知模型"}{p.thinkingProviderId ? ` · 思考: ${providers.find(x => x.id === p.thinkingProviderId)?.name ?? "未知"}` : ""}</span>
+                        <span className={`settings-status ${p.enabled ? "on" : "off"}`}>
+                          {p.enabled ? "已启用" : "已停用"}
+                        </span>
+                      </div>
+                      <p className="settings-prompt-preview">{p.systemPrompt.slice(0, 120)}{p.systemPrompt.length > 120 ? "..." : ""}</p>
+                      <div className="settings-card-actions">
+                        <button className="page-secondary-button" onClick={() => startEditPersona(p)}>编辑</button>
+                        <button className="page-secondary-button" onClick={() => deletePersona(p.id)}>删除</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
