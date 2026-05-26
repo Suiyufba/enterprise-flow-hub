@@ -32,6 +32,7 @@ import type {
   UpdateConversationRequest,
   UpdateLibraryItemRequest,
   UpdateProjectRequest,
+  UpdateProviderRequest,
   UpdateSkillRequest,
   User,
   Workspace,
@@ -783,6 +784,40 @@ export function createProvider(input: { name: string; baseUrl: string; model: st
 export function deleteProvider(id: string): boolean {
   const result = db().prepare("DELETE FROM model_providers WHERE id = ?").run(id);
   return result.changes > 0;
+}
+
+export function updateProvider(id: string, input: UpdateProviderRequest): ModelProvider | undefined {
+  const row = db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const current = rowToProvider(row);
+  const next: Record<string, unknown> = {
+    name: input.name ?? current.name,
+    base_url: input.baseUrl ?? current.baseUrl,
+    model: input.model ?? current.model,
+    api_key_env: input.apiKey !== undefined ? input.apiKey : row.api_key_env,
+    enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : row.enabled,
+  };
+  db()
+    .prepare("UPDATE model_providers SET name=?, base_url=?, model=?, api_key_env=?, enabled=? WHERE id=?")
+    .run(next.name, next.base_url, next.model, next.api_key_env, next.enabled, id);
+  return rowToProvider(db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export async function fetchProviderModels(id: string): Promise<string[]> {
+  const provider = db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!provider) throw new Error("Provider not found");
+  const apiKey = provider.api_key_env as string;
+  if (!apiKey) throw new Error("Provider has no API key configured");
+  const res = await fetch(`${provider.base_url}/v1/models`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as { data?: Array<{ id: string }> };
+  return (data.data ?? []).map((m) => m.id).sort();
 }
 
 export async function testProviderConnection(id: string): Promise<{ ok: boolean; message: string }> {

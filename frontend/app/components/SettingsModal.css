@@ -202,3 +202,60 @@
   color: var(--c-b4b4b4);
 }
 
+/* ---- Edit mode ---- */
+.settings-card-editing {
+  border-color: var(--c-4a90e6);
+}
+
+.settings-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-edit-form .page-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ---- Model row ---- */
+.settings-model-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.settings-model-row .page-input {
+  flex: 1;
+}
+
+.settings-fetch-btn {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 6px 12px;
+  flex-shrink: 0;
+}
+
+/* ---- Model dropdown ---- */
+.settings-model-dropdown {
+  list-style: none;
+  margin: -4px 0 0 0;
+  padding: 4px 0;
+  border: 1px solid var(--c-303030);
+  border-radius: 8px;
+  background: var(--c-202020);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.settings-model-dropdown li {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--c-d4d4d4);
+  cursor: pointer;
+}
+
+.settings-model-dropdown li:hover {
+  background: var(--c-2a2a2a);
+}
+

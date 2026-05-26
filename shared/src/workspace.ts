@@ -155,6 +155,14 @@ export const ModelProviderSchema = z.object({
   enabled: z.boolean(),
 });
 
+export const UpdateProviderRequestSchema = z.object({
+  name: z.string().min(1).max(60).optional(),
+  baseUrl: z.string().min(1).max(200).optional(),
+  model: z.string().min(1).max(60).optional(),
+  apiKey: z.string().min(1).max(200).optional(),
+  enabled: z.boolean().optional(),
+});
+
 export const WorkspaceSchema = z.object({
   enterprises: z.array(EnterpriseSchema),
   users: z.array(UserSchema),
@@ -294,3 +302,4 @@ export type UpdateLibraryItemRequest = z.infer<typeof UpdateLibraryItemRequestSc
 export type RunToolRequest = z.infer<typeof RunToolRequestSchema>;
 export type CreateSkillRequest = z.infer<typeof CreateSkillRequestSchema>;
 export type UpdateSkillRequest = z.infer<typeof UpdateSkillRequestSchema>;
+export type UpdateProviderRequest = z.infer<typeof UpdateProviderRequestSchema>;

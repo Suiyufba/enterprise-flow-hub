@@ -6,11 +6,13 @@ import {
   createProvider,
   deletePersona,
   deleteProvider,
+  fetchProviderModels,
   listAllPersonas,
   listPersonas,
   listProviders,
   testProviderConnection,
   updatePersona,
+  updateProvider,
 } from "../store.js";
 
 const CreateProviderSchema = z.object({
@@ -18,6 +20,14 @@ const CreateProviderSchema = z.object({
   baseUrl: z.string().min(1).max(200),
   model: z.string().min(1).max(60),
   apiKey: z.string().min(1).max(200),
+});
+
+const UpdateProviderSchema = z.object({
+  name: z.string().min(1).max(60).optional(),
+  baseUrl: z.string().min(1).max(200).optional(),
+  model: z.string().min(1).max(60).optional(),
+  apiKey: z.string().min(1).max(200).optional(),
+  enabled: z.boolean().optional(),
 });
 
 const CreatePersonaSchema = z.object({
@@ -35,6 +45,11 @@ const UpdatePersonaSchema = z.object({
   systemPrompt: z.string().min(1).max(2000).optional(),
   providerId: z.string().optional(),
   enabled: z.boolean().optional(),
+});
+
+const FetchModelsSchema = z.object({
+  baseUrl: z.string().min(1).max(200),
+  apiKey: z.string().min(1).max(200),
 });
 
 const GeneratePromptSchema = z.object({
@@ -56,6 +71,46 @@ export async function settingsRoutes(app: FastifyInstance) {
     const ok = deleteProvider(id);
     if (!ok) return reply.status(404).send({ error: "Provider not found" });
     return reply.status(204).send();
+  });
+
+  app.patch("/settings/providers/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = UpdateProviderSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const provider = updateProvider(id, parsed.data);
+    if (!provider) return reply.status(404).send({ error: "Provider not found" });
+    return provider;
+  });
+
+  app.post("/settings/fetch-models", async (request, reply) => {
+    const parsed = FetchModelsSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    try {
+      const res = await fetch(`${parsed.data.baseUrl}/v1/models`, {
+        headers: { Authorization: `Bearer ${parsed.data.apiKey}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        return reply.status(502).send({ error: `HTTP ${res.status}: ${text.slice(0, 200)}` });
+      }
+      const data = (await res.json()) as { data?: Array<{ id: string }> };
+      return { models: (data.data ?? []).map((m) => m.id).sort() };
+    } catch (e) {
+      return reply.status(502).send({ error: e instanceof Error ? e.message : "获取模型列表失败" });
+    }
+  });
+
+  app.post("/settings/providers/:id/fetch-models", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const models = await fetchProviderModels(id);
+      return { models };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "获取模型列表失败";
+      const status = msg === "Provider not found" ? 404 : msg.includes("no API key") ? 400 : 502;
+      return reply.status(status).send({ error: msg });
+    }
   });
 
   app.get("/settings/providers/:id/test", async (request) => {
