@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { ConversationDetail } from "shared";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
@@ -62,21 +61,6 @@ export function Sidebar() {
     setNewName("");
     setAddingTo(null);
     await refresh();
-  }
-
-  async function addConversation(enterpriseId: string) {
-    const projects = workspace.projects.filter((p) => p.enterpriseId === enterpriseId);
-    if (projects.length === 0) return;
-    const detail = await fetchJson<ConversationDetail>("/conversations", {
-      method: "POST",
-      body: JSON.stringify({
-        enterpriseId,
-        projectId: projects[0].id,
-        title: "新对话",
-      }),
-    });
-    await refresh();
-    router.push(`/chat/${detail.id}`);
   }
 
   async function confirmDelete() {
@@ -291,19 +275,6 @@ export function Sidebar() {
 
       <div className="sidebar-section-header">
         <span>对话</span>
-        <div className="sidebar-section-actions">
-          <button
-            aria-label="新增对话"
-            className="icon-action"
-            type="button"
-            onClick={() => {
-              const first = workspace.enterprises[0];
-              if (first) addConversation(first.id);
-            }}
-          >
-            新增
-          </button>
-        </div>
       </div>
 
       <div className="history-groups">
