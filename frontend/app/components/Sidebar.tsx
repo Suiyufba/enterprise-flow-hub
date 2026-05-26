@@ -320,7 +320,9 @@ export function Sidebar() {
                       onClick={() => router.push(`/chat/${conversation.id}`)}
                     >
                       <span className="icon">💬</span>
-                      <span className="history-chat-title sidebar-row-title">{conversation.title}</span>
+                      <span className="history-chat-title sidebar-row-title" title={conversation.title}>
+                        {conversation.title.length > 8 ? conversation.title.slice(0, 8) + "…" : conversation.title}
+                      </span>
                       <span className="sidebar-row-actions">
                         <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话">✏</span>
                         <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话">×</span>
