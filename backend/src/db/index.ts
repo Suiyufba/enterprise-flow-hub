@@ -33,6 +33,11 @@ export function getDb(): Database.Database {
       db.prepare("ALTER TABLE automations ADD COLUMN action_plugin_id TEXT").run();
     }
 
+    const personaColumns = db.prepare("PRAGMA table_info(agent_personas)").all() as Array<{ name: string }>;
+    if (!personaColumns.some((column) => column.name === "thinking_provider_id")) {
+      db.prepare("ALTER TABLE agent_personas ADD COLUMN thinking_provider_id TEXT").run();
+    }
+
     // Seed baseline workspace data only if this is a fresh database.
     const count = db.prepare("SELECT COUNT(*) as cnt FROM enterprises").get() as { cnt: number };
     if (count.cnt === 0) {

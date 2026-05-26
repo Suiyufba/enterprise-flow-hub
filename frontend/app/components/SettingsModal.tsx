@@ -44,6 +44,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [pDesc, setPDesc] = useState("");
   const [pPrompt, setPPrompt] = useState("");
   const [pProviderId, setPProviderId] = useState("");
+  const [pThinkingProviderId, setPThinkingProviderId] = useState("");
   const [generatingPrompt, setGeneratingPrompt] = useState(false);
 
   async function refresh() {
@@ -160,13 +161,15 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   async function addPersona() {
     if (!pRole.trim() || !pDesc.trim() || !pPrompt.trim() || !pProviderId) return;
     try {
+      const body: Record<string, string> = {
+        name: pRole, role: pRole, description: pDesc, systemPrompt: pPrompt, providerId: pProviderId,
+      };
+      if (pThinkingProviderId) body.thinkingProviderId = pThinkingProviderId;
       await fetchJson("/settings/personas", {
         method: "POST",
-        body: JSON.stringify({
-          name: pRole, role: pRole, description: pDesc, systemPrompt: pPrompt, providerId: pProviderId,
-        }),
+        body: JSON.stringify(body),
       });
-      setPRole(""); setPDesc(""); setPPrompt(""); setPProviderId("");
+      setPRole(""); setPDesc(""); setPPrompt(""); setPProviderId(""); setPThinkingProviderId("");
       await refresh();
     } catch { showToast("添加角色失败", "error"); }
   }
@@ -317,7 +320,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           <div className="settings-body">
             <div className="settings-form">
               <select className="page-input" value={pProviderId} onChange={(e) => setPProviderId(e.target.value)}>
-                <option value="">选择模型...</option>
+                <option value="">选择回复模型...</option>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.model})</option>
+                ))}
+              </select>
+              <select className="page-input" value={pThinkingProviderId} onChange={(e) => setPThinkingProviderId(e.target.value)}>
+                <option value="">思考模型（可选，不选则复用回复模型）</option>
                 {providers.map((p) => (
                   <option key={p.id} value={p.id}>{p.name} ({p.model})</option>
                 ))}
@@ -342,7 +351,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <div className="settings-card" key={p.id}>
                   <div>
                     <strong>{p.name}</strong>
-                    <span className="settings-meta">{p.role} · {providers.find(x => x.id === p.providerId)?.name ?? "未知模型"}</span>
+                    <span className="settings-meta">{p.role} · 回复: {providers.find(x => x.id === p.providerId)?.name ?? "未知模型"}{p.thinkingProviderId ? ` · 思考: ${providers.find(x => x.id === p.thinkingProviderId)?.name ?? "未知"}` : ""}</span>
                     <span className={`settings-status ${p.enabled ? "on" : "off"}`}>
                       {p.enabled ? "已启用" : "已停用"}
                     </span>

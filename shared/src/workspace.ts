@@ -143,6 +143,7 @@ export const AgentPersonaSchema = z.object({
   systemPrompt: z.string(),
   defaultSkillIds: z.array(z.string()),
   providerId: z.string(),
+  thinkingProviderId: z.string().optional(),
   enabled: z.boolean(),
 });
 

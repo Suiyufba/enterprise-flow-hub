@@ -37,6 +37,7 @@ export type AgentKernelInput = {
   skills: AgentSkill[];
   tools: ToolDefinition[];
   provider?: AgentRuntimeProvider;
+  thinkingProvider?: AgentRuntimeProvider;
   context: AgentKernelContext;
   runTool: (
     toolId: string,
@@ -137,14 +138,19 @@ export async function runAgentKernel(input: AgentKernelInput): Promise<AgentKern
     ...historyToMessages(input.history),
     { role: "user", content: input.userContent },
   ];
-  const provider = toProviderOptions(input.provider);
+  const defaultProvider = toProviderOptions(input.provider);
+  const thinkProvider = input.thinkingProvider
+    ? toProviderOptions(input.thinkingProvider)
+    : undefined;
   const maxTurns = input.maxTurns ?? 10;
 
   for (let turn = 0; turn < maxTurns; turn += 1) {
+    // Use thinking provider for the first turn (planning/reasoning), then switch to default
+    const activeProvider = turn === 0 && thinkProvider ? thinkProvider : defaultProvider;
     const resp = await aiChatMessages(messages, {
       temperature: 0.7,
       maxTokens: 3072,
-      provider,
+      provider: activeProvider,
       tools: functionDefs,
     });
 

@@ -686,6 +686,7 @@ function rowToPersona(r: Record<string, unknown>): AgentPersona {
     systemPrompt: r.system_prompt as string,
     defaultSkillIds: jsonParse<string[]>(r.default_skill_ids as string, []),
     providerId: r.provider_id as string,
+    thinkingProviderId: (r.thinking_provider_id as string) || undefined,
     enabled: (r.enabled as number) === 1,
   };
 }
@@ -840,15 +841,15 @@ export async function testProviderConnection(id: string): Promise<{ ok: boolean;
   }
 }
 
-export function createPersona(input: { name: string; role: string; description: string; systemPrompt: string; providerId: string }): AgentPersona {
+export function createPersona(input: { name: string; role: string; description: string; systemPrompt: string; providerId: string; thinkingProviderId?: string }): AgentPersona {
   const id = `persona-${randomUUID()}`;
   db()
-    .prepare("INSERT INTO agent_personas (id, name, role, description, system_prompt, default_skill_ids, provider_id, enabled) VALUES (?, ?, ?, ?, ?, '[]', ?, 1)")
-    .run(id, input.name.trim(), input.role.trim(), input.description.trim(), input.systemPrompt.trim(), input.providerId);
+    .prepare("INSERT INTO agent_personas (id, name, role, description, system_prompt, default_skill_ids, provider_id, thinking_provider_id, enabled) VALUES (?, ?, ?, ?, ?, '[]', ?, ?, 1)")
+    .run(id, input.name.trim(), input.role.trim(), input.description.trim(), input.systemPrompt.trim(), input.providerId, input.thinkingProviderId || null);
   return rowToPersona(db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
-export function updatePersona(id: string, input: { name?: string; role?: string; description?: string; systemPrompt?: string; providerId?: string; enabled?: boolean }): AgentPersona | undefined {
+export function updatePersona(id: string, input: { name?: string; role?: string; description?: string; systemPrompt?: string; providerId?: string; thinkingProviderId?: string; enabled?: boolean }): AgentPersona | undefined {
   const row = db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!row) return undefined;
   const current = rowToPersona(row);
@@ -858,11 +859,12 @@ export function updatePersona(id: string, input: { name?: string; role?: string;
     description: input.description ?? current.description,
     system_prompt: input.systemPrompt ?? current.systemPrompt,
     provider_id: input.providerId ?? current.providerId,
+    thinking_provider_id: input.thinkingProviderId !== undefined ? (input.thinkingProviderId || null) : row.thinking_provider_id,
     enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : (current.enabled ? 1 : 0),
   };
   db()
-    .prepare("UPDATE agent_personas SET name=?, role=?, description=?, system_prompt=?, provider_id=?, enabled=? WHERE id=?")
-    .run(next.name, next.role, next.description, next.system_prompt, next.provider_id, next.enabled, id);
+    .prepare("UPDATE agent_personas SET name=?, role=?, description=?, system_prompt=?, provider_id=?, thinking_provider_id=?, enabled=? WHERE id=?")
+    .run(next.name, next.role, next.description, next.system_prompt, next.provider_id, next.thinking_provider_id, next.enabled, id);
   return rowToPersona(db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -1088,6 +1090,9 @@ export async function addMessage(conversationId: string, input: AddMessageReques
   if (!provider) {
     throw new Error("NO_PROVIDER: 没有找到可用的 AI 模型账号，请在设置中添加并启用一个模型");
   }
+  const thinkingProvider = persona?.thinkingProviderId
+    ? getRuntimeProvider(persona.thinkingProviderId)
+    : undefined;
   const contextLabel =
     input.contextScope === "selected_projects"
       ? `结合 ${input.contextProjectIds?.length ?? 0} 个指定项目资料`
@@ -1117,6 +1122,7 @@ export async function addMessage(conversationId: string, input: AddMessageReques
       skills: selectedSkills,
       tools,
       provider,
+      thinkingProvider,
       context: {
         conversationTitle: conversation.title,
         contextLabel,

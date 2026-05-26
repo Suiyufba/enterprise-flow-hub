@@ -36,6 +36,7 @@ const CreatePersonaSchema = z.object({
   description: z.string().min(1).max(300),
   systemPrompt: z.string().min(1).max(2000),
   providerId: z.string(),
+  thinkingProviderId: z.string().optional(),
 });
 
 const UpdatePersonaSchema = z.object({
@@ -44,6 +45,7 @@ const UpdatePersonaSchema = z.object({
   description: z.string().min(1).max(300).optional(),
   systemPrompt: z.string().min(1).max(2000).optional(),
   providerId: z.string().optional(),
+  thinkingProviderId: z.string().optional(),
   enabled: z.boolean().optional(),
 });
 
