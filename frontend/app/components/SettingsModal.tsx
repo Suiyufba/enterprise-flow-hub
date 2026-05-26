@@ -379,7 +379,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               <div className="settings-prompt-row">
                 <textarea className="page-textarea" value={pPrompt} onChange={(e) => setPPrompt(e.target.value)} placeholder="System Prompt，或让 AI 帮你写" rows={3} />
                 <button className="page-secondary-button settings-ai-btn" onClick={generatePrompt} disabled={generatingPrompt || !pDesc.trim()} type="button">
-                  {generatingPrompt ? "生成中..." : "🤖 AI 生成 Prompt"}
+                  {generatingPrompt ? "生成中..." : "AI 生成 Prompt"}
                 </button>
               </div>
               <button className="page-primary-button" onClick={addPersona} disabled={loading} type="button">添加角色</button>
