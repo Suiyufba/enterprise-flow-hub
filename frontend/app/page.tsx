@@ -130,7 +130,6 @@ export default function Home() {
               {workspace?.enterprises.map((ent) => (
                 <option key={ent.id} value={ent.id}>{ent.name}</option>
               ))}
-              {!workspace && <option value="ent-qihang">启航留学</option>}
             </select>
             <select
               aria-label="选择项目"
@@ -145,7 +144,6 @@ export default function Home() {
               {filteredProjects.length === 0 && (
                 <option value="">{enterpriseId ? "暂无项目" : "请先选企业"}</option>
               )}
-              {!workspace && <option value="proj-qihang-growth">线索增长</option>}
             </select>
           </div>
           <select
@@ -160,7 +158,6 @@ export default function Home() {
                 {p.name}
               </option>
             ))}
-            {!workspace && <option value="persona-ops-cto">轻量自动化 CTO</option>}
           </select>
         </div>
       </div>
