@@ -1115,8 +1115,8 @@ export async function addMessage(conversationId: string, input: AddMessageReques
       .all(conversationId) as Record<string, unknown>[];
     let history = historyRows.map(rowToMessage);
 
-    // Compress history when total characters exceed threshold
-    const MAX_HISTORY_CHARS = 200_000;
+    // Compress history when estimated tokens exceed 200K (≈400K chars for Chinese)
+    const MAX_HISTORY_CHARS = 400_000;
     const KEEP_RECENT = 12;
     let historyNote = "";
     const totalChars = history.reduce((sum, m) => sum + m.content.length, 0);
@@ -1125,7 +1125,7 @@ export async function addMessage(conversationId: string, input: AddMessageReques
       history = history.slice(-KEEP_RECENT);
       const olderChars = older.reduce((sum, m) => sum + m.content.length, 0);
       historyNote = [
-        `[上下文已自动压缩：省略了 ${older.length} 条早期消息（约 ${Math.round(olderChars / 1000)}K 字符）。]`,
+        `[上下文已自动压缩：省略了 ${older.length} 条早期消息（约 ${Math.round(olderChars / 2000)}K token）。]`,
         `早期对话涉及：${older.slice(0, 3).map((m) => m.content.slice(0, 30)).join("；")}...`,
         `请基于最近 ${KEEP_RECENT} 条消息继续对话，必要时回顾早期上下文。`,
       ].join(" ");
