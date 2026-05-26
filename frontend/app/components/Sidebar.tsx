@@ -159,7 +159,7 @@ export function Sidebar() {
           <span className="icon">◷</span> 自动化
         </Link>
         <Link href="/personas" className={`nav-item ${pathname === "/personas" ? "active" : ""}`}>
-          <span className="icon">👤</span> 人格
+          <span className="icon">◈</span> 人格
         </Link>
       </nav>
 
