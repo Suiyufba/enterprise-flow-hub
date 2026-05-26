@@ -343,6 +343,34 @@ body {
   gap: 4px;
 }
 
+.sidebar-persona-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 10px;
+  border-bottom: 1px solid var(--c-2a2a2a);
+  margin-bottom: 2px;
+}
+
+.sidebar-persona-select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--c-303030);
+  border-radius: 8px;
+  background: var(--c-1d1d1d);
+  color: var(--c-d4d4d4);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 8px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.sidebar-persona-select:focus {
+  border-color: var(--c-4a90e6);
+}
+
 .sidebar .nav-item {
   display: flex;
   align-items: center;

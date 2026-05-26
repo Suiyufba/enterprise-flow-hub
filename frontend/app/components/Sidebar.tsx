@@ -26,6 +26,7 @@ export function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: "project" | "conversation" } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [personaId, setPersonaId] = useState(workspace.personas[0]?.id ?? "");
 
   useEffect(() => {
     if (workspace.enterprises.length > 0) {
@@ -159,6 +160,26 @@ export function Sidebar() {
           <span className="icon">◷</span> 自动化
         </Link>
       </nav>
+
+      <div className="sidebar-persona-bar">
+        <select
+          className="sidebar-persona-select"
+          value={personaId}
+          onChange={(e) => setPersonaId(e.target.value)}
+        >
+          {workspace.personas.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <button
+          className="sidebar-mini-action"
+          onClick={() => setSettingsOpen(true)}
+          title="管理角色人格"
+          type="button"
+        >
+          ⚙
+        </button>
+      </div>
 
       <div className="sidebar-scroll">
 

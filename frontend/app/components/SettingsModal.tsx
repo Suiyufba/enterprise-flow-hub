@@ -248,11 +248,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         </div>
 
         <div className="settings-tabs">
-          <button className={`settings-tab ${tab === "providers" ? "active" : ""}`} onClick={() => setTab("providers")}>模型账号</button>
-          <button className={`settings-tab ${tab === "personas" ? "active" : ""}`} onClick={() => setTab("personas")}>角色人格</button>
+          <button className="settings-tab active">模型账号</button>
         </div>
 
-        {tab === "providers" && (
           <div className="settings-body">
             <div className="settings-form">
               <input className="page-input" value={pName} onChange={(e) => setPName(e.target.value)} placeholder="自定义名称，如：我的 DeepSeek" />
@@ -357,92 +355,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               ))}
             </div>
           </div>
-        )}
 
-        {tab === "personas" && (
-          <div className="settings-body">
-            <div className="settings-form">
-              <select className="page-input" value={pProviderId} onChange={(e) => setPProviderId(e.target.value)}>
-                <option value="">选择回复模型...</option>
-                {providers.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.model})</option>
-                ))}
-              </select>
-              <select className="page-input" value={pThinkingProviderId} onChange={(e) => setPThinkingProviderId(e.target.value)}>
-                <option value="">思考模型（可选，不选则复用回复模型）</option>
-                {providers.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.model})</option>
-                ))}
-              </select>
-              <input className="page-input" value={pRole} onChange={(e) => setPRole(e.target.value)} placeholder="角色名称，如：销售运营专家" />
-              <input className="page-input" value={pDesc} onChange={(e) => setPDesc(e.target.value)} placeholder="角色说明，如：专注线索分配和转化漏斗分析" />
-              <div className="settings-prompt-row">
-                <textarea className="page-textarea" value={pPrompt} onChange={(e) => setPPrompt(e.target.value)} placeholder="System Prompt，或让 AI 帮你写" rows={3} />
-                <button className="page-secondary-button settings-ai-btn" onClick={generatePrompt} disabled={generatingPrompt || !pDesc.trim()} type="button">
-                  {generatingPrompt ? "生成中..." : "AI 生成 Prompt"}
-                </button>
-              </div>
-              <button className="page-primary-button" onClick={addPersona} disabled={loading} type="button">添加角色</button>
-            </div>
 
-            {personas.length === 0 && (
-              <div className="search-empty">暂无角色人格，请添加</div>
-            )}
-
-            <div className="settings-list">
-              {personas.map((p) => (
-                <div className={`settings-card ${editingPersonaId === p.id ? "settings-card-editing" : ""}`} key={p.id}>
-                  {editingPersonaId === p.id ? (
-                    <div className="settings-edit-form">
-                      <input className="page-input" value={epName} onChange={(e) => setEpName(e.target.value)} placeholder="角色名称" />
-                      <input className="page-input" value={epRole} onChange={(e) => setEpRole(e.target.value)} placeholder="角色说明" />
-                      <input className="page-input" value={epDesc} onChange={(e) => setEpDesc(e.target.value)} placeholder="角色描述" />
-                      <textarea className="page-textarea" value={epPrompt} onChange={(e) => setEpPrompt(e.target.value)} placeholder="System Prompt" rows={3} />
-                      <select className="page-input" value={epProviderId} onChange={(e) => setEpProviderId(e.target.value)}>
-                        <option value="">选择回复模型...</option>
-                        {providers.map((prov) => (
-                          <option key={prov.id} value={prov.id}>{prov.name} ({prov.model})</option>
-                        ))}
-                      </select>
-                      <select className="page-input" value={epThinkingProviderId} onChange={(e) => setEpThinkingProviderId(e.target.value)}>
-                        <option value="">思考模型（可选）</option>
-                        {providers.map((prov) => (
-                          <option key={prov.id} value={prov.id}>{prov.name} ({prov.model})</option>
-                        ))}
-                      </select>
-                      <div className="settings-card-actions">
-                        <button className="page-primary-button" onClick={saveEditPersona} disabled={epSaving} type="button">
-                          {epSaving ? "保存中..." : "保存"}
-                        </button>
-                        <button className="page-secondary-button" onClick={cancelEditPersona} type="button">取消</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div>
-                        <strong>{p.name}</strong>
-                        <span className="settings-meta">{p.role} · 回复: {providers.find(x => x.id === p.providerId)?.name ?? "未知模型"}{p.thinkingProviderId ? ` · 思考: ${providers.find(x => x.id === p.thinkingProviderId)?.name ?? "未知"}` : ""}</span>
-                        <span className={`settings-status ${p.enabled ? "on" : "off"}`}>
-                          {p.enabled ? "已启用" : "已停用"}
-                        </span>
-                      </div>
-                      <p className="settings-prompt-preview">{p.systemPrompt.slice(0, 120)}{p.systemPrompt.length > 120 ? "..." : ""}</p>
-                      {p.memory && (
-                        <p className="settings-prompt-preview" style={{ fontSize: 11, color: "var(--c-9b9b9b)" }}>
-                          🧠 {p.memory.slice(-200)}
-                        </p>
-                      )}
-                      <div className="settings-card-actions">
-                        <button className="page-secondary-button" onClick={() => startEditPersona(p)}>编辑</button>
-                        <button className="page-secondary-button" onClick={() => deletePersona(p.id)}>删除</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
