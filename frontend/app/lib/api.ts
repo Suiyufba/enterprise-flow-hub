@@ -29,9 +29,10 @@ export function setStoredUser(user: { id: string; enterpriseId: string; username
 // ---- HTTP ----
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = {};
+  if (init?.body) {
+    headers["Content-Type"] = "application/json";
+  }
   if (API_KEY) {
     headers["Authorization"] = `Bearer ${API_KEY}`;
   }
@@ -44,6 +45,10 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     throw new Error(await response.text());
   }
 
-  return response.json() as Promise<T>;
-}
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
