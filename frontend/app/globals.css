@@ -698,7 +698,8 @@ body {
 }
 
 .sidebar .spacer {
-  flex: 1;
+  flex-shrink: 0;
+  height: 8px;
 }
 
 .sidebar .sidebar-footer {
