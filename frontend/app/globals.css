@@ -2273,6 +2273,15 @@ body {
   cursor: pointer;
 }
 
+.search-enterprise-filter-chip {
+  min-height: 35px;
+  background: transparent;
+  color: var(--c-f4f4f4);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+}
+
 /* ---- Search Results ---- */
 .search-result {
   cursor: pointer;

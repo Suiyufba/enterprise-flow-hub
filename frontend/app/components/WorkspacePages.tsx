@@ -13,7 +13,7 @@ export function SearchPage() {
   const [typeFilter, setTypeFilter] = useState("全部");
   const [enterpriseFilter, setEnterpriseFilter] = useState("全部");
 
-  const types = ["全部", "项目", "对话", "资料", "自动化"] as const;
+  const types = ["项目", "对话", "资料", "自动化"] as const;
 
   const results = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -99,7 +99,6 @@ export function SearchPage() {
       ? all.filter((item) => item.title.toLowerCase().includes(keyword))
       : all;
     return {
-      全部: filtered.length,
       项目: filtered.filter((i) => i.type === "项目").length,
       对话: filtered.filter((i) => i.type === "对话").length,
       资料: filtered.filter((i) => i.type === "资料").length,
@@ -127,11 +126,23 @@ export function SearchPage() {
 
       <div className="search-filters">
         <div className="search-filter-chips">
+          <select
+            className="search-enterprise-select search-enterprise-filter-chip"
+            value={enterpriseFilter}
+            onChange={(e) => setEnterpriseFilter(e.target.value)}
+          >
+            <option value="全部">全部企业</option>
+            {workspace.enterprises.map((ent) => (
+              <option key={ent.id} value={ent.id}>
+                {ent.name}
+              </option>
+            ))}
+          </select>
           {types.map((t) => (
             <button
               key={t}
               className={`search-chip ${typeFilter === t ? "active" : ""}`}
-              onClick={() => setTypeFilter(t)}
+              onClick={() => setTypeFilter(typeFilter === t ? "全部" : t)}
               type="button"
             >
               {t}
@@ -139,18 +150,6 @@ export function SearchPage() {
             </button>
           ))}
         </div>
-        <select
-          className="search-enterprise-select"
-          value={enterpriseFilter}
-          onChange={(e) => setEnterpriseFilter(e.target.value)}
-        >
-          <option value="全部">全部企业</option>
-          {workspace.enterprises.map((ent) => (
-            <option key={ent.id} value={ent.id}>
-              {ent.name}
-            </option>
-          ))}
-        </select>
       </div>
 
       <div className="page-list">
