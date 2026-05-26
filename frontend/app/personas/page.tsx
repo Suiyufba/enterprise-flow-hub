@@ -26,6 +26,7 @@ export default function PersonasPage() {
   const [epPrompt, setEpPrompt] = useState("");
   const [epProviderId, setEpProviderId] = useState("");
   const [epThinkingProviderId, setEpThinkingProviderId] = useState("");
+  const [dreamingId, setDreamingId] = useState<string | null>(null);
 
   async function refresh() {
     const [p, per] = await Promise.all([
@@ -175,9 +176,21 @@ export default function PersonasPage() {
                     </div>
                     <p className="settings-prompt-preview">{p.systemPrompt.slice(0, 120)}{p.systemPrompt.length > 120 ? "..." : ""}</p>
                     {p.memory && (
-                      <p className="settings-prompt-preview" style={{ fontSize: 11, color: "var(--c-9b9b9b)" }}>
-                        🧠 {p.memory.slice(-200)}
-                      </p>
+                      <>
+                        <button
+                          className="page-secondary-button"
+                          onClick={() => setDreamingId(dreamingId === p.id ? null : p.id)}
+                          style={{ alignSelf: "flex-start", fontSize: 11, padding: "3px 8px" }}
+                          type="button"
+                        >
+                          {dreamingId === p.id ? "收起梦境" : `💭 梦境记录 (${(p.memory.match(/###/g) || []).length} 天)`}
+                        </button>
+                        {dreamingId === p.id && (
+                          <div className="settings-prompt-preview" style={{ fontSize: 12, whiteSpace: "pre-wrap", lineHeight: 1.6, maxHeight: 300, overflowY: "auto" }}>
+                            {p.memory}
+                          </div>
+                        )}
+                      </>
                     )}
                     <div className="settings-card-actions">
                       <button className="page-secondary-button" onClick={() => startEditPersona(p)}>编辑</button>
