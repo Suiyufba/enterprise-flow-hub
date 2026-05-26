@@ -53,7 +53,7 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, showToast]);
 
   useEffect(() => {
     refresh();
