@@ -285,10 +285,17 @@ export async function workspaceRoutes(app: FastifyInstance) {
       }
       return reply.status(201).send(result);
     } catch (e) {
-      return reply.status(502).send({
-        error: "AI 处理失败，请检查模型配置或稍后重试",
-        detail: e instanceof Error ? e.message : String(e),
-      });
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith("NO_PROVIDER:")) {
+        return reply.status(400).send({ error: msg.slice("NO_PROVIDER:".length).trim() });
+      }
+      if (msg.includes("401") || msg.includes("403")) {
+        return reply.status(502).send({ error: "AI 模型认证失败，请检查 API Key 是否正确", detail: msg });
+      }
+      if (msg.includes("timeout") || msg.includes("ETIMEDOUT")) {
+        return reply.status(502).send({ error: "AI 服务响应超时，请稍后重试", detail: msg });
+      }
+      return reply.status(502).send({ error: "AI 处理失败，请稍后重试", detail: msg });
     }
   });
 }

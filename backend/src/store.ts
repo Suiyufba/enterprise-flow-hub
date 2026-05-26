@@ -1085,6 +1085,9 @@ export async function addMessage(conversationId: string, input: AddMessageReques
   const selectedSkillIds = input.skillIds?.length ? input.skillIds : persona?.defaultSkillIds ?? [];
   const selectedSkills = skills.filter((item) => selectedSkillIds.includes(item.id));
   const provider = getRuntimeProvider(persona?.providerId) ?? getRuntimeProvider();
+  if (!provider) {
+    throw new Error("NO_PROVIDER: 没有找到可用的 AI 模型账号，请在设置中添加并启用一个模型");
+  }
   const contextLabel =
     input.contextScope === "selected_projects"
       ? `结合 ${input.contextProjectIds?.length ?? 0} 个指定项目资料`

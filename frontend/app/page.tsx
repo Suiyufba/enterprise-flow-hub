@@ -66,8 +66,13 @@ export default function Home() {
 
       // 4. Navigate to the chat page
       router.push(`/chat/${conversation.id}`);
-    } catch {
-      showToast("创建对话失败，请重试", "error");
+    } catch (e) {
+      let errMsg = "创建对话失败，请重试";
+      try {
+        const body = JSON.parse((e as Error).message);
+        errMsg = body.error || body.detail || errMsg;
+      } catch { /* not JSON */ }
+      showToast(errMsg, "error");
       setLoading(false);
     }
   }

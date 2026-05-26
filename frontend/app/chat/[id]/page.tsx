@@ -171,12 +171,17 @@ export default function ChatPage() {
       setRunPlan(result.planSteps);
       setRunTools(result.toolRuns);
       setLocalMessages((prev) => [...prev, result.message]);
-    } catch {
-      showToast("消息发送失败，请重试", "error");
+    } catch (e) {
+      let errMsg = "消息发送失败，请重试";
+      try {
+        const body = JSON.parse((e as Error).message);
+        errMsg = body.error || body.detail || errMsg;
+      } catch { /* not JSON */ }
+      showToast(errMsg, "error");
       setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       setInput(userMsg.content);
       setRunPlan((prev) =>
-        prev.map((step) => step.status === "running" ? { ...step, status: "skipped", detail: "请求失败，已恢复输入内容。" } : step),
+        prev.map((step) => step.status === "running" ? { ...step, status: "skipped", detail: errMsg } : step),
       );
     } finally {
       setSending(false);
