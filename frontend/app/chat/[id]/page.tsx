@@ -29,6 +29,7 @@ export default function ChatPage() {
   const [runTools, setRunTools] = useState<ToolRun[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgCounterRef = useRef(0);
+  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
 
   function nextMsgId() {
     msgCounterRef.current += 1;
@@ -99,7 +100,23 @@ export default function ChatPage() {
           });
           setRunPlan(result.planSteps);
           setRunTools(result.toolRuns);
-          setLocalMessages((prev) => [...prev, result.message]);
+          // Stream-fill
+          const aiMsg = { ...result.message, content: "" };
+          setLocalMessages((prev) => [...prev, aiMsg]);
+          setStreamingMsgId(aiMsg.id);
+          const fullContent = result.message.content;
+          let pos = 0;
+          const charsPerTick = Math.max(1, Math.floor(fullContent.length / 80));
+          const interval = setInterval(() => {
+            pos += charsPerTick;
+            if (pos >= fullContent.length) {
+              clearInterval(interval);
+              setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent } : m));
+              setStreamingMsgId(null);
+            } else {
+              setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
+            }
+          }, 30);
         } catch (e) {
           let errMsg = "消息发送失败，请重试";
           try {
@@ -225,7 +242,24 @@ export default function ChatPage() {
       });
       setRunPlan(result.planSteps);
       setRunTools(result.toolRuns);
-      setLocalMessages((prev) => [...prev, result.message]);
+      // Add message with empty content, then stream-fill
+      const aiMsg = { ...result.message, content: "" };
+      setLocalMessages((prev) => [...prev, aiMsg]);
+      setStreamingMsgId(aiMsg.id);
+
+      const fullContent = result.message.content;
+      let pos = 0;
+      const charsPerTick = Math.max(1, Math.floor(fullContent.length / 80));
+      const interval = setInterval(() => {
+        pos += charsPerTick;
+        if (pos >= fullContent.length) {
+          clearInterval(interval);
+          setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent } : m));
+          setStreamingMsgId(null);
+        } else {
+          setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
+        }
+      }, 30);
     } catch (e) {
       let errMsg = "消息发送失败，请重试";
       try {
@@ -348,7 +382,11 @@ export default function ChatPage() {
           <div className="chat-empty">暂无消息记录</div>
         )}
         {localMessages.map((msg) => (
-          <MarkdownMessage key={msg.id} content={msg.content} role={msg.role} />
+          <MarkdownMessage
+            key={msg.id}
+            content={msg.content + (streamingMsgId === msg.id ? "▊" : "")}
+            role={msg.role}
+          />
         ))}
         {sending && (
           <div className="chat-msg chat-msg-assistant chat-typing">
