@@ -255,7 +255,8 @@ function rowToLibraryItem(r: Record<string, unknown>): LibraryItem {
 }
 
 export function createLibraryItem(input: CreateLibraryItemRequest): LibraryItem | undefined {
-  if (!getProject(input.projectId)) return undefined;
+  const project = getProject(input.projectId);
+  if (!project || project.enterpriseId !== input.enterpriseId) return undefined;
 
   const item: LibraryItem = {
     id: `lib-${randomUUID()}`,
@@ -283,16 +284,21 @@ export function updateLibraryItem(id: string, input: UpdateLibraryItemRequest): 
   if (!row) return undefined;
 
   const current = rowToLibraryItem(row);
+  const projectId = input.projectId ?? current.projectId;
+  const project = getProject(projectId);
+  if (!project) return undefined;
+  const enterpriseId = input.enterpriseId ?? project.enterpriseId;
+  if (project.enterpriseId !== enterpriseId) return undefined;
   const name = input.name ?? current.name;
   const type = input.type ?? current.type;
   const summary = input.summary ?? current.summary;
   const visibility = input.visibility ?? current.visibility;
 
   db()
-    .prepare("UPDATE library_items SET name = ?, type = ?, summary = ?, visibility = ? WHERE id = ?")
-    .run(name, type, summary, visibility, id);
+    .prepare("UPDATE library_items SET enterprise_id = ?, project_id = ?, name = ?, type = ?, summary = ?, visibility = ? WHERE id = ?")
+    .run(enterpriseId, projectId, name, type, summary, visibility, id);
 
-  return { ...current, name, type, summary, visibility };
+  return { ...current, enterpriseId, projectId, name, type, summary, visibility };
 }
 
 export function deleteLibraryItem(id: string): boolean {

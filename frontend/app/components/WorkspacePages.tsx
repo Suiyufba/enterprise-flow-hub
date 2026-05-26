@@ -186,6 +186,7 @@ export function SearchPage() {
 export function LibraryPage() {
   const { workspace, refresh } = useWorkspace();
   const [showForm, setShowForm] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [enterpriseFilter, setEnterpriseFilter] = useState("全部");
   const [visibilityFilter, setVisibilityFilter] = useState("全部");
@@ -218,7 +219,7 @@ export function LibraryPage() {
     if (!projectId && workspace.projects[0]) {
       setProjectId(workspace.projects[0].id);
     }
-  }, [workspace.enterprises, workspace.projects]);
+  }, [enterpriseId, projectId, workspace.enterprises, workspace.projects]);
 
   const filtered = useMemo(() => {
     let items = workspace.libraryItems;
@@ -242,20 +243,47 @@ export function LibraryPage() {
     [workspace.projects, enterpriseId],
   );
 
-  async function addItem() {
+  function resetLibraryForm() {
+    setEditingItemId(null);
+    setName("");
+    setSummary("");
+    setSelectedFile(null);
+    setType("screenshot");
+    setVisibility("public");
+    setShowForm(false);
+  }
+
+  function startEditItem(item: LibraryItem) {
+    setEditingItemId(item.id);
+    setEnterpriseId(item.enterpriseId);
+    setProjectId(item.projectId);
+    setName(item.name);
+    setSummary(item.summary);
+    setType(item.type);
+    setVisibility(item.visibility);
+    setSelectedFile(null);
+    setShowForm(true);
+  }
+
+  async function saveItem() {
     if (!name.trim() || !summary.trim()) return;
     try {
-      await fetchJson<LibraryItem>("/library", {
-        method: "POST",
-        body: JSON.stringify({ enterpriseId, projectId, name, summary, type, visibility }),
-      });
-      setName("");
-      setSummary("");
-      setSelectedFile(null);
-      setShowForm(false);
+      const body = { enterpriseId, projectId, name, summary, type, visibility };
+      if (editingItemId) {
+        await fetchJson<LibraryItem>(`/library/${editingItemId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      } else {
+        await fetchJson<LibraryItem>("/library", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      }
+      resetLibraryForm();
       await refresh();
     } catch (e) {
-      console.error("添加资料失败", e);
+      console.error(editingItemId ? "编辑资料失败" : "添加资料失败", e);
     }
   }
 
@@ -287,14 +315,20 @@ export function LibraryPage() {
         />
         <button
           className="page-primary-button"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            if (showForm) {
+              resetLibraryForm();
+            } else {
+              setShowForm(true);
+            }
+          }}
           type="button"
         >
           {showForm ? "取消" : "+ 添加资料"}
         </button>
       </div>
 
-      {/* Upload Form (collapsible) */}
+      {/* Library Form (collapsible) */}
       {showForm && (
         <div className="page-form-grid lib-upload-form">
           <div className="lib-file-upload">
@@ -319,7 +353,7 @@ export function LibraryPage() {
             onChange={(e) => {
               setEnterpriseId(e.target.value);
               const first = workspace.projects.filter((p) => p.enterpriseId === e.target.value)[0];
-              if (first) setProjectId(first.id);
+              setProjectId(first?.id ?? "");
             }}
           >
             {workspace.enterprises.map((ent) => (
@@ -343,7 +377,9 @@ export function LibraryPage() {
           </select>
           <input className="page-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="资料名称" />
           <input className="page-input" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="资料说明" />
-          <button className="page-primary-button" onClick={addItem} type="button">确认添加</button>
+          <button className="page-primary-button" onClick={saveItem} type="button">
+            {editingItemId ? "保存修改" : "确认添加"}
+          </button>
         </div>
       )}
 
@@ -393,6 +429,15 @@ export function LibraryPage() {
                   {item.visibility === "public" ? "公共" : "私有"}
                 </span>
                 <span className="lib-type-badge">{typeLabel[item.type]}</span>
+                <button
+                  className="sidebar-mini-action"
+                  onClick={() => startEditItem(item)}
+                  type="button"
+                  title="编辑资料"
+                  style={{ display: "inline-flex" }}
+                >
+                  ✏
+                </button>
                 <button
                   className="lib-delete-btn"
                   onClick={() => deleteItem(item.id)}

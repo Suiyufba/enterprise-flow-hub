@@ -245,6 +245,8 @@ export const UpdateProjectRequestSchema = z.object({
 });
 
 export const UpdateLibraryItemRequestSchema = z.object({
+  enterpriseId: z.string().optional(),
+  projectId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
   type: z.enum(["screenshot", "spreadsheet", "document", "note"]).optional(),
   summary: z.string().min(1).max(500).optional(),
