@@ -5,6 +5,7 @@ const MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
 interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  reasoning_content?: string;
   tool_call_id?: string;
   name?: string;
   tool_calls?: Array<{
@@ -43,6 +44,7 @@ export interface ToolCall {
 
 export interface AiResponse {
   content: string;
+  reasoningContent?: string;
   toolCalls: ToolCall[];
 }
 
@@ -120,6 +122,7 @@ export async function aiChatMessages(
     choices: Array<{
       message: {
         content?: string;
+        reasoning_content?: string;
         tool_calls?: Array<{
           id: string;
           type: "function";
@@ -131,6 +134,7 @@ export async function aiChatMessages(
 
   const msg = data.choices[0]?.message;
   const content = msg?.content ?? "";
+  const reasoningContent = msg?.reasoning_content;
 
   const toolCalls: ToolCall[] = [];
   if (msg?.tool_calls) {
@@ -151,5 +155,5 @@ export async function aiChatMessages(
     }
   }
 
-  return { content, toolCalls };
+  return { content, reasoningContent, toolCalls };
 }

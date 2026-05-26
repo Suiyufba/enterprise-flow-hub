@@ -11,6 +11,7 @@ import { aiChatMessages, type AiProviderOptions, type FunctionDef, type ToolCall
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  reasoning_content?: string;
   tool_call_id?: string;
   name?: string;
   tool_calls?: Array<{
@@ -243,6 +244,7 @@ export async function runAgentKernel(input: AgentKernelInput): Promise<AgentKern
     messages.push({
       role: "assistant",
       content: resp.content || "",
+      ...(resp.reasoningContent ? { reasoning_content: resp.reasoningContent } : {}),
       tool_calls: resp.toolCalls.map((tc) => ({
         id: tc.id,
         type: "function" as const,
