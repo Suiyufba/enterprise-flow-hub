@@ -427,6 +427,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                         </span>
                       </div>
                       <p className="settings-prompt-preview">{p.systemPrompt.slice(0, 120)}{p.systemPrompt.length > 120 ? "..." : ""}</p>
+                      {p.memory && (
+                        <p className="settings-prompt-preview" style={{ fontSize: 11, color: "var(--c-9b9b9b)" }}>
+                          🧠 {p.memory.slice(-200)}
+                        </p>
+                      )}
                       <div className="settings-card-actions">
                         <button className="page-secondary-button" onClick={() => startEditPersona(p)}>编辑</button>
                         <button className="page-secondary-button" onClick={() => deletePersona(p.id)}>删除</button>

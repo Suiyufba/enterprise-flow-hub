@@ -697,6 +697,7 @@ function rowToPersona(r: Record<string, unknown>): AgentPersona {
     providerId: r.provider_id as string,
     thinkingProviderId: (r.thinking_provider_id as string) || undefined,
     enabled: (r.enabled as number) === 1,
+    memory: (r.memory as string) || undefined,
   };
 }
 
@@ -863,7 +864,7 @@ export function createPersona(input: { name: string; role: string; description: 
   return rowToPersona(db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
-export function updatePersona(id: string, input: { name?: string; role?: string; description?: string; systemPrompt?: string; providerId?: string; thinkingProviderId?: string; enabled?: boolean }): AgentPersona | undefined {
+export function updatePersona(id: string, input: { name?: string; role?: string; description?: string; systemPrompt?: string; providerId?: string; thinkingProviderId?: string; enabled?: boolean; memory?: string }): AgentPersona | undefined {
   const row = db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!row) return undefined;
   const current = rowToPersona(row);
@@ -874,11 +875,12 @@ export function updatePersona(id: string, input: { name?: string; role?: string;
     system_prompt: input.systemPrompt ?? current.systemPrompt,
     provider_id: input.providerId ?? current.providerId,
     thinking_provider_id: input.thinkingProviderId !== undefined ? (input.thinkingProviderId || null) : row.thinking_provider_id,
+    memory: input.memory !== undefined ? input.memory : row.memory,
     enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : (current.enabled ? 1 : 0),
   };
   db()
-    .prepare("UPDATE agent_personas SET name=?, role=?, description=?, system_prompt=?, provider_id=?, thinking_provider_id=?, enabled=? WHERE id=?")
-    .run(next.name, next.role, next.description, next.system_prompt, next.provider_id, next.thinking_provider_id, next.enabled, id);
+    .prepare("UPDATE agent_personas SET name=?, role=?, description=?, system_prompt=?, provider_id=?, thinking_provider_id=?, memory=?, enabled=? WHERE id=?")
+    .run(next.name, next.role, next.description, next.system_prompt, next.provider_id, next.thinking_provider_id, next.memory, next.enabled, id);
   return rowToPersona(db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -889,6 +891,93 @@ export function deletePersona(id: string): boolean {
 
 export function listAllPersonas(): AgentPersona[] {
   return (db().prepare("SELECT * FROM agent_personas ORDER BY enabled DESC, id").all() as Record<string, unknown>[]).map(rowToPersona);
+}
+
+export function updatePersonaMemory(id: string, memory: string): AgentPersona | undefined {
+  const row = db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  db().prepare("UPDATE agent_personas SET memory = ? WHERE id = ?").run(memory, id);
+  return rowToPersona(db().prepare("SELECT * FROM agent_personas WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export async function summarizePersonaMemory(persona: AgentPersona): Promise<void> {
+  // Find all conversations where this persona was used
+  const personaId = persona.id;
+  const conversations = db()
+    .prepare("SELECT * FROM conversations ORDER BY created_at DESC LIMIT 20")
+    .all() as Record<string, unknown>[];
+
+  const conversationsWithThisPersona: string[] = [];
+  for (const conv of conversations) {
+    const msgs = db()
+      .prepare("SELECT content FROM messages WHERE conversation_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 5")
+      .all(conv.id as string) as Record<string, unknown>[];
+    if (msgs.length > 0) {
+      conversationsWithThisPersona.push(
+        `## ${conv.title}\n${msgs.map((m) => `- ${(m.content as string).slice(0, 100)}`).join("\n")}`,
+      );
+    }
+  }
+
+  if (conversationsWithThisPersona.length === 0) return;
+
+  const existingMemory = persona.memory || "";
+  const prompt = [
+    "你是 Enterprise Flow Hub 的记忆总结 Agent。",
+    "以下是角色「" + persona.name + "」最近参与的对话摘要：",
+    conversationsWithThisPersona.join("\n\n"),
+    "",
+    "请基于以上对话，生成一段简洁的记忆总结（200字以内）。",
+    "只写总结本身，不要加前缀。输出 Markdown 格式。",
+  ].join("\n");
+
+  try {
+    const provider = getRuntimeProvider(persona.providerId) ?? getRuntimeProvider();
+    if (!provider) return;
+    const baseUrl = provider.baseUrl;
+    const apiKey = provider.apiKey;
+    const model = provider.model;
+
+    const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 400,
+        temperature: 0.5,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!res.ok) return;
+    const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+    const summary = data.choices?.[0]?.message?.content?.trim();
+    if (!summary) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const entry = `\n\n### ${today}\n${summary}`;
+    const newMemory = existingMemory ? existingMemory + entry : `# ${persona.name} 记忆\n${entry}`;
+    updatePersonaMemory(personaId, newMemory);
+
+    // Also write to soul.md
+    try {
+      const { writeFileSync, mkdirSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const dir = join(process.cwd(), "data", "souls");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, `${persona.id}.md`), newMemory, "utf-8");
+    } catch { /* file write is best-effort */ }
+  } catch {
+    // silent — summary is non-critical
+  }
+}
+
+export async function runAllPersonaSummaries(): Promise<void> {
+  const personas = listAllPersonas().filter((p) => p.enabled);
+  for (const persona of personas) {
+    await summarizePersonaMemory(persona);
+  }
 }
 
 // ---- Conversations ----

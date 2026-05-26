@@ -47,6 +47,7 @@ const UpdatePersonaSchema = z.object({
   providerId: z.string().optional(),
   thinkingProviderId: z.string().optional(),
   enabled: z.boolean().optional(),
+  memory: z.string().optional(),
 });
 
 const FetchModelsSchema = z.object({

@@ -145,6 +145,7 @@ export const AgentPersonaSchema = z.object({
   providerId: z.string(),
   thinkingProviderId: z.string().optional(),
   enabled: z.boolean(),
+  memory: z.string().optional(),
 });
 
 export const ModelProviderSchema = z.object({

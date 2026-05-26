@@ -37,6 +37,9 @@ export function getDb(): Database.Database {
     if (!personaColumns.some((column) => column.name === "thinking_provider_id")) {
       db.prepare("ALTER TABLE agent_personas ADD COLUMN thinking_provider_id TEXT").run();
     }
+    if (!personaColumns.some((column) => column.name === "memory")) {
+      db.prepare("ALTER TABLE agent_personas ADD COLUMN memory TEXT DEFAULT ''").run();
+    }
 
     // Ensure tool-create-library-item exists (added after initial seed)
     const existing = db.prepare("SELECT id FROM ai_tools WHERE id = 'tool-create-library-item'").get();

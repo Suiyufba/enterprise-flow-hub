@@ -12,6 +12,7 @@ import { csvProfile } from "./tools/executors/csv-profile.js";
 import { bashExecute } from "./tools/executors/bash-executor.js";
 import { libraryItemExecute } from "./tools/executors/library-item-executor.js";
 import { notifyExecute } from "./tools/executors/notify.js";
+import { runAllPersonaSummaries } from "./store.js";
 
 // Register tool executors so agent can actually execute tools
 registerTool("tool-csv-profile", csvProfile);
@@ -58,3 +59,23 @@ const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";
 
 await app.listen({ port, host });
+
+// Schedule daily midnight persona memory summarization
+function scheduleMidnight() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const msUntilMidnight = midnight.getTime() - now.getTime();
+
+  setTimeout(async () => {
+    app.log.info("Running daily persona memory summarization...");
+    try {
+      await runAllPersonaSummaries();
+      app.log.info("Daily summarization complete.");
+    } catch (e) {
+      app.log.error({ err: e }, "Daily summarization failed");
+    }
+    scheduleMidnight(); // schedule next run
+  }, msUntilMidnight);
+}
+scheduleMidnight();
