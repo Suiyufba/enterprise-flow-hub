@@ -19,7 +19,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [pName, setPName] = useState("");
   const [pBaseUrl, setPBaseUrl] = useState("");
   const [pModel, setPModel] = useState("");
-  const [pKeyEnv, setPKeyEnv] = useState("");
+  const [pApiKey, setPApiKey] = useState("");
   const [testingId, setTestingId] = useState("");
   const [testResults, setTestResults] = useState<Record<string, string>>({});
 
@@ -44,14 +44,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   }, [open]);
 
   async function addProvider() {
-    if (!pName.trim() || !pBaseUrl.trim() || !pModel.trim() || !pKeyEnv.trim()) return;
+    if (!pName.trim() || !pBaseUrl.trim() || !pModel.trim() || !pApiKey.trim()) return;
     setLoading(true);
     try {
       await fetchJson("/settings/providers", {
         method: "POST",
-        body: JSON.stringify({ name: pName, baseUrl: pBaseUrl, model: pModel, apiKeyEnv: pKeyEnv }),
+        body: JSON.stringify({ name: pName, baseUrl: pBaseUrl, model: pModel, apiKey: pApiKey }),
       });
-      setPName(""); setPBaseUrl(""); setPModel(""); setPKeyEnv("");
+      setPName(""); setPBaseUrl(""); setPModel(""); setPApiKey("");
       await refresh();
     } catch { showToast("添加模型失败", "error"); }
     setLoading(false);
@@ -128,7 +128,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               <input className="page-input" value={pName} onChange={(e) => setPName(e.target.value)} placeholder="自定义名称，如：我的 DeepSeek" />
               <input className="page-input" value={pBaseUrl} onChange={(e) => setPBaseUrl(e.target.value)} placeholder="API 地址，如：https://api.deepseek.com" />
               <input className="page-input" value={pModel} onChange={(e) => setPModel(e.target.value)} placeholder="模型名称，如：deepseek-chat" />
-              <input className="page-input" value={pKeyEnv} onChange={(e) => setPKeyEnv(e.target.value)} placeholder="环境变量名，如：DEEPSEEK_API_KEY" />
+              <input className="page-input" value={pApiKey} onChange={(e) => setPApiKey(e.target.value)} placeholder="API Key，如：sk-xxxx" />
               <button className="page-primary-button" onClick={addProvider} disabled={loading} type="button">添加模型</button>
             </div>
 

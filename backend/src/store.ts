@@ -434,7 +434,7 @@ export function getNotificationWebhook(pluginId?: string): { pluginId: string; u
 function isProviderUsable(id: string): boolean {
   const row = db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(id) as Record<string, unknown> | undefined;
   if (!row) return false;
-  return Boolean(process.env[row.api_key_env as string]);
+  return Boolean(row.api_key_env);
 }
 
 // ---- Automations ----
@@ -690,13 +690,12 @@ function rowToPersona(r: Record<string, unknown>): AgentPersona {
 }
 
 function rowToProvider(r: Record<string, unknown>): ModelProvider {
-  const keyName = r.api_key_env as string;
   return {
     id: r.id as string,
     name: r.name as string,
     baseUrl: r.base_url as string,
     model: r.model as string,
-    configured: Boolean(process.env[keyName]),
+    configured: Boolean(r.api_key_env),
     enabled: (r.enabled as number) === 1,
   };
 }
@@ -704,7 +703,7 @@ function rowToProvider(r: Record<string, unknown>): ModelProvider {
 function rowToRuntimeProvider(r: Record<string, unknown>): AgentRuntimeProvider {
   return {
     ...rowToProvider(r),
-    apiKeyEnv: r.api_key_env as string,
+    apiKey: r.api_key_env as string,
   };
 }
 
@@ -773,11 +772,11 @@ function getRuntimeProvider(id?: string): AgentRuntimeProvider | undefined {
   return row ? rowToRuntimeProvider(row as Record<string, unknown>) : undefined;
 }
 
-export function createProvider(input: { name: string; baseUrl: string; model: string; apiKeyEnv: string }): ModelProvider {
+export function createProvider(input: { name: string; baseUrl: string; model: string; apiKey: string }): ModelProvider {
   const id = `provider-${randomUUID()}`;
   db()
     .prepare("INSERT INTO model_providers (id, name, base_url, model, api_key_env, enabled) VALUES (?, ?, ?, ?, ?, 1)")
-    .run(id, input.name.trim(), input.baseUrl.trim(), input.model.trim(), input.apiKeyEnv.trim());
+    .run(id, input.name.trim(), input.baseUrl.trim(), input.model.trim(), input.apiKey.trim());
   return rowToProvider(db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -789,8 +788,8 @@ export function deleteProvider(id: string): boolean {
 export async function testProviderConnection(id: string): Promise<{ ok: boolean; message: string }> {
   const provider = db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!provider) return { ok: false, message: "Provider not found" };
-  const apiKey = process.env[provider.api_key_env as string];
-  if (!apiKey) return { ok: false, message: `环境变量 ${provider.api_key_env} 未配置` };
+  const apiKey = provider.api_key_env as string;
+  if (!apiKey) return { ok: false, message: "API Key 未配置" };
   try {
     const res = await fetch(`${provider.base_url}/v1/chat/completions`, {
       method: "POST",

@@ -725,7 +725,7 @@ Add a new model provider.
 | name | string | yes | 1–60 chars, custom display name |
 | baseUrl | string | yes | 1–200 chars, API base URL |
 | model | string | yes | 1–60 chars, model identifier |
-| apiKeyEnv | string | yes | 1–60 chars, env variable name holding the key |
+| apiKey | string | yes | 1–200 chars, the API key value |
 
 **Response 201** — the created `ModelProvider`
 

@@ -21,7 +21,7 @@ type ChatMessage = {
 };
 
 export type AgentRuntimeProvider = ModelProvider & {
-  apiKeyEnv?: string;
+  apiKey?: string;
 };
 
 export type AgentKernelContext = {
@@ -117,7 +117,7 @@ function toProviderOptions(p?: AgentRuntimeProvider): AiProviderOptions | undefi
   return {
     baseUrl: p.baseUrl,
     model: p.model,
-    apiKey: p.apiKeyEnv ? process.env[p.apiKeyEnv] : undefined,
+    apiKey: p.apiKey,
   };
 }
 

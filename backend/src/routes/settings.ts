@@ -17,7 +17,7 @@ const CreateProviderSchema = z.object({
   name: z.string().min(1).max(60),
   baseUrl: z.string().min(1).max(200),
   model: z.string().min(1).max(60),
-  apiKeyEnv: z.string().min(1).max(60),
+  apiKey: z.string().min(1).max(200),
 });
 
 const CreatePersonaSchema = z.object({
