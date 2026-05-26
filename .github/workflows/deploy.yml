@@ -110,6 +110,10 @@ jobs:
           docker compose pull
           docker compose up -d
 
+          # Clean up old images to prevent disk fill
+          docker image prune -af --filter "until=72h"
+          docker container prune -f
+
           if command -v pm2 >/dev/null 2>&1; then
             pm2 delete poke-card-api || true
             pm2 save || true
