@@ -239,11 +239,11 @@ export async function workspaceRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
     try {
-      const msg = await addMessage(id, parsed.data);
-      if (!msg) {
+      const result = await addMessage(id, parsed.data);
+      if (!result) {
         return reply.status(404).send({ error: "Conversation not found" });
       }
-      return reply.status(201).send(msg);
+      return reply.status(201).send(result);
     } catch (e) {
       return reply.status(502).send({
         error: "AI 处理失败，请检查模型配置或稍后重试",

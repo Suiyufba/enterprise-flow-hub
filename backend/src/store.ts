@@ -4,7 +4,9 @@ import { aiChat } from "./ai/client.js";
 import { getExecutor } from "./tools/registry.js";
 import type {
   AddMessageRequest,
+  AddMessageResponse,
   AgentPersona,
+  AgentPlanStep,
   AgentSkill,
   AnalysisResult,
   Automation,
@@ -835,7 +837,48 @@ function buildProjectContext(enterpriseId: string, projectIds: string[]): string
   ].join("\n\n");
 }
 
-export async function addMessage(conversationId: string, input: AddMessageRequest): Promise<Message | undefined> {
+function buildAgentPlan(input: {
+  contextLabel: string;
+  projectCount: number;
+  skillNames: string[];
+  enabledToolCount: number;
+}): AgentPlanStep[] {
+  const skillDetail = input.skillNames.length ? input.skillNames.join("、") : "使用通用业务分析能力";
+  return [
+    {
+      id: "scope",
+      title: "确认任务范围",
+      detail: input.contextLabel,
+      status: "done",
+    },
+    {
+      id: "context",
+      title: "读取项目资料",
+      detail: `汇总 ${input.projectCount} 个项目的资料、自动化和历史对话。`,
+      status: "done",
+    },
+    {
+      id: "skills",
+      title: "匹配 Agent 技能",
+      detail: skillDetail,
+      status: "done",
+    },
+    {
+      id: "tools",
+      title: "执行工具或生成方案",
+      detail: input.enabledToolCount > 0 ? `可调用 ${input.enabledToolCount} 个已启用工具。` : "没有启用工具，直接生成方案。",
+      status: "done",
+    },
+    {
+      id: "reply",
+      title: "写入回复和执行记录",
+      detail: "保存用户消息、AI 回复和工具执行结果。",
+      status: "done",
+    },
+  ];
+}
+
+export async function addMessage(conversationId: string, input: AddMessageRequest): Promise<AddMessageResponse | undefined> {
   const conv = db().prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId) as Record<string, unknown> | undefined;
   if (!conv) return undefined;
   const conversation = rowToConversation(conv);
@@ -869,6 +912,12 @@ export async function addMessage(conversationId: string, input: AddMessageReques
       ? input.contextProjectIds
       : [conversation.projectId];
   const projectContext = buildProjectContext(conversation.enterpriseId, contextProjectIds);
+  const planSteps = buildAgentPlan({
+    contextLabel,
+    projectCount: contextProjectIds.length,
+    skillNames: selectedSkills.map((skill) => skill.name),
+    enabledToolCount: tools.filter((tool) => tool.status === "enabled").length,
+  });
 
   try {
     const historyRows = db()
@@ -906,7 +955,11 @@ export async function addMessage(conversationId: string, input: AddMessageReques
     };
     insertMsg.run(aiReply.id, conversationId, aiReply.role, aiReply.content, aiReply.createdAt);
 
-    return aiReply;
+    return {
+      message: aiReply,
+      planSteps,
+      toolRuns: result.toolRuns,
+    };
   } catch (e) {
     console.error("Agent kernel failed:", e);
     deleteMsg.run(userMsg.id);

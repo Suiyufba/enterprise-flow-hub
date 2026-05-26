@@ -108,6 +108,19 @@ export const ToolRunSchema = z.object({
   createdAt: z.string(),
 });
 
+export const AgentPlanStepSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  detail: z.string(),
+  status: z.enum(["pending", "running", "done", "skipped"]),
+});
+
+export const AddMessageResponseSchema = z.object({
+  message: MessageSchema,
+  planSteps: z.array(AgentPlanStepSchema),
+  toolRuns: z.array(ToolRunSchema),
+});
+
 export const AgentSkillSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -247,6 +260,8 @@ export type Plugin = z.infer<typeof PluginSchema>;
 export type Automation = z.infer<typeof AutomationSchema>;
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 export type ToolRun = z.infer<typeof ToolRunSchema>;
+export type AgentPlanStep = z.infer<typeof AgentPlanStepSchema>;
+export type AddMessageResponse = z.infer<typeof AddMessageResponseSchema>;
 export type AgentSkill = z.infer<typeof AgentSkillSchema>;
 export type AgentPersona = z.infer<typeof AgentPersonaSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;

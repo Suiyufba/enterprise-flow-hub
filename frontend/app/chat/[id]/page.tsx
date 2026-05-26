@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import type { ConversationDetail, Message, Workspace } from "shared";
+import type { AddMessageResponse, AgentPlanStep, ConversationDetail, Message, ToolRun, Workspace } from "shared";
 import { fetchJson } from "../../lib/api";
 import { useToast } from "../../lib/toast-context";
 import MarkdownMessage from "../../components/MarkdownMessage";
@@ -24,6 +24,8 @@ export default function ChatPage() {
   const [contextScope, setContextScope] = useState<"current_project" | "selected_projects">("current_project");
   const [contextEnterpriseId, setContextEnterpriseId] = useState("");
   const [contextProjectIds, setContextProjectIds] = useState<string[]>([]);
+  const [runPlan, setRunPlan] = useState<AgentPlanStep[]>([]);
+  const [runTools, setRunTools] = useState<ToolRun[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgCounterRef = useRef(0);
 
@@ -144,11 +146,19 @@ export default function ChatPage() {
       createdAt: new Date().toISOString(),
     };
     setLocalMessages((prev) => [...prev, userMsg]);
+    setRunTools([]);
+    setRunPlan([
+      { id: "scope", title: "确认任务范围", detail: "正在识别本次请求的项目和资料范围。", status: "running" },
+      { id: "context", title: "读取项目资料", detail: "等待读取当前企业的资料、自动化和历史对话。", status: "pending" },
+      { id: "skills", title: "匹配 Agent 技能", detail: "等待选择适合的业务能力。", status: "pending" },
+      { id: "tools", title: "执行工具或生成方案", detail: "等待模型决定是否调用工具。", status: "pending" },
+      { id: "reply", title: "写入回复和执行记录", detail: "等待保存结果。", status: "pending" },
+    ]);
     setInput("");
     setSending(true);
 
     try {
-      const aiMsg = await fetchJson<Message>(`/conversations/${id}/messages`, {
+      const result = await fetchJson<AddMessageResponse>(`/conversations/${id}/messages`, {
         method: "POST",
         body: JSON.stringify({
           content: userMsg.content,
@@ -158,11 +168,16 @@ export default function ChatPage() {
           contextProjectIds,
         }),
       });
-      setLocalMessages((prev) => [...prev, aiMsg]);
+      setRunPlan(result.planSteps);
+      setRunTools(result.toolRuns);
+      setLocalMessages((prev) => [...prev, result.message]);
     } catch {
       showToast("消息发送失败，请重试", "error");
       setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
       setInput(userMsg.content);
+      setRunPlan((prev) =>
+        prev.map((step) => step.status === "running" ? { ...step, status: "skipped", detail: "请求失败，已恢复输入内容。" } : step),
+      );
     } finally {
       setSending(false);
     }
@@ -274,6 +289,43 @@ export default function ChatPage() {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {(runPlan.length > 0 || runTools.length > 0) && (
+        <section className="agent-run-panel" aria-label="Agent 执行计划">
+          <div className="agent-run-header">
+            <div>
+              <span className="agent-run-kicker">Agent Run</span>
+              <h2>执行计划</h2>
+            </div>
+            <span className="agent-run-summary">
+              {runTools.length > 0 ? `${runTools.length} 个工具调用` : sending ? "执行中" : "已完成"}
+            </span>
+          </div>
+
+          <div className="agent-plan-list">
+            {runPlan.map((step, index) => (
+              <div className={`agent-plan-step agent-plan-${step.status}`} key={step.id}>
+                <span className="agent-plan-index">{index + 1}</span>
+                <div>
+                  <strong>{step.title}</strong>
+                  <p>{step.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {runTools.length > 0 && (
+            <div className="agent-tool-list">
+              {runTools.map((tool) => (
+                <div className={`agent-tool-row agent-tool-${tool.status}`} key={tool.id}>
+                  <strong>{tool.toolId}</strong>
+                  <span>{tool.status === "success" ? "成功" : "失败"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Input */}
       <div className="chat-composer">
