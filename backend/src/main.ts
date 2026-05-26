@@ -10,6 +10,7 @@ import { workspaceRoutes } from "./routes/workspace.js";
 import { registerTool } from "./tools/registry.js";
 import { csvProfile } from "./tools/executors/csv-profile.js";
 import { bashExecute } from "./tools/executors/bash-executor.js";
+import { automationExecute } from "./tools/executors/automation-executor.js";
 import { libraryItemExecute } from "./tools/executors/library-item-executor.js";
 import { notifyExecute } from "./tools/executors/notify.js";
 import { runAllPersonaSummaries } from "./store.js";
@@ -18,6 +19,7 @@ import { runAllPersonaSummaries } from "./store.js";
 registerTool("tool-csv-profile", csvProfile);
 registerTool("tool-bash", bashExecute);
 registerTool("tool-create-library-item", libraryItemExecute);
+registerTool("tool-create-automation", automationExecute);
 registerTool("tool-feishu-notify", notifyExecute);
 
 const API_KEY = process.env.API_KEY;

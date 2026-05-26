@@ -119,6 +119,17 @@ INSERT OR IGNORE INTO ai_tools (id, name, description, kind, status, risk, input
     '{"enterpriseId":"ent-xxx","projectId":"proj-xxx","name":"客户名称","type":"note","summary":"客户详细信息","visibility":"public"}',
     '帮我记录一个新客户张三，联系方式是...',
     '2026-05-26T00:00:00.000Z'
+  ),
+  (
+    'tool-create-automation',
+    '创建自动化规则',
+    '在项目下创建一条自动化规则（定时任务、消息触发、通知推送等）。Agent 用它来将用户的自动化需求落地。',
+    'cli',
+    'enabled',
+    'write',
+    '{"projectId":"proj-xxx","name":"每日清理","trigger":"每天早上9:00","triggerType":"schedule","action":"删除重复电话号码","actionType":"call_ai"}',
+    '帮我设置每天早上9点自动清理重复的电话号码',
+    '2026-05-27T00:00:00.000Z'
   );
 
 -- Agent Skills

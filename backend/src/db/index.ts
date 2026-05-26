@@ -41,6 +41,15 @@ export function getDb(): Database.Database {
       db.prepare("ALTER TABLE agent_personas ADD COLUMN memory TEXT DEFAULT ''").run();
     }
 
+    // Ensure tool-create-automation exists (added after initial seed)
+    const autoExisting = db.prepare("SELECT id FROM ai_tools WHERE id = 'tool-create-automation'").get();
+    if (!autoExisting) {
+      db.prepare(`INSERT INTO ai_tools (id, name, description, kind, status, risk, input_schema, example_prompt, created_at)
+        VALUES ('tool-create-automation', '创建自动化规则', '在项目下创建一条自动化规则（定时任务、消息触发、通知推送等）。Agent 用它来将用户的自动化需求落地。',
+        'cli', 'enabled', 'write', '{"projectId":"proj-xxx","name":"每日清理","trigger":"每天早上9:00","triggerType":"schedule","action":"删除重复电话号码","actionType":"call_ai"}',
+        '帮我设置每天早上9点自动清理重复的电话号码', '2026-05-27T00:00:00.000Z')`).run();
+    }
+
     // Ensure tool-create-library-item exists (added after initial seed)
     const existing = db.prepare("SELECT id FROM ai_tools WHERE id = 'tool-create-library-item'").get();
     if (!existing) {
