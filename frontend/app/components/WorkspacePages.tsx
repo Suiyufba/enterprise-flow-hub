@@ -466,10 +466,32 @@ export function PluginsPage() {
   const [skillDescription, setSkillDescription] = useState("");
   const [skillPrompt, setSkillPrompt] = useState("");
   const [skillToolIds, setSkillToolIds] = useState<string[]>([]);
+  const [skillMessage, setSkillMessage] = useState("");
   const [configPlugin, setConfigPlugin] = useState<Plugin | null>(null);
   const [pluginConfig, setPluginConfig] = useState<PluginConfigResponse | null>(null);
   const [pluginWebhook, setPluginWebhook] = useState("");
   const [pluginMessage, setPluginMessage] = useState("");
+
+  const selectedSkill = useMemo(
+    () => workspace.skills.find((skill) => skill.id === editingSkillId),
+    [editingSkillId, workspace.skills],
+  );
+
+  function toolStatusLabel(status: ToolDefinition["status"]) {
+    if (status === "enabled") return "可用";
+    if (status === "needs_config") return "待配置";
+    return "停用";
+  }
+
+  function openNewSkillForm() {
+    setEditingSkillId(null);
+    setSkillName("");
+    setSkillDescription("");
+    setSkillPrompt("");
+    setSkillToolIds([]);
+    setSkillMessage("");
+    setShowSkillForm(true);
+  }
 
   function startEditSkill(skill: AgentSkill) {
     setEditingSkillId(skill.id);
@@ -477,6 +499,7 @@ export function PluginsPage() {
     setSkillDescription(skill.description);
     setSkillPrompt(skill.prompt);
     setSkillToolIds([...skill.toolIds]);
+    setSkillMessage("");
     setShowSkillForm(true);
   }
 
@@ -487,6 +510,7 @@ export function PluginsPage() {
     setSkillDescription("");
     setSkillPrompt("");
     setSkillToolIds([]);
+    setSkillMessage("");
   }
 
   async function togglePlugin(plugin: Plugin) {
@@ -539,7 +563,10 @@ export function PluginsPage() {
   }
 
   async function saveSkill() {
-    if (!skillName.trim() || !skillDescription.trim() || !skillPrompt.trim()) return;
+    if (!skillName.trim() || !skillDescription.trim() || !skillPrompt.trim()) {
+      setSkillMessage("请补全能力名称、使用场景和执行指令。");
+      return;
+    }
     try {
       const body = {
         name: skillName.trim(),
@@ -552,10 +579,11 @@ export function PluginsPage() {
       } else {
         await fetchJson<AgentSkill>("/skills", { method: "POST", body: JSON.stringify(body) });
       }
+      setSkillMessage("能力包已保存");
       cancelSkillForm();
       await refresh();
     } catch {
-      // error handled by toast in future
+      setSkillMessage("保存失败，请检查内容后重试。");
     }
   }
 
@@ -573,6 +601,16 @@ export function PluginsPage() {
 
   function toggleSkillTool(toolId: string) {
     setSkillToolIds((prev) => prev.includes(toolId) ? prev.filter((item) => item !== toolId) : [...prev, toolId]);
+  }
+
+  async function removeSkill(id: string) {
+    try {
+      await fetchJson(`/skills/${id}`, { method: "DELETE" });
+      if (editingSkillId === id) cancelSkillForm();
+      await refresh();
+    } catch {
+      setSkillMessage("删除失败，请稍后重试。");
+    }
   }
 
   return (
@@ -597,54 +635,103 @@ export function PluginsPage() {
       {/* Skills */}
       <div className="page-section-title">Skills 能力包</div>
       <div className="skill-toolbar">
-        <p>把工具和提示词封装成 skill，交给不同角色调用。</p>
-        <button className="page-primary-button" onClick={() => setShowSkillForm((v) => !v)} type="button">
-          {showSkillForm ? "取消" : "+ 新增 Skill"}
-        </button>
+        <p>能力包是一套可复用的 Agent 操作方法：明确适用场景、允许调用的工具，以及回复时必须遵守的执行指令。</p>
+        <button className="page-primary-button" onClick={openNewSkillForm} type="button">+ 新建能力包</button>
       </div>
 
-      {showSkillForm && (
-        <div className="skill-form">
-          <input className="page-input" value={skillName} onChange={(e) => setSkillName(e.target.value)} placeholder="Skill 名称" />
-          <input className="page-input" value={skillDescription} onChange={(e) => setSkillDescription(e.target.value)} placeholder="能力说明" />
-          <textarea className="page-textarea" value={skillPrompt} onChange={(e) => setSkillPrompt(e.target.value)} placeholder="调用这个 skill 时的方法论或注意事项" />
-          <div className="skill-tool-picker">
-            {workspace.tools.map((tool) => (
-              <label className={`skill-tool-chip ${skillToolIds.includes(tool.id) ? "active" : ""}`} key={tool.id}>
-                <input type="checkbox" checked={skillToolIds.includes(tool.id)} onChange={() => toggleSkillTool(tool.id)} />
-                {tool.name}
-              </label>
-            ))}
+      <div className="skill-workbench">
+        <section className="skill-library-panel">
+          <div className="skill-panel-header">
+            <span>已配置能力</span>
+            <strong>{workspace.skills.filter((skill) => skill.enabled).length}/{workspace.skills.length} 启用</strong>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="page-primary-button" onClick={saveSkill} type="button">
-              {editingSkillId ? "更新 Skill" : "保存 Skill"}
-            </button>
-            <button className="page-secondary-button" onClick={cancelSkillForm} type="button">取消</button>
+          <div className="skill-list">
+            {workspace.skills.map((skill) => {
+              const skillTools = skill.toolIds
+                .map((toolId) => workspace.tools.find((tool) => tool.id === toolId))
+                .filter(Boolean) as ToolDefinition[];
+              return (
+                <article className={`skill-card ${editingSkillId === skill.id ? "active" : ""}`} key={skill.id}>
+                  <div className="skill-card-top">
+                    <span className={skill.enabled ? "skill-on" : "skill-off"}>{skill.enabled ? "启用中" : "已停用"}</span>
+                    <div className="skill-card-actions">
+                      <button className="sidebar-mini-action" onClick={() => startEditSkill(skill)} title="编辑能力包" type="button" style={{ display: "inline-flex" }}>✏</button>
+                      <button className="sidebar-mini-action danger" onClick={() => removeSkill(skill.id)} title="删除能力包" type="button" style={{ display: "inline-flex" }}>×</button>
+                    </div>
+                  </div>
+                  <h3>{skill.name}</h3>
+                  <p>{skill.description}</p>
+                  <div className="skill-tools">
+                    {skillTools.length === 0 && <span>无工具，仅提示词</span>}
+                    {skillTools.map((tool) => (
+                      <span key={tool.id} className={tool.status === "enabled" ? "tool-ready" : "tool-needs-config"}>
+                        {tool.name} · {toolStatusLabel(tool.status)}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="skill-prompt-preview">{skill.prompt}</div>
+                  <button className="page-secondary-button" onClick={() => toggleSkill(skill)} type="button">
+                    {skill.enabled ? "停用能力" : "启用能力"}
+                  </button>
+                </article>
+              );
+            })}
           </div>
-        </div>
-      )}
+        </section>
 
-      <div className="skill-grid">
-        {workspace.skills.map((skill) => (
-          <article className="page-card" key={skill.id}>
-            <div className="skill-card-top">
-              <span className={skill.enabled ? "skill-on" : "skill-off"}>{skill.enabled ? "已启用" : "已停用"}</span>
-              <button className="sidebar-mini-action" onClick={() => startEditSkill(skill)} title="编辑" type="button" style={{ display: "inline-flex" }}>✏</button>
+        <section className="skill-builder-panel">
+          <div className="skill-panel-header">
+            <span>{editingSkillId ? "编辑能力包" : "新建能力包"}</span>
+            {selectedSkill && <strong>{selectedSkill.enabled ? "当前启用" : "当前停用"}</strong>}
+          </div>
+          {!showSkillForm ? (
+            <div className="skill-empty-editor">
+              <strong>选择一个能力包开始编辑</strong>
+              <p>也可以新建一个能力，把工具权限和 Agent 执行方法打包给角色使用。</p>
+              <button className="page-primary-button" onClick={openNewSkillForm} type="button">新建能力包</button>
             </div>
-            <h3>{skill.name}</h3>
-            <p>{skill.description}</p>
-            <div className="skill-tools">
-              {skill.toolIds.map((toolId) => {
-                const tool = workspace.tools.find((item) => item.id === toolId);
-                return <span key={toolId} className="lib-type-badge">{tool?.name ?? toolId}</span>;
-              })}
+          ) : (
+            <div className="skill-form">
+              <label className="skill-field">
+                <span>能力名称</span>
+                <input className="page-input" value={skillName} onChange={(e) => setSkillName(e.target.value)} placeholder="如：线索表诊断" />
+              </label>
+              <label className="skill-field">
+                <span>适用场景</span>
+                <input className="page-input" value={skillDescription} onChange={(e) => setSkillDescription(e.target.value)} placeholder="这个能力什么时候该被使用" />
+              </label>
+              <label className="skill-field skill-field-wide">
+                <span>Agent 执行指令</span>
+                <textarea
+                  className="page-textarea"
+                  rows={5}
+                  value={skillPrompt}
+                  onChange={(e) => setSkillPrompt(e.target.value)}
+                  placeholder="写清楚分析步骤、输出格式、必须检查的字段、遇到风险时如何升级..."
+                />
+              </label>
+              <div className="skill-field skill-field-wide">
+                <span>允许调用的工具</span>
+                <div className="skill-tool-picker">
+                  {workspace.tools.map((tool) => (
+                    <label className={`skill-tool-chip ${skillToolIds.includes(tool.id) ? "active" : ""} ${tool.status !== "enabled" ? "muted" : ""}`} key={tool.id}>
+                      <input type="checkbox" checked={skillToolIds.includes(tool.id)} onChange={() => toggleSkillTool(tool.id)} />
+                      <strong>{tool.name}</strong>
+                      <small>{toolStatusLabel(tool.status)}</small>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {skillMessage && <div className="settings-test-result skill-message">{skillMessage}</div>}
+              <div className="skill-form-actions">
+                <button className="page-primary-button" onClick={saveSkill} type="button">
+                  {editingSkillId ? "保存修改" : "创建能力包"}
+                </button>
+                <button className="page-secondary-button" onClick={cancelSkillForm} type="button">取消</button>
+              </div>
             </div>
-            <button className="page-secondary-button" onClick={() => toggleSkill(skill)} type="button">
-              {skill.enabled ? "停用" : "启用"}
-            </button>
-          </article>
-        ))}
+          )}
+        </section>
       </div>
 
       {/* Connection Plugins */}

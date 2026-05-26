@@ -753,6 +753,11 @@ export function updateSkill(id: string, input: UpdateSkillRequest): AgentSkill |
   return next;
 }
 
+export function deleteSkill(id: string): boolean {
+  const result = db().prepare("DELETE FROM agent_skills WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
 export function listPersonas(): AgentPersona[] {
   return (
     db()

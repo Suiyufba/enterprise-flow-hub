@@ -23,6 +23,7 @@ import {
   deleteConversation,
   deleteLibraryItem,
   deleteProject,
+  deleteSkill,
   getConversation,
   getPluginConfig,
   getProject,
@@ -261,6 +262,15 @@ export async function workspaceRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Skill not found" });
     }
     return skill;
+  });
+
+  app.delete("/skills/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const ok = deleteSkill(id);
+    if (!ok) {
+      return reply.status(404).send({ error: "Skill not found" });
+    }
+    return reply.status(204).send();
   });
 
   app.delete("/conversations/:id", async (request, reply) => {
