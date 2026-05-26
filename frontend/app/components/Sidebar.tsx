@@ -26,7 +26,6 @@ export function Sidebar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: "project" | "conversation" } | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [personaId, setPersonaId] = useState(workspace.personas[0]?.id ?? "");
 
   useEffect(() => {
     if (workspace.enterprises.length > 0) {
@@ -159,27 +158,10 @@ export function Sidebar() {
         <Link href="/automation" className={`nav-item ${pathname === "/automation" ? "active" : ""}`}>
           <span className="icon">◷</span> 自动化
         </Link>
-      </nav>
-
-      <div className="sidebar-persona-bar">
-        <select
-          className="sidebar-persona-select"
-          value={personaId}
-          onChange={(e) => setPersonaId(e.target.value)}
-        >
-          {workspace.personas.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-        <Link
-          href="/personas"
-          className="sidebar-mini-action"
-          title="管理角色人格"
-          style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 22, height: 22, borderRadius: 6, color: "var(--c-9b9b9b)" }}
-        >
-          ⚙
+        <Link href="/personas" className={`nav-item ${pathname === "/personas" ? "active" : ""}`}>
+          <span className="icon">👤</span> 人格
         </Link>
-      </div>
+      </nav>
 
       <div className="sidebar-scroll">
 
