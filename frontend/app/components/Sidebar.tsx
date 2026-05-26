@@ -319,7 +319,6 @@ export function Sidebar() {
                       type="button"
                       onClick={() => router.push(`/chat/${conversation.id}`)}
                     >
-                      <span className="icon">💬</span>
                       <span className="history-chat-title sidebar-row-title" title={conversation.title}>
                         {conversation.title.length > 8 ? conversation.title.slice(0, 8) + "…" : conversation.title}
                       </span>
