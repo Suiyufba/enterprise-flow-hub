@@ -4,9 +4,6 @@ import { useEffect, useState } from "react";
 import type { AgentPersona, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
-import { Sidebar } from "../components/Sidebar";
-import { ThemeToggle } from "../components/ThemeToggle";
-
 export default function PersonasPage() {
   const { showToast } = useToast();
   const [providers, setProviders] = useState<ModelProvider[]>([]);
@@ -103,10 +100,6 @@ export default function PersonasPage() {
   }
 
   return (
-    <>
-      <Sidebar />
-      <main className="main">
-        <ThemeToggle />
         <div className="main-inner" style={{ maxWidth: 700, paddingTop: 40 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <h1 style={{ fontSize: 20, color: "var(--c-f0f0f0)", margin: 0 }}>角色人格</h1>
@@ -196,7 +189,5 @@ export default function PersonasPage() {
             ))}
           </div>
         </div>
-      </main>
-    </>
   );
 }
