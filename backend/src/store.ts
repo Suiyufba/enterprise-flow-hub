@@ -1113,7 +1113,23 @@ export async function addMessage(conversationId: string, input: AddMessageReques
     const historyRows = db()
       .prepare("SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC")
       .all(conversationId) as Record<string, unknown>[];
-    const history = historyRows.map(rowToMessage);
+    let history = historyRows.map(rowToMessage);
+
+    // Compress history when total characters exceed threshold
+    const MAX_HISTORY_CHARS = 200_000;
+    const KEEP_RECENT = 12;
+    let historyNote = "";
+    const totalChars = history.reduce((sum, m) => sum + m.content.length, 0);
+    if (totalChars > MAX_HISTORY_CHARS && history.length > KEEP_RECENT) {
+      const older = history.slice(0, -KEEP_RECENT);
+      history = history.slice(-KEEP_RECENT);
+      const olderChars = older.reduce((sum, m) => sum + m.content.length, 0);
+      historyNote = [
+        `[上下文已自动压缩：省略了 ${older.length} 条早期消息（约 ${Math.round(olderChars / 1000)}K 字符）。]`,
+        `早期对话涉及：${older.slice(0, 3).map((m) => m.content.slice(0, 30)).join("；")}...`,
+        `请基于最近 ${KEEP_RECENT} 条消息继续对话，必要时回顾早期上下文。`,
+      ].join(" ");
+    }
 
     const result = await runAgentKernel({
       userContent: input.content,
@@ -1129,6 +1145,7 @@ export async function addMessage(conversationId: string, input: AddMessageReques
         projectContext,
         enterpriseId: conversation.enterpriseId,
         projectId: conversation.projectId,
+        historyNote,
       },
       runTool: (toolId, toolInput, options) =>
         runTool(toolId, {
