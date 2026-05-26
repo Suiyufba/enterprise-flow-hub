@@ -315,8 +315,8 @@ const pluginRequirements: Record<string, { requiredFields: string[]; hint: strin
     notification: true,
   },
   "plugin-wecom": {
-    requiredFields: ["webhookUrl"],
-    hint: "填写企业微信群机器人 Webhook 地址，才能把风险提醒、日报和待办推送出去。",
+    requiredFields: ["botId", "secret"],
+    hint: "开启企业微信智能机器人长连接 API 模式后，填写 BotID 和 Secret。BotID 是机器人唯一标识，Secret 用于长连接身份校验。",
     notification: true,
   },
 };
@@ -339,6 +339,9 @@ function isPluginConfigured(id: string): boolean {
 
 function pluginConfigSummary(id: string): string | undefined {
   const fields = getPluginConfigFields(id);
+  if (fields.botId) {
+    return `BotID ${fields.botId.slice(0, 24)}`;
+  }
   if (fields.webhookUrl) {
     return `Webhook ${fields.webhookUrl.slice(0, 24)}...`;
   }

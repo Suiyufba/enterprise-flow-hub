@@ -49,7 +49,7 @@ INSERT OR IGNORE INTO library_items (id, enterprise_id, project_id, name, type, 
 -- Plugins
 INSERT OR IGNORE INTO plugins (id, name, description, enabled) VALUES
   ('plugin-feishu', '飞书多维表格',   '读取表格字段并生成流程诊断。',         1),
-  ('plugin-wecom',  '企业微信通知',   '把待办和风险提醒推送给负责人。',     0),
+  ('plugin-wecom',  '企业微信智能机器人',   '通过长连接 API 接收指令并把待办、风险提醒推送给负责人。',     0),
   ('plugin-csv',    'CSV 导入',       '导入表格样本作为资料库素材。',         1);
 
 -- AI Tool Registry

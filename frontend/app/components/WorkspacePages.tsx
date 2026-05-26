@@ -468,7 +468,7 @@ export function PluginsPage() {
   const [skillMessage, setSkillMessage] = useState("");
   const [configPlugin, setConfigPlugin] = useState<Plugin | null>(null);
   const [pluginConfig, setPluginConfig] = useState<PluginConfigResponse | null>(null);
-  const [pluginWebhook, setPluginWebhook] = useState("");
+  const [pluginFields, setPluginFields] = useState<Record<string, string>>({});
   const [pluginMessage, setPluginMessage] = useState("");
 
   const selectedSkill = useMemo(
@@ -529,7 +529,12 @@ export function PluginsPage() {
     setPluginMessage("");
     const config = await fetchJson<PluginConfigResponse>(`/plugins/${plugin.id}/config`);
     setPluginConfig(config);
-    setPluginWebhook(config.fields.webhookUrl && config.fields.webhookUrl !== "********" ? config.fields.webhookUrl : "");
+    const fields: Record<string, string> = {};
+    for (const key of config.requiredFields) {
+      const val = config.fields[key];
+      fields[key] = val && val !== "********" ? val : "";
+    }
+    setPluginFields(fields);
   }
 
   async function savePluginConfig() {
@@ -538,7 +543,7 @@ export function PluginsPage() {
     try {
       await fetchJson<PluginConfigResponse>(`/plugins/${configPlugin.id}/config`, {
         method: "PATCH",
-        body: JSON.stringify({ fields: { webhookUrl: pluginWebhook } }),
+        body: JSON.stringify({ fields: pluginFields }),
       });
       setPluginMessage("配置已保存");
       await refresh();
@@ -771,13 +776,17 @@ export function PluginsPage() {
             </div>
             <div className="settings-body">
               <p className="plugin-config-meta">{pluginConfig.hint}</p>
-              <label className="wf-props-label">Webhook URL</label>
-              <input
-                className="page-input"
-                value={pluginWebhook}
-                onChange={(e) => setPluginWebhook(e.target.value)}
-                placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-              />
+              {pluginConfig.requiredFields.map((field) => (
+                <div key={field}>
+                  <label className="wf-props-label">{field}</label>
+                  <input
+                    className="page-input"
+                    value={pluginFields[field] || ""}
+                    onChange={(e) => setPluginFields((prev) => ({ ...prev, [field]: e.target.value }))}
+                    placeholder={field === "botId" ? "机器人的 BotID" : field === "secret" ? "长连接 Secret" : field === "webhookUrl" ? "https://open.feishu.cn/open-apis/bot/v2/hook/..." : `输入 ${field}`}
+                  />
+                </div>
+              ))}
               <div className="settings-card-actions">
                 <button className="page-primary-button" onClick={savePluginConfig} type="button">保存配置</button>
                 <button className="page-secondary-button" onClick={() => setConfigPlugin(null)} type="button">关闭</button>
