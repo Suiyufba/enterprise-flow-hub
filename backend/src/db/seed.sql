@@ -108,6 +108,17 @@ INSERT OR IGNORE INTO ai_tools (id, name, description, kind, status, risk, input
     '{"command":"npm run build","cwd":"/app"}',
     '帮我把代码部署到生产环境。',
     '2026-05-25T00:00:00.000Z'
+  ),
+  (
+    'tool-create-library-item',
+    '创建业务资料',
+    '在项目下创建一条业务资料记录（客户、订单、文档等）。Agent 应该用它来持久化用户的业务数据。',
+    'cli',
+    'enabled',
+    'write',
+    '{"enterpriseId":"ent-xxx","projectId":"proj-xxx","name":"客户名称","type":"note","summary":"客户详细信息","visibility":"public"}',
+    '帮我记录一个新客户张三，联系方式是...',
+    '2026-05-26T00:00:00.000Z'
   );
 
 -- Agent Skills

@@ -28,6 +28,8 @@ export type AgentKernelContext = {
   conversationTitle: string;
   contextLabel: string;
   projectContext: string;
+  enterpriseId: string;
+  projectId: string;
 };
 
 export type AgentKernelInput = {
@@ -102,6 +104,10 @@ function buildSystemPrompt(input: AgentKernelInput): string {
     "- 用户说「查」或「看」时，用对应工具读取数据",
     "- 工具执行完以后，根据结果告诉用户发生了什么",
     "- 不要只描述怎么做，要真的去做",
+    "## 业务数据持久化",
+    `当前工作上下文：企业ID=${input.context.enterpriseId}，项目ID=${input.context.projectId}。`,
+    "当用户提到「添加了客户」「新增了订单」「记录了供应商」等业务对象时，你必须用 tool-create-library-item 工具保存到项目资料库。",
+    "参数说明：enterpriseId 和 projectId 使用当前上下文的值；name 使用业务对象名称；type 根据内容选 screenshot/spreadsheet/document/note（一般客户/订单/供应商用 note）；summary 写清楚关键信息。",
     input.persona?.systemPrompt,
     skillPrompt,
     `## 对话信息

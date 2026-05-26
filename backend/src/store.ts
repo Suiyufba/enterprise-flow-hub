@@ -1127,6 +1127,8 @@ export async function addMessage(conversationId: string, input: AddMessageReques
         conversationTitle: conversation.title,
         contextLabel,
         projectContext,
+        enterpriseId: conversation.enterpriseId,
+        projectId: conversation.projectId,
       },
       runTool: (toolId, toolInput, options) =>
         runTool(toolId, {

@@ -38,6 +38,15 @@ export function getDb(): Database.Database {
       db.prepare("ALTER TABLE agent_personas ADD COLUMN thinking_provider_id TEXT").run();
     }
 
+    // Ensure tool-create-library-item exists (added after initial seed)
+    const existing = db.prepare("SELECT id FROM ai_tools WHERE id = 'tool-create-library-item'").get();
+    if (!existing) {
+      db.prepare(`INSERT INTO ai_tools (id, name, description, kind, status, risk, input_schema, example_prompt, created_at)
+        VALUES ('tool-create-library-item', '创建业务资料', '在项目下创建一条业务资料记录（客户、订单、文档等）。Agent 应该用它来持久化用户的业务数据。',
+        'cli', 'enabled', 'write', '{"enterpriseId":"ent-xxx","projectId":"proj-xxx","name":"客户名称","type":"note","summary":"客户详细信息","visibility":"public"}',
+        '帮我记录一个新客户张三，联系方式是...', '2026-05-26T00:00:00.000Z')`).run();
+    }
+
     // Seed baseline workspace data only if this is a fresh database.
     const count = db.prepare("SELECT COUNT(*) as cnt FROM enterprises").get() as { cnt: number };
     if (count.cnt === 0) {
