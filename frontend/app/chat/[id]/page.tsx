@@ -105,8 +105,10 @@ export default function ChatPage() {
           setLocalMessages((prev) => [...prev, aiMsg]);
           setStreamingMsgId(aiMsg.id);
           const fullContent = result.message.content;
+          // Throttled: max 30 ticks at 100ms, large chunks per tick
+          const totalTicks = Math.min(30, Math.ceil(fullContent.length / 20));
+          const charsPerTick = Math.ceil(fullContent.length / totalTicks);
           let pos = 0;
-          const charsPerTick = Math.max(1, Math.floor(fullContent.length / 80));
           const interval = setInterval(() => {
             pos += charsPerTick;
             if (pos >= fullContent.length) {
@@ -116,7 +118,7 @@ export default function ChatPage() {
             } else {
               setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
             }
-          }, 30);
+          }, 100);
         } catch (e) {
           let errMsg = "消息发送失败，请重试";
           try {
@@ -134,8 +136,10 @@ export default function ChatPage() {
   }, [loading, workspace, initialMsg]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [localMessages]);
+    if (!streamingMsgId) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [localMessages, streamingMsgId]);
 
   async function updateProject(projectId: string) {
     if (!detail || !workspace) return;
@@ -248,8 +252,10 @@ export default function ChatPage() {
       setStreamingMsgId(aiMsg.id);
 
       const fullContent = result.message.content;
+      // Throttled: max 30 ticks at 100ms
+      const totalTicks = Math.min(30, Math.ceil(fullContent.length / 20));
+      const charsPerTick = Math.ceil(fullContent.length / totalTicks);
       let pos = 0;
-      const charsPerTick = Math.max(1, Math.floor(fullContent.length / 80));
       const interval = setInterval(() => {
         pos += charsPerTick;
         if (pos >= fullContent.length) {
@@ -259,7 +265,7 @@ export default function ChatPage() {
         } else {
           setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
         }
-      }, 30);
+      }, 100);
     } catch (e) {
       let errMsg = "消息发送失败，请重试";
       try {
