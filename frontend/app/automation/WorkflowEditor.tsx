@@ -110,7 +110,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [savedMessage, setSavedMessage] = useState("");
   const { workspace, refresh: refreshWorkspace } = useWorkspace();
-  const [selectedProjectId, setSelectedProjectId] = useState("proj-qihang-growth");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const configuredProviders = useMemo(
     () => workspace.providers.filter((provider) => provider.enabled && provider.configured),
     [workspace.providers],

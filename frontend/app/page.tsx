@@ -11,9 +11,9 @@ export default function Home() {
   const router = useRouter();
   const [need, setNeed] = useState("");
   const [enterpriseId, setEnterpriseId] = useState("");
-  const [projectId, setProjectId] = useState("proj-qihang-growth");
+  const [projectId, setProjectId] = useState("");
   const { workspace, refresh } = useWorkspace();
-  const [personaId, setPersonaId] = useState("persona-ops-cto");
+  const [personaId, setPersonaId] = useState("");
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 

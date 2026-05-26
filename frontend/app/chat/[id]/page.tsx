@@ -20,7 +20,7 @@ export default function ChatPage() {
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [personaId, setPersonaId] = useState("persona-ops-cto");
+  const [personaId, setPersonaId] = useState("");
   const [contextScope, setContextScope] = useState<"current_project" | "selected_projects">("current_project");
   const [contextEnterpriseId, setContextEnterpriseId] = useState("");
   const [contextProjectIds, setContextProjectIds] = useState<string[]>([]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentSkill, Automation, LibraryItem, Plugin, PluginConfigResponse, Project, ToolDefinition } from "shared";
 import { fetchJson } from "../lib/api";
@@ -189,8 +189,8 @@ export function LibraryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [enterpriseFilter, setEnterpriseFilter] = useState("全部");
   const [visibilityFilter, setVisibilityFilter] = useState("全部");
-  const [enterpriseId, setEnterpriseId] = useState("ent-qihang");
-  const [projectId, setProjectId] = useState("proj-qihang-growth");
+  const [enterpriseId, setEnterpriseId] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [name, setName] = useState("");
   const [summary, setSummary] = useState("");
   const [type, setType] = useState<LibraryItem["type"]>("screenshot");
@@ -210,6 +210,15 @@ export function LibraryPage() {
     else if (ext && ["doc", "docx", "pdf", "txt", "md"].includes(ext)) setType("document");
     else if (ext && ["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) setType("screenshot");
   }
+
+  useEffect(() => {
+    if (!enterpriseId && workspace.enterprises[0]) {
+      setEnterpriseId(workspace.enterprises[0].id);
+    }
+    if (!projectId && workspace.projects[0]) {
+      setProjectId(workspace.projects[0].id);
+    }
+  }, [workspace.enterprises, workspace.projects]);
 
   const filtered = useMemo(() => {
     let items = workspace.libraryItems;
