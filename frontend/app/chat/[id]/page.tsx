@@ -174,8 +174,16 @@ export default function ChatPage() {
     } catch (e) {
       let errMsg = "消息发送失败，请重试";
       try {
-        const body = JSON.parse((e as Error).message);
+        const raw = (e as Error).message;
+        console.error("[chat] sendMessage failed:", raw);
+        const body = JSON.parse(raw);
         errMsg = body.error || body.detail || errMsg;
+        if (body.error?.includes("Conversation not found") || body.error?.includes("不存在")) {
+          showToast("该对话已被删除，正在刷新...", "error");
+          setTimeout(() => window.location.reload(), 1000);
+          setSending(false);
+          return;
+        }
       } catch { /* not JSON */ }
       showToast(errMsg, "error");
       setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
