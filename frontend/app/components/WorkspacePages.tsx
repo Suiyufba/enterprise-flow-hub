@@ -636,7 +636,6 @@ export function PluginsPage() {
       <div className="page-section-title">Skills 能力包</div>
       <div className="skill-toolbar">
         <p>能力包是一套可复用的 Agent 操作方法：明确适用场景、允许调用的工具，以及回复时必须遵守的执行指令。</p>
-        <button className="page-primary-button" onClick={openNewSkillForm} type="button">+ 新建能力包</button>
       </div>
 
       <div className="skill-workbench">
