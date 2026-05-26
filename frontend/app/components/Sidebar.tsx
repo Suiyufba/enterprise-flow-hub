@@ -176,6 +176,8 @@ export function Sidebar() {
         </Link>
       </nav>
 
+      <div className="sidebar-scroll">
+
       <div className="sidebar-section-header">
         <span>项目</span>
         <div className="sidebar-section-actions">
@@ -359,6 +361,8 @@ export function Sidebar() {
           );
         })}
       </div>
+
+      </div>{/* end sidebar-scroll */}
 
       <div className="spacer" />
 

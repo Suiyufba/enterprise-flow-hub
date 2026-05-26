@@ -291,6 +291,15 @@ body {
 }
 
 /* ---- Sidebar ---- */
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .sidebar {
   width: 240px;
   background: var(--c-1d1d1d);
@@ -300,8 +309,7 @@ body {
   flex-shrink: 0;
   padding: 12px;
   gap: 2px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   min-width: 0;
 }
 
