@@ -194,6 +194,14 @@ export default function PersonasPage() {
                     )}
                     <div className="settings-card-actions">
                       <button className="page-secondary-button" onClick={() => startEditPersona(p)}>编辑</button>
+                      <button className="page-secondary-button" onClick={async () => {
+                        try {
+                          showToast("正在总结...", "success");
+                          await fetchJson(`/settings/personas/${p.id}/dream`, { method: "POST" });
+                          await refresh();
+                          showToast("梦境已更新", "success");
+                        } catch { showToast("总结失败", "error"); }
+                      }}>💭 立即总结</button>
                       <button className="page-secondary-button" onClick={() => deletePersona(p.id)}>删除</button>
                     </div>
                   </>

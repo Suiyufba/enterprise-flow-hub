@@ -1,3 +1,4 @@
+import type { AgentPersona } from "shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { aiChat } from "../ai/client.js";
@@ -10,6 +11,7 @@ import {
   listAllPersonas,
   listPersonas,
   listProviders,
+  summarizePersonaMemory,
   testProviderConnection,
   updatePersona,
   updateProvider,
@@ -144,6 +146,20 @@ export async function settingsRoutes(app: FastifyInstance) {
     const ok = deletePersona(id);
     if (!ok) return reply.status(404).send({ error: "Persona not found" });
     return reply.status(204).send();
+  });
+
+  // Trigger persona dreaming (manual summarization)
+  app.post("/settings/personas/:id/dream", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const persona = (listAllPersonas() as AgentPersona[]).find((p: AgentPersona) => p.id === id);
+    if (!persona) return reply.status(404).send({ error: "Persona not found" });
+    try {
+      await summarizePersonaMemory(persona);
+      const updated = (listAllPersonas() as AgentPersona[]).find((p: AgentPersona) => p.id === id);
+      return { ok: true, memory: updated?.memory };
+    } catch (e) {
+      return reply.status(502).send({ error: e instanceof Error ? e.message : "总结失败" });
+    }
   });
 
   // AI Generate prompt
