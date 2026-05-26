@@ -1913,6 +1913,13 @@ body {
   flex-shrink: 0;
 }
 
+.plugin-config-meta {
+  color: var(--c-737373);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
 .workflow-card-header {
   display: flex;
   align-items: center;

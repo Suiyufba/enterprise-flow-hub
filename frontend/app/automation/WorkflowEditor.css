@@ -235,3 +235,10 @@
   width: 100%;
   margin-bottom: 4px;
 }
+
+.wf-config-warning {
+  margin: -2px 0 4px;
+  color: var(--c-fe640b);
+  font-size: 12px;
+  line-height: 1.5;
+}

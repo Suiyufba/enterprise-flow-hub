@@ -23,6 +23,7 @@ import type {
   Message,
   ModelProvider,
   Plugin,
+  PluginConfigResponse,
   Project,
   RegisterUserRequest,
   RunToolRequest,
@@ -300,20 +301,140 @@ export function deleteLibraryItem(id: string): boolean {
 
 // ---- Plugins ----
 
+const pluginRequirements: Record<string, { requiredFields: string[]; hint: string; notification: boolean }> = {
+  "plugin-feishu": {
+    requiredFields: ["webhookUrl"],
+    hint: "填写飞书自定义机器人 Webhook 地址；如果要读多维表格，后续可再补 App ID / App Secret。",
+    notification: true,
+  },
+  "plugin-wecom": {
+    requiredFields: ["webhookUrl"],
+    hint: "填写企业微信群机器人 Webhook 地址，才能把风险提醒、日报和待办推送出去。",
+    notification: true,
+  },
+};
+
+function getPluginRequirement(id: string) {
+  return pluginRequirements[id] ?? { requiredFields: [], hint: "这个插件无需额外绑定。", notification: false };
+}
+
+function getPluginConfigFields(id: string): Record<string, string> {
+  const row = db().prepare("SELECT config_json FROM plugin_configs WHERE plugin_id = ?").get(id) as Record<string, unknown> | undefined;
+  return jsonParse<Record<string, string>>(row?.config_json as string | undefined, {});
+}
+
+function isPluginConfigured(id: string): boolean {
+  const requirement = getPluginRequirement(id);
+  if (requirement.requiredFields.length === 0) return true;
+  const fields = getPluginConfigFields(id);
+  return requirement.requiredFields.every((field) => Boolean(fields[field]?.trim()));
+}
+
+function pluginConfigSummary(id: string): string | undefined {
+  const fields = getPluginConfigFields(id);
+  if (fields.webhookUrl) {
+    return `Webhook ${fields.webhookUrl.slice(0, 24)}...`;
+  }
+  if (fields.appId) {
+    return `App ${fields.appId}`;
+  }
+  return undefined;
+}
+
 function rowToPlugin(r: Record<string, unknown>): Plugin {
+  const id = r.id as string;
+  const requirement = getPluginRequirement(id);
+  const configured = isPluginConfigured(id);
   return {
-    id: r.id as string,
+    id,
     name: r.name as string,
     description: r.description as string,
-    enabled: (r.enabled as number) === 1,
+    enabled: (r.enabled as number) === 1 && configured,
+    configRequired: requirement.requiredFields.length > 0,
+    configured,
+    configSummary: pluginConfigSummary(id),
   };
 }
 
 export function setPluginEnabled(id: string, enabled: boolean): Plugin | undefined {
   const row = db().prepare("SELECT * FROM plugins WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!row) return undefined;
+  if (enabled && !isPluginConfigured(id)) {
+    throw new Error("Plugin requires configuration before enabling");
+  }
   db().prepare("UPDATE plugins SET enabled = ? WHERE id = ?").run(enabled ? 1 : 0, id);
-  return { ...rowToPlugin(row), enabled };
+  return rowToPlugin({ ...row, enabled: enabled ? 1 : 0 });
+}
+
+export function getPluginConfig(id: string): PluginConfigResponse | undefined {
+  const row = db().prepare("SELECT * FROM plugins WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const fields = getPluginConfigFields(id);
+  const safeFields = Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [
+      key,
+      /secret|token|key/i.test(key) ? (value ? "********" : "") : value,
+    ]),
+  );
+  const requirement = getPluginRequirement(id);
+  return {
+    pluginId: id,
+    fields: safeFields,
+    requiredFields: requirement.requiredFields,
+    configured: isPluginConfigured(id),
+    hint: requirement.hint,
+  };
+}
+
+export function updatePluginConfig(id: string, fields: Record<string, string>): PluginConfigResponse | undefined {
+  const row = db().prepare("SELECT * FROM plugins WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const current = getPluginConfigFields(id);
+  const next = { ...current };
+  for (const [key, value] of Object.entries(fields)) {
+    if (value.trim()) {
+      next[key] = value.trim();
+    } else {
+      delete next[key];
+    }
+  }
+  db()
+    .prepare(
+      `INSERT INTO plugin_configs (plugin_id, config_json, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(plugin_id) DO UPDATE SET config_json = excluded.config_json, updated_at = excluded.updated_at`,
+    )
+    .run(id, JSON.stringify(next), new Date().toISOString());
+  return getPluginConfig(id);
+}
+
+export function listConfiguredNotificationPlugins(): Plugin[] {
+  return (db().prepare("SELECT * FROM plugins WHERE enabled = 1 ORDER BY id").all() as Record<string, unknown>[])
+    .map(rowToPlugin)
+    .filter((plugin) => getPluginRequirement(plugin.id).notification && plugin.configured && plugin.enabled);
+}
+
+export function getNotificationWebhook(pluginId?: string): { pluginId: string; url: string } | undefined {
+  const candidates = pluginId
+    ? [pluginId]
+    : listConfiguredNotificationPlugins().map((plugin) => plugin.id);
+  for (const id of candidates) {
+    const row = db().prepare("SELECT * FROM plugins WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!row) continue;
+    const plugin = rowToPlugin(row);
+    if (!plugin.enabled || !getPluginRequirement(id).notification) continue;
+    const fields = getPluginConfigFields(id);
+    if (fields.webhookUrl?.trim()) {
+      return { pluginId: id, url: fields.webhookUrl.trim() };
+    }
+  }
+  return undefined;
+}
+
+function isProviderUsable(id: string): boolean {
+  const row = db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(id) as Record<string, unknown> | undefined;
+  if (!row) return false;
+  return Boolean(process.env[row.api_key_env as string]);
 }
 
 // ---- Automations ----
@@ -328,6 +449,7 @@ function rowToAutomation(r: Record<string, unknown>): Automation {
     action: r.action_desc as string,
     actionType: r.action_type as Automation["actionType"],
     agentModel: (r.agent_model as string) || undefined,
+    actionPluginId: (r.action_plugin_id as string) || undefined,
     systemPrompt: (r.system_prompt as string) || undefined,
     enabled: (r.enabled as number) === 1,
     runCount: r.run_count as number,
@@ -337,6 +459,16 @@ function rowToAutomation(r: Record<string, unknown>): Automation {
 
 export function createAutomation(input: CreateAutomationRequest): Automation | undefined {
   if (!getProject(input.projectId)) return undefined;
+  if (input.agentModel && !isProviderUsable(input.agentModel)) {
+    throw new Error("Selected model account is not configured");
+  }
+  if (input.actionType === "notify") {
+    const pluginId = input.actionPluginId?.trim();
+    const available = listConfiguredNotificationPlugins();
+    if (!pluginId || !available.some((plugin) => plugin.id === pluginId)) {
+      throw new Error("Notification action requires a configured Feishu or WeCom plugin");
+    }
+  }
 
   const automation: Automation = {
     id: `auto-${randomUUID()}`,
@@ -347,6 +479,7 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
     action: input.action.trim(),
     actionType: input.actionType,
     agentModel: input.agentModel?.trim() || undefined,
+    actionPluginId: input.actionPluginId?.trim() || undefined,
     systemPrompt: input.systemPrompt?.trim() || undefined,
     enabled: true,
     runCount: 0,
@@ -355,14 +488,14 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
   db()
     .prepare(
       `INSERT INTO automations
-       (id, project_id, name, trigger_desc, trigger_type, action_desc, action_type, agent_model, system_prompt, enabled, run_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, project_id, name, trigger_desc, trigger_type, action_desc, action_type, agent_model, action_plugin_id, system_prompt, enabled, run_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       automation.id, automation.projectId, automation.name,
       automation.trigger, automation.triggerType,
       automation.action, automation.actionType,
-      automation.agentModel ?? null, automation.systemPrompt ?? null,
+      automation.agentModel ?? null, automation.actionPluginId ?? null, automation.systemPrompt ?? null,
       1, 0,
     );
 
@@ -380,20 +513,33 @@ export function updateAutomation(id: string, input: Partial<CreateAutomationRequ
   const row = db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!row) return undefined;
   const current = rowToAutomation(row);
+  const nextAgentModel = input.agentModel !== undefined ? (input.agentModel?.trim() || undefined) : current.agentModel;
+  const nextActionType = input.actionType ?? current.actionType;
+  const nextActionPluginId = input.actionPluginId !== undefined ? (input.actionPluginId?.trim() || undefined) : current.actionPluginId;
+  if (nextAgentModel && !isProviderUsable(nextAgentModel)) {
+    throw new Error("Selected model account is not configured");
+  }
+  if (nextActionType === "notify") {
+    const available = listConfiguredNotificationPlugins();
+    if (!nextActionPluginId || !available.some((plugin) => plugin.id === nextActionPluginId)) {
+      throw new Error("Notification action requires a configured Feishu or WeCom plugin");
+    }
+  }
   const next: Record<string, unknown> = {
     project_id: input.projectId ?? current.projectId,
     name: input.name?.trim() ?? current.name,
     trigger_desc: input.trigger?.trim() ?? current.trigger,
     trigger_type: input.triggerType ?? current.triggerType,
     action_desc: input.action?.trim() ?? current.action,
-    action_type: input.actionType ?? current.actionType,
-    agent_model: input.agentModel !== undefined ? (input.agentModel?.trim() || null) : (current.agentModel ?? null),
+    action_type: nextActionType,
+    agent_model: nextAgentModel ?? null,
+    action_plugin_id: nextActionPluginId ?? null,
     system_prompt: input.systemPrompt !== undefined ? (input.systemPrompt?.trim() || null) : (current.systemPrompt ?? null),
     enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : (current.enabled ? 1 : 0),
   };
   db()
-    .prepare("UPDATE automations SET project_id=?, name=?, trigger_desc=?, trigger_type=?, action_desc=?, action_type=?, agent_model=?, system_prompt=?, enabled=? WHERE id=?")
-    .run(next.project_id, next.name, next.trigger_desc, next.trigger_type, next.action_desc, next.action_type, next.agent_model, next.system_prompt, next.enabled, id);
+    .prepare("UPDATE automations SET project_id=?, name=?, trigger_desc=?, trigger_type=?, action_desc=?, action_type=?, agent_model=?, action_plugin_id=?, system_prompt=?, enabled=? WHERE id=?")
+    .run(next.project_id, next.name, next.trigger_desc, next.trigger_type, next.action_desc, next.action_type, next.agent_model, next.action_plugin_id, next.system_prompt, next.enabled, id);
   return rowToAutomation(db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -405,12 +551,14 @@ export function deleteAutomation(id: string): boolean {
 // ---- AI Tool Registry ----
 
 function rowToTool(r: Record<string, unknown>): ToolDefinition {
+  const id = r.id as string;
+  const notificationReady = id === "tool-feishu-notify" ? listConfiguredNotificationPlugins().length > 0 : undefined;
   return {
-    id: r.id as string,
+    id,
     name: r.name as string,
     description: r.description as string,
     kind: r.kind as ToolDefinition["kind"],
-    status: r.status as ToolDefinition["status"],
+    status: notificationReady === undefined ? r.status as ToolDefinition["status"] : (notificationReady ? "enabled" : "needs_config"),
     risk: r.risk as ToolDefinition["risk"],
     inputSchema: r.input_schema as string,
     examplePrompt: r.example_prompt as string,

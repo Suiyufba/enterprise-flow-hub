@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AgentSkill, Automation, LibraryItem, Plugin, Project, ToolDefinition } from "shared";
+import type { AgentSkill, Automation, LibraryItem, Plugin, PluginConfigResponse, Project, ToolDefinition } from "shared";
 import { fetchJson } from "../lib/api";
 import { useWorkspace } from "../lib/workspace-context";
 
@@ -412,6 +412,10 @@ export function PluginsPage() {
   const [skillDescription, setSkillDescription] = useState("");
   const [skillPrompt, setSkillPrompt] = useState("");
   const [skillToolIds, setSkillToolIds] = useState<string[]>([]);
+  const [configPlugin, setConfigPlugin] = useState<Plugin | null>(null);
+  const [pluginConfig, setPluginConfig] = useState<PluginConfigResponse | null>(null);
+  const [pluginWebhook, setPluginWebhook] = useState("");
+  const [pluginMessage, setPluginMessage] = useState("");
 
   function startEditSkill(skill: AgentSkill) {
     setEditingSkillId(skill.id);
@@ -439,7 +443,31 @@ export function PluginsPage() {
       });
       await refresh();
     } catch {
-      // silent — non-critical
+      setPluginMessage("请先配置插件，再启用。");
+    }
+  }
+
+  async function openPluginConfig(plugin: Plugin) {
+    setConfigPlugin(plugin);
+    setPluginMessage("");
+    const config = await fetchJson<PluginConfigResponse>(`/plugins/${plugin.id}/config`);
+    setPluginConfig(config);
+    setPluginWebhook(config.fields.webhookUrl && config.fields.webhookUrl !== "********" ? config.fields.webhookUrl : "");
+  }
+
+  async function savePluginConfig() {
+    if (!configPlugin) return;
+    setPluginMessage("");
+    try {
+      await fetchJson<PluginConfigResponse>(`/plugins/${configPlugin.id}/config`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields: { webhookUrl: pluginWebhook } }),
+      });
+      setPluginMessage("配置已保存");
+      await refresh();
+      await openPluginConfig(configPlugin);
+    } catch {
+      setPluginMessage("配置保存失败");
     }
   }
 
@@ -567,18 +595,59 @@ export function PluginsPage() {
 
       {/* Connection Plugins */}
       <div className="page-section-title">连接插件</div>
+      {pluginMessage && !configPlugin && <div className="settings-test-result">{pluginMessage}</div>}
       <div className="page-card-grid">
         {workspace.plugins.map((plugin) => (
           <article className="page-card" key={plugin.id}>
-            <span>{plugin.enabled ? "已启用" : "未启用"}</span>
+            <span className={plugin.enabled ? "skill-on" : "skill-off"}>
+              {plugin.enabled ? "已启用" : plugin.configRequired && !plugin.configured ? "待绑定" : "未启用"}
+            </span>
             <h3>{plugin.name}</h3>
             <p>{plugin.description}</p>
-            <button className="page-secondary-button" onClick={() => togglePlugin(plugin)} type="button">
-              {plugin.enabled ? "停用" : "启用"}
-            </button>
+            {plugin.configRequired && (
+              <p className="plugin-config-meta">
+                {plugin.configured ? plugin.configSummary ?? "已绑定" : "需要绑定 Webhook / 应用凭据后才能使用"}
+              </p>
+            )}
+            <div className="settings-card-actions">
+              {plugin.configRequired && (
+                <button className="page-secondary-button" onClick={() => openPluginConfig(plugin)} type="button">
+                  配置
+                </button>
+              )}
+              <button className="page-secondary-button" onClick={() => togglePlugin(plugin)} type="button">
+                {plugin.enabled ? "停用" : "启用"}
+              </button>
+            </div>
           </article>
         ))}
       </div>
+
+      {configPlugin && pluginConfig && (
+        <div className="settings-overlay" onClick={() => setConfigPlugin(null)}>
+          <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-header">
+              <h2>配置 {configPlugin.name}</h2>
+              <button className="settings-close" onClick={() => setConfigPlugin(null)} type="button">×</button>
+            </div>
+            <div className="settings-body">
+              <p className="plugin-config-meta">{pluginConfig.hint}</p>
+              <label className="wf-props-label">Webhook URL</label>
+              <input
+                className="page-input"
+                value={pluginWebhook}
+                onChange={(e) => setPluginWebhook(e.target.value)}
+                placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+              />
+              <div className="settings-card-actions">
+                <button className="page-primary-button" onClick={savePluginConfig} type="button">保存配置</button>
+                <button className="page-secondary-button" onClick={() => setConfigPlugin(null)} type="button">关闭</button>
+              </div>
+              {pluginMessage && <div className="settings-test-result">{pluginMessage}</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }
@@ -651,11 +720,10 @@ export function AutomationPage() {
     browser: "浏览器",
   };
 
-  const modelLabel: Record<string, string> = {
-    "claude-opus-4-7": "Claude Opus 4.7",
-    "claude-sonnet-4-6": "Claude Sonnet 4.6",
-    "claude-haiku-4-5": "Claude Haiku 4.5",
-  };
+  function modelLabel(id: string) {
+    const provider = workspace.providers.find((item) => item.id === id);
+    return provider ? `${provider.name} / ${provider.model}` : id;
+  }
 
   function formatLastRun(iso?: string) {
     if (!iso) return "从未";
@@ -748,7 +816,7 @@ export function AutomationPage() {
                   <>
                     <div className="workflow-node workflow-agent">
                       <span className="workflow-node-icon">🤖</span>
-                      <span className="workflow-node-label">{modelLabel[automation.agentModel] || automation.agentModel}</span>
+                      <span className="workflow-node-label">{modelLabel(automation.agentModel)}</span>
                     </div>
                     <span className="workflow-arrow">→</span>
                   </>
@@ -757,6 +825,11 @@ export function AutomationPage() {
                   <span className="workflow-node-icon">⚙</span>
                   <span className="workflow-node-label">{actionLabel[automation.actionType]}</span>
                   <span className="workflow-node-text">{automation.action}</span>
+                  {automation.actionPluginId && (
+                    <span className="workflow-node-text">
+                      {workspace.plugins.find((plugin) => plugin.id === automation.actionPluginId)?.name ?? automation.actionPluginId}
+                    </span>
+                  )}
                 </div>
               </div>
 

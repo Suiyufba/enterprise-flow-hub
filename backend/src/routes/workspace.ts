@@ -5,6 +5,7 @@ import {
   CreateConversationRequestSchema,
   CreateLibraryItemRequestSchema,
   CreateProjectRequestSchema,
+  PluginConfigRequestSchema,
   CreateSkillRequestSchema,
   UpdateConversationRequestSchema,
   UpdateLibraryItemRequestSchema,
@@ -23,6 +24,7 @@ import {
   deleteLibraryItem,
   deleteProject,
   getConversation,
+  getPluginConfig,
   getProject,
   getWorkspace,
   setAutomationEnabled,
@@ -30,6 +32,7 @@ import {
   updateAutomation,
   updateConversation,
   updateLibraryItem,
+  updatePluginConfig,
   updateProject,
   updateSkill,
 } from "../store.js";
@@ -123,11 +126,38 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (typeof enabled !== "boolean") {
       return reply.status(400).send({ error: "enabled must be boolean" });
     }
-    const plugin = setPluginEnabled(id, enabled);
+    let plugin;
+    try {
+      plugin = setPluginEnabled(id, enabled);
+    } catch (e) {
+      return reply.status(400).send({ error: e instanceof Error ? e.message : "Plugin requires configuration before enabling" });
+    }
     if (!plugin) {
       return reply.status(404).send({ error: "Plugin not found" });
     }
     return plugin;
+  });
+
+  app.get("/plugins/:id/config", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const config = getPluginConfig(id);
+    if (!config) {
+      return reply.status(404).send({ error: "Plugin not found" });
+    }
+    return config;
+  });
+
+  app.patch("/plugins/:id/config", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = PluginConfigRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.flatten() });
+    }
+    const config = updatePluginConfig(id, parsed.data.fields);
+    if (!config) {
+      return reply.status(404).send({ error: "Plugin not found" });
+    }
+    return config;
   });
 
   app.post("/automations", async (request, reply) => {
@@ -135,7 +165,12 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    const automation = createAutomation(parsed.data);
+    let automation;
+    try {
+      automation = createAutomation(parsed.data);
+    } catch (e) {
+      return reply.status(400).send({ error: e instanceof Error ? e.message : "Automation is not ready" });
+    }
     if (!automation) {
       return reply.status(404).send({ error: "Project not found" });
     }
@@ -154,7 +189,12 @@ export async function workspaceRoutes(app: FastifyInstance) {
     // Full update mode
     const parsed = CreateAutomationRequestSchema.partial().safeParse(body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    const automation = updateAutomation(id, parsed.data);
+    let automation;
+    try {
+      automation = updateAutomation(id, parsed.data);
+    } catch (e) {
+      return reply.status(400).send({ error: e instanceof Error ? e.message : "Automation is not ready" });
+    }
     if (!automation) return reply.status(404).send({ error: "Automation not found" });
     return automation;
   });

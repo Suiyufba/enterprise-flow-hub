@@ -10,10 +10,12 @@ import { workspaceRoutes } from "./routes/workspace.js";
 import { registerTool } from "./tools/registry.js";
 import { csvProfile } from "./tools/executors/csv-profile.js";
 import { bashExecute } from "./tools/executors/bash-executor.js";
+import { notifyExecute } from "./tools/executors/notify.js";
 
 // Register tool executors so agent can actually execute tools
 registerTool("tool-csv-profile", csvProfile);
 registerTool("tool-bash", bashExecute);
+registerTool("tool-feishu-notify", notifyExecute);
 
 const API_KEY = process.env.API_KEY;
 

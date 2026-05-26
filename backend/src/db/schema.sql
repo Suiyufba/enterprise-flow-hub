@@ -61,6 +61,12 @@ CREATE TABLE IF NOT EXISTS plugins (
   enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1))
 );
 
+CREATE TABLE IF NOT EXISTS plugin_configs (
+  plugin_id   TEXT PRIMARY KEY REFERENCES plugins(id) ON DELETE CASCADE,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS automations (
   id            TEXT PRIMARY KEY,
   project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -70,6 +76,7 @@ CREATE TABLE IF NOT EXISTS automations (
   action_desc   TEXT NOT NULL,
   action_type   TEXT NOT NULL CHECK (action_type IN ('send_email','call_ai','shell','api_call','notify','browser')),
   agent_model   TEXT,
+  action_plugin_id TEXT,
   system_prompt TEXT,
   enabled       INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
   run_count     INTEGER NOT NULL DEFAULT 0,

@@ -20,6 +20,18 @@ export function getDb(): Database.Database {
 
     const schema = readFileSync(join(__dirname, "schema.sql"), "utf-8");
     db.exec(schema);
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS plugin_configs (
+        plugin_id   TEXT PRIMARY KEY REFERENCES plugins(id) ON DELETE CASCADE,
+        config_json TEXT NOT NULL DEFAULT '{}',
+        updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+
+    const automationColumns = db.prepare("PRAGMA table_info(automations)").all() as Array<{ name: string }>;
+    if (!automationColumns.some((column) => column.name === "action_plugin_id")) {
+      db.prepare("ALTER TABLE automations ADD COLUMN action_plugin_id TEXT").run();
+    }
 
     // Seed baseline workspace data only if this is a fresh database.
     const count = db.prepare("SELECT COUNT(*) as cnt FROM enterprises").get() as { cnt: number };

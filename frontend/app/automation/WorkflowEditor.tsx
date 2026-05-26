@@ -111,6 +111,18 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   const [savedMessage, setSavedMessage] = useState("");
   const { workspace, refresh: refreshWorkspace } = useWorkspace();
   const [selectedProjectId, setSelectedProjectId] = useState("proj-qihang-growth");
+  const configuredProviders = useMemo(
+    () => workspace.providers.filter((provider) => provider.enabled && provider.configured),
+    [workspace.providers],
+  );
+  const notificationPlugins = useMemo(
+    () => workspace.plugins.filter((plugin) => ["plugin-feishu", "plugin-wecom"].includes(plugin.id)),
+    [workspace.plugins],
+  );
+  const configuredNotificationPlugins = useMemo(
+    () => notificationPlugins.filter((plugin) => plugin.enabled && plugin.configured),
+    [notificationPlugins],
+  );
 
   useEffect(() => {
     if (workspace.projects[0] && !existingId) setSelectedProjectId(workspace.projects[0].id);
@@ -135,6 +147,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       actionType: auto.actionType,
       desc: auto.action,
     };
+    if (auto.actionPluginId) actionCfg.pluginId = auto.actionPluginId;
 
     setNodes([
       { ...createNode("trigger", 100, 80), id: "trigger-1", data: { ...createNode("trigger", 100, 80).data, config: trigCfg } },
@@ -157,14 +170,30 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       const agentCfg = (agentNode?.data.config ?? {}) as Record<string, string>;
       const actionCfg = (actionNode?.data.config ?? {}) as Record<string, string>;
 
+      const selectedProvider = configuredProviders.find((provider) => provider.id === agentCfg.model);
+      if (agentNode && !selectedProvider) {
+        setSavedMessage(configuredProviders.length === 0 ? "请先在设置里配置可用模型账号" : "请选择已配置的模型账号");
+        setSaving(false);
+        return;
+      }
+
+      const resolvedActionType = actionCfg.actionType || "notify";
+      const selectedNotificationPlugin = configuredNotificationPlugins.find((plugin) => plugin.id === actionCfg.pluginId);
+      if (resolvedActionType === "notify" && !selectedNotificationPlugin) {
+        setSavedMessage(configuredNotificationPlugins.length === 0 ? "请先在插件页绑定飞书/企业微信通知" : "请选择通知插件");
+        setSaving(false);
+        return;
+      }
+
       const body = {
         projectId: selectedProjectId,
         name: workflowName.trim(),
         trigger: triggerCfg.desc || "手动触发",
         triggerType: triggerCfg.triggerType || "manual",
         action: actionCfg.desc || "执行动作",
-        actionType: actionCfg.actionType || "notify",
+        actionType: resolvedActionType,
         agentModel: agentCfg.model || undefined,
+        actionPluginId: resolvedActionType === "notify" ? actionCfg.pluginId || undefined : undefined,
         systemPrompt: agentCfg.prompt || undefined,
       };
 
@@ -183,8 +212,8 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       setSavedMessage("保存成功");
       await refreshWorkspace();
       setTimeout(() => setSavedMessage(""), 2000);
-    } catch {
-      setSavedMessage("保存失败");
+    } catch (e) {
+      setSavedMessage(e instanceof Error ? `保存失败：${e.message.slice(0, 80)}` : "保存失败");
     } finally {
       setSaving(false);
     }
@@ -395,11 +424,19 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                     value={cfgValue("model") ?? ""}
                     onChange={(e) => updateNodeConfig("model", e.target.value)}
                   >
-                    <option value="">选择...</option>
-                    <option value="claude-opus-4-7">Claude Opus 4.7</option>
-                    <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                    <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+                    <option value="">选择模型账号...</option>
+                    {configuredProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name} / {provider.model}
+                      </option>
+                    ))}
+                    {cfgValue("model") && !workspace.providers.some((provider) => provider.id === cfgValue("model")) && (
+                      <option value={cfgValue("model")}>旧模型：{cfgValue("model")}（请重新选择账号）</option>
+                    )}
                   </select>
+                  {configuredProviders.length === 0 && (
+                    <p className="wf-config-warning">暂无可用模型账号。请先在设置 → 模型账号里添加并配置 Key。</p>
+                  )}
                   <label className="wf-props-label">System Prompt</label>
                   <textarea
                     className="page-textarea wf-props-input"
@@ -442,7 +479,12 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                   <select
                     className="page-input wf-props-input"
                     value={cfgValue("actionType") ?? ""}
-                    onChange={(e) => updateNodeConfig("actionType", e.target.value)}
+                    onChange={(e) => {
+                      updateNodeConfig("actionType", e.target.value);
+                      if (e.target.value === "notify" && !cfgValue("pluginId") && configuredNotificationPlugins[0]) {
+                        updateNodeConfig("pluginId", configuredNotificationPlugins[0].id);
+                      }
+                    }}
                   >
                     <option value="">选择...</option>
                     <option value="notify">发送通知</option>
@@ -452,6 +494,27 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                     <option value="shell">Shell 命令</option>
                     <option value="browser">浏览器操作</option>
                   </select>
+                  {(cfgValue("actionType") || "notify") === "notify" && (
+                    <>
+                      <label className="wf-props-label">通知插件</label>
+                      <select
+                        className="page-input wf-props-input"
+                        value={cfgValue("pluginId") ?? ""}
+                        onChange={(e) => updateNodeConfig("pluginId", e.target.value)}
+                      >
+                        <option value="">选择飞书/企业微信...</option>
+                        {configuredNotificationPlugins.map((plugin) => (
+                          <option key={plugin.id} value={plugin.id}>{plugin.name}</option>
+                        ))}
+                        {notificationPlugins.filter((plugin) => !plugin.configured || !plugin.enabled).map((plugin) => (
+                          <option key={plugin.id} value={plugin.id} disabled>{plugin.name}（待绑定）</option>
+                        ))}
+                      </select>
+                      {configuredNotificationPlugins.length === 0 && (
+                        <p className="wf-config-warning">飞书/企业微信通知还没绑定 Webhook，请先到插件页配置后再保存。</p>
+                      )}
+                    </>
+                  )}
                   <label className="wf-props-label">描述</label>
                   <textarea
                     className="page-textarea wf-props-input"

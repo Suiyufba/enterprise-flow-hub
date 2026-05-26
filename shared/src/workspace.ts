@@ -70,6 +70,9 @@ export const PluginSchema = z.object({
   name: z.string(),
   description: z.string(),
   enabled: z.boolean(),
+  configRequired: z.boolean(),
+  configured: z.boolean(),
+  configSummary: z.string().optional(),
 });
 
 export const AutomationSchema = z.object({
@@ -81,6 +84,7 @@ export const AutomationSchema = z.object({
   action: z.string(),
   actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser"]),
   agentModel: z.string().optional(),
+  actionPluginId: z.string().optional(),
   systemPrompt: z.string().optional(),
   enabled: z.boolean(),
   runCount: z.number(),
@@ -190,7 +194,20 @@ export const CreateAutomationRequestSchema = z.object({
   action: z.string().min(1).max(200),
   actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser"]),
   agentModel: z.string().optional(),
+  actionPluginId: z.string().optional(),
   systemPrompt: z.string().max(500).optional(),
+});
+
+export const PluginConfigRequestSchema = z.object({
+  fields: z.record(z.string().max(500)).default({}),
+});
+
+export const PluginConfigResponseSchema = z.object({
+  pluginId: z.string(),
+  fields: z.record(z.string()),
+  requiredFields: z.array(z.string()),
+  configured: z.boolean(),
+  hint: z.string(),
 });
 
 export const CreateConversationRequestSchema = z.object({
@@ -257,6 +274,8 @@ export type CreateConversationRequest = z.infer<typeof CreateConversationRequest
 export type UpdateConversationRequest = z.infer<typeof UpdateConversationRequestSchema>;
 export type LibraryItem = z.infer<typeof LibraryItemSchema>;
 export type Plugin = z.infer<typeof PluginSchema>;
+export type PluginConfigRequest = z.infer<typeof PluginConfigRequestSchema>;
+export type PluginConfigResponse = z.infer<typeof PluginConfigResponseSchema>;
 export type Automation = z.infer<typeof AutomationSchema>;
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 export type ToolRun = z.infer<typeof ToolRunSchema>;
