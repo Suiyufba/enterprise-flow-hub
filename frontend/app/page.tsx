@@ -10,23 +10,31 @@ import { useToast } from "./lib/toast-context";
 export default function Home() {
   const router = useRouter();
   const [need, setNeed] = useState("");
+  const [enterpriseId, setEnterpriseId] = useState("");
   const [projectId, setProjectId] = useState("proj-qihang-growth");
   const { workspace, refresh } = useWorkspace();
   const [personaId, setPersonaId] = useState("persona-ops-cto");
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
+  const filteredProjects = workspace?.projects.filter((p) => p.enterpriseId === enterpriseId) ?? [];
+
   useEffect(() => {
+    if (workspace.enterprises[0] && !enterpriseId) {
+      setEnterpriseId(workspace.enterprises[0].id);
+    }
     const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
     if (urlProjectId && workspace.projects.some((p) => p.id === urlProjectId)) {
       setProjectId(urlProjectId);
-    } else if (workspace.projects[0]) {
+      const proj = workspace.projects.find((p) => p.id === urlProjectId);
+      if (proj) setEnterpriseId(proj.enterpriseId);
+    } else if (workspace.projects[0] && !projectId) {
       setProjectId(workspace.projects[0].id);
     }
     if (workspace.personas[0]) {
       setPersonaId(workspace.personas[0].id);
     }
-  }, [workspace.projects, workspace.personas]);
+  }, [workspace.projects, workspace.personas, workspace.enterprises]);
 
   async function submit() {
     if (!need.trim() || loading) return;
@@ -109,22 +117,35 @@ export default function Home() {
           <div className="project-picker">
             <span className="project-icon">▱</span>
             <select
-              aria-label="选择企业项目"
+              aria-label="选择企业"
+              className="project-select"
+              value={enterpriseId}
+              onChange={(e) => {
+                setEnterpriseId(e.target.value);
+                const first = workspace?.projects.find((p) => p.enterpriseId === e.target.value);
+                if (first) setProjectId(first.id);
+              }}
+            >
+              <option value="">选择企业</option>
+              {workspace?.enterprises.map((ent) => (
+                <option key={ent.id} value={ent.id}>{ent.name}</option>
+              ))}
+              {!workspace && <option value="ent-qihang">启航留学</option>}
+            </select>
+            <select
+              aria-label="选择项目"
               className="project-select"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
+              disabled={!enterpriseId}
             >
-              {workspace?.projects.map((item) => {
-                const enterprise = workspace.enterprises.find(
-                  (e) => e.id === item.enterpriseId,
-                );
-                return (
-                  <option key={item.id} value={item.id}>
-                    {enterprise?.name ?? "未知企业"} / {item.name}
-                  </option>
-                );
-              })}
-              {!workspace && <option value="proj-qihang-growth">启航留学 / 线索增长</option>}
+              {filteredProjects.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+              {filteredProjects.length === 0 && (
+                <option value="">{enterpriseId ? "暂无项目" : "请先选企业"}</option>
+              )}
+              {!workspace && <option value="proj-qihang-growth">线索增长</option>}
             </select>
           </div>
           <select
