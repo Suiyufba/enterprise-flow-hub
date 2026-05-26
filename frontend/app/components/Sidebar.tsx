@@ -171,14 +171,14 @@ export function Sidebar() {
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
-        <button
+        <Link
+          href="/personas"
           className="sidebar-mini-action"
-          onClick={() => setSettingsOpen(true)}
           title="管理角色人格"
-          type="button"
+          style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 22, height: 22, borderRadius: 6, color: "var(--c-9b9b9b)" }}
         >
           ⚙
-        </button>
+        </Link>
       </div>
 
       <div className="sidebar-scroll">
