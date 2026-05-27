@@ -9,6 +9,7 @@ import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SettingsModal } from "./SettingsModal";
+import { AnimateHeight } from "./AnimateHeight";
 
 export function Sidebar() {
   const router = useRouter();
@@ -192,7 +193,7 @@ export function Sidebar() {
                 <span className="enterprise-name">{enterprise.name}</span>
               </button>
 
-              {isOpen && (
+              <AnimateHeight open={isOpen}>
                 <div className="sub-list">
                   {projects.map((project) => (
                     renamingProjectId === project.id ? (
@@ -270,7 +271,7 @@ export function Sidebar() {
                     </button>
                   )}
                 </div>
-              )}
+              </AnimateHeight>
             </div>
           );
         })}
@@ -298,8 +299,8 @@ export function Sidebar() {
                 <span className={`tree-chevron ${isOpen ? "open" : ""}`}>▸</span>
                 {enterprise.name}
               </button>
-              {isOpen &&
-                conversations.map((conversation) => (
+              <AnimateHeight open={isOpen}>
+                {conversations.map((conversation) => (
                   renamingConversationId === conversation.id ? (
                     <div className="sidebar-rename-row history-rename-row" key={conversation.id}>
                       <input
@@ -332,6 +333,7 @@ export function Sidebar() {
                     </button>
                   )
                 ))}
+              </AnimateHeight>
             </section>
           );
         })}

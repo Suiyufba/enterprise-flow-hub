@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { AgentPersona, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
+import { gsap, useGSAP } from "../lib/gsap";
 export default function PersonasPage() {
   const { showToast } = useToast();
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    gsap.from(pageRef.current, {
+      y: 24,
+      opacity: 0,
+      duration: 0.5,
+      ease: "power3.out",
+    });
+  }, { scope: pageRef });
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [personas, setPersonas] = useState<AgentPersona[]>([]);
 
@@ -101,7 +112,7 @@ export default function PersonasPage() {
   }
 
   return (
-        <div className="main-inner" style={{ maxWidth: 700, paddingTop: 40 }}>
+        <div className="main-inner" style={{ maxWidth: 700, paddingTop: 40 }} ref={pageRef}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <h1 style={{ fontSize: 20, color: "var(--c-f0f0f0)", margin: 0 }}>角色人格</h1>
             <button className="page-primary-button" onClick={() => setShowAddForm(!showAddForm)} type="button">

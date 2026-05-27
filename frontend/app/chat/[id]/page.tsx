@@ -6,6 +6,8 @@ import type { AddMessageResponse, AgentPlanStep, ConversationDetail, Message, To
 import { fetchJson } from "../../lib/api";
 import { useToast } from "../../lib/toast-context";
 import MarkdownMessage from "../../components/MarkdownMessage";
+import { TypingIndicator } from "../../components/TypingIndicator";
+import { gsap, useGSAP } from "../../lib/gsap";
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +32,57 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgCounterRef = useRef(0);
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
+  const chatShellRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Page entrance animation
+  useGSAP(() => {
+    gsap.from(chatShellRef.current, {
+      y: 24,
+      opacity: 0,
+      duration: 0.5,
+      ease: "power3.out",
+    });
+  }, { scope: chatShellRef });
+
+  // Animate new messages as they appear
+  const prevCountRef = useRef(0);
+  useGSAP(() => {
+    if (!messagesContainerRef.current) return;
+    const children = messagesContainerRef.current.children;
+    const msgElements = Array.from(children).filter(
+      (c) => c.classList.contains("chat-msg") && !c.classList.contains("chat-typing")
+    );
+    if (msgElements.length > prevCountRef.current) {
+      const newMsgs = msgElements.slice(prevCountRef.current);
+      gsap.from(newMsgs, {
+        y: 16,
+        opacity: 0,
+        scale: 0.97,
+        duration: 0.35,
+        stagger: 0.06,
+        ease: "back.out(1.2)",
+      });
+    }
+    prevCountRef.current = msgElements.length;
+  }, { dependencies: [localMessages], scope: messagesContainerRef });
+
+  // Animate agent plan steps
+  const planRef = useRef<HTMLDivElement>(null);
+  useGSAP(() => {
+    if (!planRef.current) return;
+    const steps = planRef.current.querySelectorAll(".agent-plan-step");
+    const runningStep = Array.from(steps).find((s) =>
+      s.classList.contains("agent-plan-running")
+    );
+    if (runningStep) {
+      gsap.from(runningStep, {
+        scale: 0.95,
+        duration: 0.3,
+        ease: "back.out(1.4)",
+      });
+    }
+  }, { dependencies: [runPlan], scope: planRef });
 
   function nextMsgId() {
     msgCounterRef.current += 1;
@@ -314,7 +367,7 @@ export default function ChatPage() {
   const currentEnterpriseProjects = workspace?.projects.filter((project) => project.enterpriseId === currentEnterpriseId) ?? [];
 
   return (
-    <div className="chat-shell">
+    <div className="chat-shell" ref={chatShellRef}>
       {/* Header */}
       <header className="chat-header">
         <button className="chat-back" onClick={() => router.push("/")} type="button">
@@ -383,7 +436,7 @@ export default function ChatPage() {
       </header>
 
       {/* Messages */}
-      <div className="chat-messages">
+      <div className="chat-messages" ref={messagesContainerRef}>
         {localMessages.length === 0 && (
           <div className="chat-empty">暂无消息记录</div>
         )}
@@ -394,16 +447,12 @@ export default function ChatPage() {
             role={msg.role}
           />
         ))}
-        {sending && (
-          <div className="chat-msg chat-msg-assistant chat-typing">
-            <div className="chat-msg-content">正在思考...</div>
-          </div>
-        )}
+        {sending && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
       {(runPlan.length > 0 || runTools.length > 0) && (
-        <section className="agent-run-panel" aria-label="Agent 执行计划">
+        <section className="agent-run-panel" aria-label="Agent 执行计划" ref={planRef}>
           <div className="agent-run-header">
             <div>
               <span className="agent-run-kicker">Agent Run</span>

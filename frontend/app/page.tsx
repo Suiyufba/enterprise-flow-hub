@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { ConversationDetail } from "shared";
 import { fetchJson } from "./lib/api";
 import { useWorkspace } from "./lib/workspace-context";
 import { useToast } from "./lib/toast-context";
+import { gsap, useGSAP } from "./lib/gsap";
 
 export default function Home() {
   const router = useRouter();
@@ -16,6 +17,57 @@ export default function Home() {
   const [personaId, setPersonaId] = useState("");
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const sendBtnRef = useRef<HTMLButtonElement>(null);
+
+  useGSAP(() => {
+    gsap.from(pageRef.current, {
+      y: 32,
+      opacity: 0,
+      duration: 0.6,
+      ease: "power3.out",
+    });
+  }, { scope: pageRef });
+
+  useGSAP(() => {
+    if (!composerRef.current) return;
+    const ta = composerRef.current.querySelector("textarea");
+    if (!ta) return;
+    const onFocus = () =>
+      gsap.to(composerRef.current, {
+        boxShadow: "0 0 0 2px rgba(74, 144, 230, 0.25)",
+        borderColor: "#4a90e6",
+        duration: 0.3,
+      });
+    const onBlur = () =>
+      gsap.to(composerRef.current, {
+        boxShadow: "0 16px 36px rgba(0, 0, 0, 0.28)",
+        borderColor: "var(--c-303030)",
+        duration: 0.3,
+      });
+    ta.addEventListener("focus", onFocus);
+    ta.addEventListener("blur", onBlur);
+    return () => {
+      ta.removeEventListener("focus", onFocus);
+      ta.removeEventListener("blur", onBlur);
+    };
+  }, { scope: composerRef });
+
+  useGSAP(() => {
+    if (loading) {
+      gsap.to(sendBtnRef.current, {
+        scale: 0.97,
+        duration: 0.6,
+        repeat: -1,
+        yoyo: true,
+        ease: "power1.inOut",
+      });
+    } else {
+      gsap.killTweensOf(sendBtnRef.current);
+      gsap.set(sendBtnRef.current, { scale: 1 });
+    }
+  }, { dependencies: [loading], scope: sendBtnRef });
 
   const filteredProjects = workspace?.projects.filter((p) => p.enterpriseId === enterpriseId) ?? [];
 
@@ -73,10 +125,10 @@ export default function Home() {
   }
 
   return (
-    <div className="main-inner" style={{ maxWidth: 800, paddingTop: 60 }}>
+    <div className="main-inner" style={{ maxWidth: 800, paddingTop: 60 }} ref={pageRef}>
       <h1 className="main-title">今天想做什么？</h1>
 
-      <div className="chat-composer">
+      <div className="chat-composer" ref={composerRef}>
         <textarea
           className="chat-input"
           placeholder="描述你的业务需求，如：帮我看这组客户表和聊天记录，怎么减少顾问漏跟进？"
@@ -93,6 +145,7 @@ export default function Home() {
         <div style={{ display: "flex", alignItems: "flex-end" }}>
           <button
             className="chat-send-btn"
+            ref={sendBtnRef}
             onClick={submit}
             disabled={!need.trim() || loading}
           >

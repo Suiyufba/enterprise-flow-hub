@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentSkill, Automation, LibraryItem, Plugin, PluginConfigResponse, Project, ToolDefinition } from "shared";
 import { fetchJson } from "../lib/api";
 import { useWorkspace } from "../lib/workspace-context";
+import { gsap, useGSAP } from "../lib/gsap";
 
 export function SearchPage() {
   const router = useRouter();
@@ -1352,8 +1353,19 @@ export function ProjectDetailPage({ id }: { id: string }) {
 }
 
 function PageShell({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    gsap.from(ref.current, {
+      y: 24,
+      opacity: 0,
+      duration: 0.5,
+      ease: "power3.out",
+    });
+  }, { scope: ref });
+
   return (
-    <div className="page-shell">
+    <div className="page-shell" ref={ref}>
       <header className="page-header">
         <h1>{title}</h1>
         <p>{description}</p>
