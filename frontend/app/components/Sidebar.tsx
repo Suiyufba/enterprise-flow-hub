@@ -199,6 +199,28 @@ export function Sidebar() {
 
         <button
           className="nav-group-header"
+          onClick={() => toggleNavGroup("business")}
+          type="button"
+        >
+          <span className={`tree-chevron ${navGroups.has("business") ? "open" : ""}`}>▸</span>
+          业务
+        </button>
+        {navGroups.has("business") && (
+          <div className="nav-group-items">
+            <Link href="/customers" className={`nav-item ${pathname === "/customers" ? "active" : ""}`}>
+              <span className="icon">👥</span> 客户
+            </Link>
+            <Link href="/suppliers" className={`nav-item ${pathname === "/suppliers" ? "active" : ""}`}>
+              <span className="icon">🏭</span> 供应商
+            </Link>
+            <Link href="/products" className={`nav-item ${pathname === "/products" ? "active" : ""}`}>
+              <span className="icon">📦</span> 商品
+            </Link>
+          </div>
+        )}
+
+        <button
+          className="nav-group-header"
           onClick={() => toggleNavGroup("system")}
           type="button"
         >
