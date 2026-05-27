@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
 import { useWorkspace } from "../lib/workspace-context";
+import { gsap, useGSAP } from "../lib/gsap";
 import type { Department, User } from "shared";
 
 interface DepartmentWithChildren extends Department {
@@ -39,7 +40,19 @@ function DepartmentTreeNode({
   depth: number;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const childrenRef = useRef<HTMLDivElement>(null);
   const hasChildren = dept.children.length > 0 || dept.members.length > 0;
+
+  useGSAP(() => {
+    if (!childrenRef.current) return;
+    gsap.from(".org-dept-card, .org-user-card", {
+      y: -8,
+      autoAlpha: 0,
+      duration: 0.3,
+      stagger: 0.04,
+      ease: "power2.out",
+    });
+  }, { dependencies: [collapsed, dept.children.length, dept.members.length], scope: childrenRef });
 
   return (
     <div className="org-node-group">
@@ -74,8 +87,7 @@ function DepartmentTreeNode({
       </div>
 
       {!collapsed && (
-        <div className="org-children">
-          {/* Members first */}
+        <div className="org-children" ref={childrenRef}>
           {dept.members.map((user) => (
             <div className="org-node-row" key={user.id}>
               <div className="org-connector-line" />
@@ -96,7 +108,6 @@ function DepartmentTreeNode({
             </div>
           ))}
 
-          {/* Then sub-departments */}
           {dept.children.map((child) => (
             <DepartmentTreeNode
               key={child.id}
@@ -116,7 +127,6 @@ function DepartmentTreeNode({
         </div>
       )}
 
-      {/* Members without department */}
       {depth === 0 && allUsers.filter((u) => !u.departmentId).length > 0 && (
         <div className="org-children">
           <div className="org-unassigned-label">未分配部门</div>
@@ -145,6 +155,28 @@ function DepartmentTreeNode({
   );
 }
 
+function ModalWrap({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!contentRef.current || !overlayRef.current) return;
+    gsap.fromTo(overlayRef.current, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2, ease: "power2.out" });
+    gsap.fromTo(contentRef.current,
+      { scale: 0.92, autoAlpha: 0, y: 12 },
+      { scale: 1, autoAlpha: 1, y: 0, duration: 0.3, ease: "back.out(1.3)" },
+    );
+  }, { dependencies: [open], scope: overlayRef });
+
+  return (
+    <div className="modal-overlay" ref={overlayRef} onClick={onClose}>
+      <div className="modal-content" ref={contentRef} onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function EnterprisePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -154,7 +186,11 @@ export default function EnterprisePage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form state
+  const pageRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const statsRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+
   const [deptForm, setDeptForm] = useState<{
     open: boolean;
     editing?: Department;
@@ -233,6 +269,34 @@ export default function EnterprisePage() {
     }
     return roots;
   }, [departments, users]);
+
+  // Page entrance — scoped to the page shell
+  useGSAP(() => {
+    if (loading) return;
+    gsap.from(headerRef.current, { y: 16, autoAlpha: 0, duration: 0.45, ease: "power3.out" });
+    gsap.from(".page-stat", { y: 20, autoAlpha: 0, duration: 0.4, stagger: 0.08, ease: "power3.out", delay: 0.1 });
+  }, { dependencies: [loading], scope: pageRef });
+
+  // Org chart entrance + node stagger — scoped to the chart container
+  useGSAP(() => {
+    if (loading || tree.length === 0) return;
+    const cards = chartRef.current?.querySelectorAll(".org-dept-card");
+    const userCards = chartRef.current?.querySelectorAll(".org-user-card");
+    const tl = gsap.timeline();
+    tl.from(chartRef.current, { y: 12, autoAlpha: 0, duration: 0.4, ease: "power3.out" });
+    if (cards && cards.length > 0) {
+      tl.from(cards, { x: -10, autoAlpha: 0, duration: 0.35, stagger: 0.06, ease: "power3.out" }, "-=0.15");
+    }
+    if (userCards && userCards.length > 0) {
+      tl.from(userCards, { x: -6, autoAlpha: 0, duration: 0.3, stagger: 0.04, ease: "power2.out" }, "-=0.1");
+    }
+  }, { dependencies: [loading, tree], scope: chartRef });
+
+  // Stats counter pulse — scoped to stats row
+  useGSAP(() => {
+    if (loading) return;
+    gsap.from("strong", { scale: 0.5, autoAlpha: 0, duration: 0.5, stagger: 0.1, ease: "back.out(1.4)", delay: 0.2 });
+  }, { dependencies: [departments.length, users.length, loading], scope: statsRef });
 
   async function handleSaveDept() {
     if (!deptForm.name.trim() || !enterpriseId) return;
@@ -384,14 +448,13 @@ export default function EnterprisePage() {
 
   return (
     <div className="main enterprise-page">
-      <div className="page-shell">
-        <div className="page-header">
+      <div className="page-shell" ref={pageRef}>
+        <div className="page-header" ref={headerRef}>
           <h1>企业管理</h1>
           <p>组织架构一目了然，高效管理团队</p>
         </div>
 
-        {/* Stats row */}
-        <div className="page-stats">
+        <div className="page-stats" ref={statsRef}>
           <div className="page-stat">
             <span>部门</span>
             <strong>{departments.length}</strong>
@@ -406,8 +469,7 @@ export default function EnterprisePage() {
           </div>
         </div>
 
-        {/* Org Chart */}
-        <div className="org-chart-container">
+        <div className="org-chart-container" ref={chartRef}>
           <div className="org-chart-header">
             <h2>组织架构图</h2>
             {isAdmin && (
@@ -480,124 +542,115 @@ export default function EnterprisePage() {
           </div>
         </div>
 
-        {/* Department Form Modal */}
         {deptForm.open && (
-          <div className="modal-overlay" onClick={() => setDeptForm({ open: false, name: "" })}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3>{deptForm.editing ? "编辑部门" : "新建部门"}</h3>
-              <div className="modal-body">
-                <label className="form-label">部门名称</label>
-                <input
-                  className="page-input"
-                  autoFocus
-                  value={deptForm.name}
-                  onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
-                  onKeyDown={(e) => e.key === "Enter" && handleSaveDept()}
-                  placeholder="例如：技术部"
-                />
-              </div>
-              <div className="modal-actions">
-                <button className="page-secondary-button" onClick={() => setDeptForm({ open: false, name: "" })} type="button" disabled={processing}>取消</button>
-                <button className="page-primary-button" onClick={handleSaveDept} type="button" disabled={processing || !deptForm.name.trim()}>
-                  {processing ? "保存中..." : "保存"}
-                </button>
-              </div>
+          <ModalWrap open={deptForm.open} onClose={() => setDeptForm({ open: false, name: "" })}>
+            <h3>{deptForm.editing ? "编辑部门" : "新建部门"}</h3>
+            <div className="modal-body">
+              <label className="form-label">部门名称</label>
+              <input
+                className="page-input"
+                autoFocus
+                value={deptForm.name}
+                onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveDept()}
+                placeholder="例如：技术部"
+              />
             </div>
-          </div>
+            <div className="modal-actions">
+              <button className="page-secondary-button" onClick={() => setDeptForm({ open: false, name: "" })} type="button" disabled={processing}>取消</button>
+              <button className="page-primary-button" onClick={handleSaveDept} type="button" disabled={processing || !deptForm.name.trim()}>
+                {processing ? "保存中..." : "保存"}
+              </button>
+            </div>
+          </ModalWrap>
         )}
 
-        {/* User Form Modal */}
         {userForm.open && (
-          <div className="modal-overlay" onClick={() => setUserForm({ open: false, username: "", password: "", displayName: "", role: "member", departmentId: "", position: "" })}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3>{userForm.editing ? "编辑成员" : "添加成员"}</h3>
-              <div className="modal-body">
-                {!userForm.editing && (
-                  <>
-                    <label className="form-label">用户名</label>
-                    <input
-                      className="page-input"
-                      autoFocus
-                      value={userForm.username}
-                      onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                      placeholder="登录用户名"
-                    />
-                    <label className="form-label">密码</label>
-                    <input
-                      className="page-input"
-                      type="password"
-                      value={userForm.password}
-                      onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                      placeholder="至少4位"
-                    />
-                  </>
-                )}
-                <label className="form-label">显示名称</label>
-                <input
-                  className="page-input"
-                  autoFocus={!!userForm.editing}
-                  value={userForm.displayName}
-                  onChange={(e) => setUserForm({ ...userForm, displayName: e.target.value })}
-                  onKeyDown={(e) => e.key === "Enter" && handleSaveUser()}
-                  placeholder="例如：张三"
-                />
-                <label className="form-label">职位</label>
-                <input
-                  className="page-input"
-                  value={userForm.position}
-                  onChange={(e) => setUserForm({ ...userForm, position: e.target.value })}
-                  placeholder="例如：前端工程师"
-                />
-                <label className="form-label">所属部门</label>
-                <select
-                  className="page-input"
-                  value={userForm.departmentId}
-                  onChange={(e) => setUserForm({ ...userForm, departmentId: e.target.value })}
-                >
-                  <option value="">无</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-                <label className="form-label">角色</label>
-                <select
-                  className="page-input"
-                  value={userForm.role}
-                  onChange={(e) => setUserForm({ ...userForm, role: e.target.value as "member" | "admin" })}
-                >
-                  <option value="member">成员</option>
-                  <option value="admin">管理员</option>
-                </select>
-              </div>
-              <div className="modal-actions">
-                <button className="page-secondary-button" onClick={() => setUserForm({ open: false, username: "", password: "", displayName: "", role: "member", departmentId: "", position: "" })} type="button" disabled={processing}>取消</button>
-                <button className="page-primary-button" onClick={handleSaveUser} type="button" disabled={processing || !userForm.displayName.trim()}>
-                  {processing ? "保存中..." : "保存"}
-                </button>
-              </div>
+          <ModalWrap open={userForm.open} onClose={() => setUserForm({ open: false, username: "", password: "", displayName: "", role: "member", departmentId: "", position: "" })}>
+            <h3>{userForm.editing ? "编辑成员" : "添加成员"}</h3>
+            <div className="modal-body">
+              {!userForm.editing && (
+                <>
+                  <label className="form-label">用户名</label>
+                  <input
+                    className="page-input"
+                    autoFocus
+                    value={userForm.username}
+                    onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                    placeholder="登录用户名"
+                  />
+                  <label className="form-label">密码</label>
+                  <input
+                    className="page-input"
+                    type="password"
+                    value={userForm.password}
+                    onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                    placeholder="至少4位"
+                  />
+                </>
+              )}
+              <label className="form-label">显示名称</label>
+              <input
+                className="page-input"
+                autoFocus={!!userForm.editing}
+                value={userForm.displayName}
+                onChange={(e) => setUserForm({ ...userForm, displayName: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveUser()}
+                placeholder="例如：张三"
+              />
+              <label className="form-label">职位</label>
+              <input
+                className="page-input"
+                value={userForm.position}
+                onChange={(e) => setUserForm({ ...userForm, position: e.target.value })}
+                placeholder="例如：前端工程师"
+              />
+              <label className="form-label">所属部门</label>
+              <select
+                className="page-input"
+                value={userForm.departmentId}
+                onChange={(e) => setUserForm({ ...userForm, departmentId: e.target.value })}
+              >
+                <option value="">无</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <label className="form-label">角色</label>
+              <select
+                className="page-input"
+                value={userForm.role}
+                onChange={(e) => setUserForm({ ...userForm, role: e.target.value as "member" | "admin" })}
+              >
+                <option value="member">成员</option>
+                <option value="admin">管理员</option>
+              </select>
             </div>
-          </div>
+            <div className="modal-actions">
+              <button className="page-secondary-button" onClick={() => setUserForm({ open: false, username: "", password: "", displayName: "", role: "member", departmentId: "", position: "" })} type="button" disabled={processing}>取消</button>
+              <button className="page-primary-button" onClick={handleSaveUser} type="button" disabled={processing || !userForm.displayName.trim()}>
+                {processing ? "保存中..." : "保存"}
+              </button>
+            </div>
+          </ModalWrap>
         )}
 
-        {/* Delete Confirm */}
         {deleteConfirm.open && (
-          <div className="modal-overlay" onClick={() => setDeleteConfirm({ open: false, type: "dept", id: "", name: "" })}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h3>确认删除</h3>
-              <p className="modal-text">
-                确定要删除{deleteConfirm.type === "dept" ? "部门" : "用户"}「{deleteConfirm.name}」吗？此操作不可撤销。
-                {deleteConfirm.type === "dept" && "子部门将上移，成员将取消分配。"}
-              </p>
-              <div className="modal-actions">
-                <button className="page-secondary-button" onClick={() => setDeleteConfirm({ open: false, type: "dept", id: "", name: "" })} type="button" disabled={processing}>取消</button>
-                <button className="page-primary-button" onClick={handleDelete} type="button" disabled={processing} style={{ background: "var(--c-d20f39)", color: "#fff" }}>
-                  {processing ? "删除中..." : "确认删除"}
-                </button>
-              </div>
+          <ModalWrap open={deleteConfirm.open} onClose={() => setDeleteConfirm({ open: false, type: "dept", id: "", name: "" })}>
+            <h3>确认删除</h3>
+            <p className="modal-text">
+              确定要删除{deleteConfirm.type === "dept" ? "部门" : "用户"}「{deleteConfirm.name}」吗？此操作不可撤销。
+              {deleteConfirm.type === "dept" && "子部门将上移，成员将取消分配。"}
+            </p>
+            <div className="modal-actions">
+              <button className="page-secondary-button" onClick={() => setDeleteConfirm({ open: false, type: "dept", id: "", name: "" })} type="button" disabled={processing}>取消</button>
+              <button className="page-primary-button" onClick={handleDelete} type="button" disabled={processing} style={{ background: "var(--c-d20f39)", color: "#fff" }}>
+                {processing ? "删除中..." : "确认删除"}
+              </button>
             </div>
-          </div>
+          </ModalWrap>
         )}
       </div>
     </div>

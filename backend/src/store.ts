@@ -300,6 +300,11 @@ function rowToDepartment(r: Record<string, unknown>): Department {
   };
 }
 
+export function getDepartment(id: string): Department | undefined {
+  const row = db().prepare("SELECT * FROM departments WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  return row ? rowToDepartment(row) : undefined;
+}
+
 export function listDepartments(enterpriseId: string): Department[] {
   return (db()
     .prepare("SELECT * FROM departments WHERE enterprise_id = ? ORDER BY created_at ASC")
