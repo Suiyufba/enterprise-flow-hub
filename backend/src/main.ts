@@ -6,6 +6,7 @@ import { createAuditLog } from "./auth/audit.js";
 import { startIntegrationScheduler } from "./integration/queue.js";
 import { setupRulesExecutor } from "./rules/executor.js";
 import { getUser } from "./store.js";
+import { validateSession } from "./auth/service.js";
 import { registerTool } from "./tools/registry.js";
 import { csvProfile } from "./tools/executors/csv-profile.js";
 import { bashExecute } from "./tools/executors/bash-executor.js";
@@ -45,24 +46,51 @@ app.addHook("onRequest", async (request, reply) => {
   }
 });
 
+// User auth hook — resolve user from JWT token or x-user-id header
+// Attaches user to request for downstream middleware and routes
+app.addHook("onRequest", async (request) => {
+  // Skip if already has user attached
+  if ((request as unknown as Record<string, unknown>).actor) return;
+
+  // Try JWT Bearer token first
+  const auth = request.headers.authorization;
+  if (auth?.startsWith("Bearer ")) {
+    const token = auth.slice(7);
+    // Only try session validation for tokens that look like session tokens (96 hex chars)
+    if (token.length === 96 && /^[a-f0-9]+$/.test(token)) {
+      const user = validateSession(token);
+      if (user) {
+        (request as unknown as Record<string, unknown>).actor = user;
+        return;
+      }
+    }
+  }
+
+  // Fall back to x-user-id header (legacy)
+  const userId = request.headers["x-user-id"] as string | undefined;
+  if (userId) {
+    const user = getUser(userId);
+    if (user) {
+      (request as unknown as Record<string, unknown>).actor = user;
+    }
+  }
+});
+
 // Audit logging — log all write operations
 app.addHook("onResponse", async (request, reply) => {
   if (["GET", "OPTIONS", "HEAD"].includes(request.method)) return;
   if (reply.statusCode >= 500) return;
-  const userId = request.headers["x-user-id"] as string | undefined;
-  const user = userId ? getUser(userId) : undefined;
-  if (!user) return;
+  const actor = (request as unknown as Record<string, unknown>).actor as { id: string; enterpriseId: string } | undefined;
+  if (!actor) return;
   const path = request.url.split("?")[0];
   const parts = path.split("/").filter(Boolean);
-  const objectType = parts[0] || "unknown";
-  const objectId = parts.length > 1 ? parts[1] : undefined;
   createAuditLog({
-    enterpriseId: user.enterpriseId,
-    userId: user.id,
+    enterpriseId: actor.enterpriseId,
+    userId: actor.id,
     action: `${request.method} ${path}`,
-    objectType,
-    objectId,
-    changes: request.body ? (typeof request.body === "object" ? request.body as Record<string, unknown> : {}) : {},
+    objectType: parts[0] || "unknown",
+    objectId: parts.length > 1 ? parts[1] : undefined,
+    changes: request.body && typeof request.body === "object" ? request.body as Record<string, unknown> : {},
     ipAddress: request.ip,
   });
 });
