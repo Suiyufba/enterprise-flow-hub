@@ -7,6 +7,8 @@ services:
       HOST: 0.0.0.0
       PORT: 4000
       DB_PATH: /data/efh.db
+      TZ: ${TZ:-Asia/Shanghai}
+      AUTOMATION_TIMEZONE: ${AUTOMATION_TIMEZONE:-Asia/Shanghai}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://43.167.202.152}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
@@ -35,4 +37,3 @@ services:
 
 volumes:
   backend-data:
-

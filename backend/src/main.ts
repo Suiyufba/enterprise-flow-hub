@@ -14,6 +14,7 @@ import { automationExecute } from "./tools/executors/automation-executor.js";
 import { libraryItemExecute } from "./tools/executors/library-item-executor.js";
 import { notifyExecute } from "./tools/executors/notify.js";
 import { runAllPersonaSummaries } from "./store.js";
+import { startAutomationScheduler } from "./automation/scheduler.js";
 
 // Register tool executors so agent can actually execute tools
 registerTool("tool-csv-profile", csvProfile);
@@ -61,6 +62,7 @@ const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";
 
 await app.listen({ port, host });
+startAutomationScheduler(app.log);
 
 // Schedule daily midnight persona memory summarization
 function scheduleMidnight() {

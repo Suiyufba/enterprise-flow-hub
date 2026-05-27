@@ -558,6 +558,25 @@ export function deleteAutomation(id: string): boolean {
   return result.changes > 0;
 }
 
+export function listEnabledScheduleAutomations(): Automation[] {
+  return (
+    db()
+      .prepare("SELECT * FROM automations WHERE enabled = 1 AND trigger_type = 'schedule' ORDER BY rowid ASC")
+      .all() as Record<string, unknown>[]
+  ).map(rowToAutomation);
+}
+
+export function markAutomationRun(id: string, when = new Date()): Automation | undefined {
+  const row = db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+
+  db()
+    .prepare("UPDATE automations SET run_count = run_count + 1, last_run = ? WHERE id = ?")
+    .run(when.toISOString(), id);
+
+  return rowToAutomation(db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
 // ---- AI Tool Registry ----
 
 function rowToTool(r: Record<string, unknown>): ToolDefinition {
