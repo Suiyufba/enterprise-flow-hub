@@ -21,7 +21,7 @@ function rowToFile(r: Record<string, unknown>): FileRecord {
     filename: r.filename as string,
     mimeType: r.mime_type as string,
     size: r.size as number,
-    storagePath: r.storage_path as string,
+    storagePath: "", // never expose internal path to clients
     uploadedBy: (r.uploaded_by as string) || null,
     relatedType: (r.related_type as string) || null,
     relatedId: (r.related_id as string) || null,
@@ -54,6 +54,16 @@ export function getFile(id: string): FileRecord | undefined {
   return row ? rowToFile(row) : undefined;
 }
 
+// Internal: returns full record including storage path (for download/OCR)
+export function getFileInternal(id: string): (FileRecord & { storagePath: string }) | undefined {
+  const row = db().prepare("SELECT * FROM files WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  return {
+    ...rowToFile(row),
+    storagePath: row.storage_path as string,
+  };
+}
+
 export function createFile(record: {
   enterpriseId: string;
   filename: string;
@@ -84,7 +94,7 @@ export function createFile(record: {
 }
 
 export function deleteFile(id: string): boolean {
-  const file = getFile(id);
+  const file = getFileInternal(id);
   if (!file) return false;
   try { unlinkSync(file.storagePath); } catch { /* file may already be gone */ }
   return db().prepare("DELETE FROM files WHERE id = ?").run(id).changes > 0;

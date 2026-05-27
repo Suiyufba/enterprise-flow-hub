@@ -56,10 +56,15 @@ export default function FilesPage() {
       const form = new FormData();
       form.append("file", file);
       form.append("enterpriseId", enterpriseId!);
+      const headers: Record<string, string> = { "x-user-id": user?.id ?? "" };
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+      const storedToken = typeof window !== "undefined" ? localStorage.getItem("efh_token") : null;
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      else if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
       const res = await fetch(`${apiUrl}/files/upload`, {
         method: "POST",
         body: form,
-        headers: { "x-user-id": user?.id ?? "" },
+        headers,
       });
       if (!res.ok) throw new Error(await res.text());
       showToast("上传成功", "success");

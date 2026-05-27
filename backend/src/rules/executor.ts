@@ -68,6 +68,19 @@ async function executeAction(row: RuleRow, payload: Record<string, unknown>): Pr
     case "set_field": {
       const { table, field, value, objectId } = config as Record<string, unknown>;
       if (!table || !field || !objectId) return;
+      // Allowlist: only known tables and their updatable columns
+      const ALLOWED: Record<string, string[]> = {
+        orders: ["status", "notes"],
+        customers: ["status", "name", "contact", "phone", "email", "address"],
+        invoices: ["status"],
+        payments: ["status"],
+        tasks: ["status", "priority"],
+      };
+      const allowedFields = ALLOWED[table as string];
+      if (!allowedFields || !allowedFields.includes(field as string)) {
+        console.warn(`[rules] Blocked set_field on table=${table} field=${field}`);
+        return;
+      }
       const targetId = objectId === "$event.objectId" ? payload.objectId ?? payload.id : objectId;
       if (!targetId) return;
       db()

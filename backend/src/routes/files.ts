@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { mkdirSync, createReadStream, existsSync } from "node:fs";
 import { getUser } from "../store.js";
-import { listFiles, getFile, createFile, deleteFile } from "../store/files.js";
+import { listFiles, getFile, getFileInternal, createFile, deleteFile } from "../store/files.js";
 import { analyzeImageFile } from "../ai/ocr.js";
 
 function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
@@ -30,8 +30,11 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/files/:id/download", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const file = getFile(id);
+    const file = getFileInternal(id);
     if (!file) return reply.status(404).send({ error: "文件不存在" });
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (file.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权下载此文件" });
     if (!existsSync(file.storagePath)) return reply.status(404).send({ error: "文件数据丢失" });
     reply.header("Content-Type", file.mimeType);
     reply.header("Content-Disposition", `inline; filename="${encodeURIComponent(file.filename)}"`);
@@ -73,7 +76,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/files/:id/ocr", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const file = getFile(id);
+    const file = getFileInternal(id);
     if (!file) return reply.status(404).send({ error: "文件不存在" });
     const actorEid = getCallerEnterprise(request, reply);
     if (!actorEid) return;
@@ -85,7 +88,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete("/files/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const existing = getFile(id);
+    const existing = getFileInternal(id);
     if (!existing) return reply.status(404).send({ error: "文件不存在" });
     const actorEid = getCallerEnterprise(request, reply);
     if (!actorEid) return;

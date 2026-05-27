@@ -96,10 +96,24 @@ async function processRun(runId: string): Promise<void> {
   }
 }
 
-// Register default webhook executor
+// Register default webhook executor with SSRF protection
 registerIntegration("webhook", async (payload) => {
   const { url, method, headers, body } = payload as Record<string, unknown>;
-  const res = await fetch(url as string, {
+  const targetUrl = typeof url === "string" ? url : "";
+  if (!targetUrl) return { ok: false, error: "Missing URL" };
+
+  // Block internal/private IP ranges
+  try {
+    const parsed = new URL(targetUrl);
+    if (["127.0.0.1", "localhost", "0.0.0.0", "[::1]"].includes(parsed.hostname)) {
+      return { ok: false, error: "Cannot call internal addresses" };
+    }
+    if (parsed.hostname.startsWith("10.") || parsed.hostname.startsWith("192.168.") || parsed.hostname.startsWith("172.16.")) {
+      return { ok: false, error: "Cannot call private network addresses" };
+    }
+  } catch { return { ok: false, error: "Invalid URL" }; }
+
+  const res = await fetch(targetUrl, {
     method: (method as string) ?? "POST",
     headers: { "Content-Type": "application/json", ...(headers as Record<string, string> ?? {}) },
     body: body ? JSON.stringify(body) : undefined,

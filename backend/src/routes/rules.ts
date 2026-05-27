@@ -68,6 +68,9 @@ export async function rulesRoutes(app: FastifyInstance): Promise<void> {
     if (!enterpriseId || !objectType || !objectData) {
       return reply.status(400).send({ error: "缺少必填字段" });
     }
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权操作其他企业数据" });
     return evaluateRulesForObject(objectType as string, objectData as Record<string, unknown>, enterpriseId as string);
   });
 }
