@@ -3,10 +3,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { ConversationDetail } from "shared";
-import { fetchJson } from "./lib/api";
-import { useWorkspace } from "./lib/workspace-context";
-import { useToast } from "./lib/toast-context";
-import { gsap, useGSAP } from "./lib/gsap";
+import { fetchJson } from "../../lib/api";
+import { useWorkspace } from "../../lib/workspace-context";
+import { useToast } from "../../lib/toast-context";
+import { gsap, useGSAP } from "../../lib/gsap";
 
 export default function Home() {
   const router = useRouter();
