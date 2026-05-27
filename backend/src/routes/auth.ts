@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { LoginRequestSchema } from "shared";
 import { loginUser, listUsers, getUser, deleteUser } from "../store.js";
+import { createSession } from "../auth/service.js";
 
 export function authRoutes(app: FastifyInstance): void {
   // Login
@@ -13,7 +14,8 @@ export function authRoutes(app: FastifyInstance): void {
     if (!user) {
       return reply.status(401).send({ error: "用户名或密码错误" });
     }
-    return reply.send(user);
+    const session = createSession(user.id);
+    return reply.send({ ...user, token: session.token });
   });
 
   // List users (optionally by enterprise)
