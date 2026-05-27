@@ -438,7 +438,7 @@ export default function EnterprisePage() {
 
   if (authLoading || loading) {
     return (
-      <div className="main">
+      <div className="enterprise-page">
         <div className="loading">
           <div className="spinner" />
         </div>
@@ -447,7 +447,7 @@ export default function EnterprisePage() {
   }
 
   return (
-    <div className="main enterprise-page">
+    <div className="enterprise-page">
       <div className="page-shell" ref={pageRef}>
         <div className="page-header" ref={headerRef}>
           <h1>企业管理</h1>

@@ -4007,13 +4007,18 @@ body {
 /* ---- Enterprise Org Chart ---- */
 
 .enterprise-page {
-  align-items: flex-start;
-  padding-top: 40px;
+  align-self: stretch;
+  width: 100%;
 }
 
 .enterprise-page .page-shell {
-  max-width: none;
+  max-width: 1180px;
+  margin: 0 auto;
   padding: 0 32px 64px;
+}
+
+.enterprise-page .page-stats {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
 }
 
 .org-chart-container {
@@ -4041,7 +4046,7 @@ body {
 .org-chart {
   padding: 28px 20px 32px;
   overflow-x: auto;
-  min-height: 120px;
+  min-height: 420px;
 }
 
 .org-empty {
@@ -4064,9 +4069,10 @@ body {
 
 .org-flat-list {
   display: grid;
-  gap: 8px;
-  max-width: 400px;
-  margin: 0 auto;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin: 0;
 }
 
 .org-node-group {
@@ -4232,7 +4238,7 @@ body {
 }
 
 .org-user-card.standalone {
-  margin: 4px auto;
+  margin: 0;
 }
 
 .org-user-card.admin:hover {
@@ -4323,6 +4329,23 @@ body {
   padding: 12px 0 4px 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+@media (max-width: 760px) {
+  .enterprise-page .page-shell {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .enterprise-page .page-stats,
+  .org-flat-list {
+    grid-template-columns: 1fr;
+  }
+
+  .org-chart-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 /* ---- Modal ---- */
