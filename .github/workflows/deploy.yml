@@ -78,7 +78,7 @@ jobs:
         run: |
           SSH_OPTS="-i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o PubkeyAcceptedAlgorithms=+ssh-rsa -o HostkeyAlgorithms=+ssh-rsa"
           ssh ${SSH_OPTS} "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "sudo mkdir -p /opt/enterprise-flow-hub && sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /opt/enterprise-flow-hub"
-          scp ${SSH_OPTS} deploy/docker-compose.yml deploy/nginx.conf deploy/backup-db.sh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/enterprise-flow-hub/"
+          scp ${SSH_OPTS} deploy/docker-compose.yml deploy/nginx.conf deploy/backup-db.sh deploy/cleanup-docker-images.sh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/enterprise-flow-hub/"
 
       - name: Deploy on server
         env:
@@ -96,6 +96,7 @@ jobs:
           set -euo pipefail
           cd /opt/enterprise-flow-hub
           chmod +x /opt/enterprise-flow-hub/backup-db.sh
+          chmod +x /opt/enterprise-flow-hub/cleanup-docker-images.sh
 
           cat > .env <<ENVEOF
           BACKEND_IMAGE=${BACKEND_IMAGE}
@@ -123,7 +124,15 @@ jobs:
           mkdir -p /opt/enterprise-flow-hub/backups
           AVAILABLE_KB="$(df -Pk /tmp | awk 'NR==2 {print $4}')"
           if [ "${AVAILABLE_KB:-0}" -gt 1024 ]; then
-            ( (crontab -l 2>/dev/null || true) | grep -v "/opt/enterprise-flow-hub/backup-db.sh" || true; echo "20 3 * * * /opt/enterprise-flow-hub/backup-db.sh >> /opt/enterprise-flow-hub/backups/backup.log 2>&1" ) | crontab -
+            (
+              crontab -l 2>/dev/null || true
+            ) | grep -v -e "/opt/enterprise-flow-hub/backup-db.sh" -e "/opt/enterprise-flow-hub/cleanup-docker-images.sh" > /tmp/enterprise-flow-hub-cron || true
+            {
+              cat /tmp/enterprise-flow-hub-cron
+              echo "20 3 * * * /opt/enterprise-flow-hub/backup-db.sh >> /opt/enterprise-flow-hub/backups/backup.log 2>&1"
+              echo "10 4 * * 0 /opt/enterprise-flow-hub/cleanup-docker-images.sh --all >> /opt/enterprise-flow-hub/backups/docker-cleanup.log 2>&1"
+            } | crontab -
+            rm -f /tmp/enterprise-flow-hub-cron
           else
             echo "Skipping crontab update because /tmp has less than 1MB free. Disk usage:"
             df -h
