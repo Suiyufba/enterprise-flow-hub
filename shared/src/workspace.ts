@@ -11,6 +11,8 @@ export const UserSchema = z.object({
   username: z.string(),
   displayName: z.string(),
   role: z.enum(["admin", "member"]),
+  departmentId: z.string().optional(),
+  position: z.string().optional(),
   createdAt: z.string(),
 });
 
@@ -24,6 +26,42 @@ export const RegisterUserRequestSchema = z.object({
 export const LoginRequestSchema = z.object({
   username: z.string(),
   password: z.string(),
+});
+
+export const DepartmentSchema = z.object({
+  id: z.string(),
+  enterpriseId: z.string(),
+  parentId: z.string().optional(),
+  name: z.string(),
+  createdAt: z.string(),
+});
+
+export const CreateDepartmentRequestSchema = z.object({
+  enterpriseId: z.string(),
+  parentId: z.string().optional(),
+  name: z.string().min(1).max(80),
+});
+
+export const UpdateDepartmentRequestSchema = z.object({
+  name: z.string().min(1).max(80).optional(),
+  parentId: z.string().optional().nullable(),
+});
+
+export const CreateUserRequestSchema = z.object({
+  enterpriseId: z.string(),
+  username: z.string().min(2).max(40),
+  password: z.string().min(4).max(100),
+  displayName: z.string().min(1).max(60),
+  role: z.enum(["admin", "member"]).optional(),
+  departmentId: z.string().optional(),
+  position: z.string().max(80).optional(),
+});
+
+export const UpdateUserRequestSchema = z.object({
+  displayName: z.string().min(1).max(60).optional(),
+  role: z.enum(["admin", "member"]).optional(),
+  departmentId: z.string().optional().nullable(),
+  position: z.string().max(80).optional().nullable(),
 });
 
 export const ProjectSchema = z.object({
@@ -274,6 +312,11 @@ export const UpdateSkillRequestSchema = z.object({
   prompt: z.string().min(1).max(800).optional(),
 });
 
+export type Department = z.infer<typeof DepartmentSchema>;
+export type CreateDepartmentRequest = z.infer<typeof CreateDepartmentRequestSchema>;
+export type UpdateDepartmentRequest = z.infer<typeof UpdateDepartmentRequestSchema>;
+export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;
+export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
 export type Enterprise = z.infer<typeof EnterpriseSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type RegisterUserRequest = z.infer<typeof RegisterUserRequestSchema>;

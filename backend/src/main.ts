@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { analysisRoutes } from "./routes/analysis.js";
 import { authRoutes } from "./routes/auth.js";
+import { enterpriseRoutes } from "./routes/enterprise.js";
 import { exportRoutes } from "./routes/export.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { toolRoutes } from "./routes/tools.js";
@@ -53,6 +54,7 @@ app.get("/health", async () => ({
 
 await app.register(analysisRoutes);
 await app.register(authRoutes);
+await app.register(enterpriseRoutes);
 await app.register(exportRoutes);
 await app.register(settingsRoutes);
 await app.register(toolRoutes);

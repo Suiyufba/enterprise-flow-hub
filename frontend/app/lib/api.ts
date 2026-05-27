@@ -28,18 +28,22 @@ export function setStoredUser(user: { id: string; enterpriseId: string; username
 
 // ---- HTTP ----
 
-export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+export async function fetchJson<T>(path: string, init?: RequestInit & { adminUserId?: string }): Promise<T> {
+  const { adminUserId, ...fetchInit } = init ?? {} as Record<string, unknown>;
   const headers: Record<string, string> = {};
-  if (init?.body) {
+  if ((fetchInit as RequestInit)?.body) {
     headers["Content-Type"] = "application/json";
   }
   if (API_KEY) {
     headers["Authorization"] = `Bearer ${API_KEY}`;
   }
-  if (init?.headers) {
-    Object.assign(headers, init.headers as Record<string, string>);
+  if (adminUserId) {
+    headers["x-user-id"] = adminUserId as string;
   }
-  const response = await fetch(`${API_URL}${path}`, { ...init, headers });
+  if ((fetchInit as RequestInit)?.headers) {
+    Object.assign(headers, (fetchInit as RequestInit).headers as Record<string, string>);
+  }
+  const response = await fetch(`${API_URL}${path}`, { ...fetchInit as RequestInit, headers });
 
   if (!response.ok) {
     throw new Error(await response.text());

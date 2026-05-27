@@ -41,6 +41,24 @@ export function getDb(): Database.Database {
       db.prepare("ALTER TABLE agent_personas ADD COLUMN memory TEXT DEFAULT ''").run();
     }
 
+    // Departments & enterprise org chart
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS departments (
+        id            TEXT PRIMARY KEY,
+        enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+        parent_id     TEXT REFERENCES departments(id) ON DELETE SET NULL,
+        name          TEXT NOT NULL,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const userCols = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+    if (!userCols.some((c) => c.name === "department_id")) {
+      db.prepare("ALTER TABLE users ADD COLUMN department_id TEXT REFERENCES departments(id) ON DELETE SET NULL").run();
+    }
+    if (!userCols.some((c) => c.name === "position")) {
+      db.prepare("ALTER TABLE users ADD COLUMN position TEXT DEFAULT ''").run();
+    }
+
     // Ensure tool-create-automation exists (added after initial seed)
     const autoExisting = db.prepare("SELECT id FROM ai_tools WHERE id = 'tool-create-automation'").get();
     if (!autoExisting) {

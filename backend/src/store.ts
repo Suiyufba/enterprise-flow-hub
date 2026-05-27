@@ -14,9 +14,12 @@ import type {
   ConversationDetail,
   CreateAutomationRequest,
   CreateConversationRequest,
+  CreateDepartmentRequest,
   CreateLibraryItemRequest,
   CreateProjectRequest,
   CreateSkillRequest,
+  CreateUserRequest,
+  Department,
   Enterprise,
   LibraryItem,
   LoginRequest,
@@ -30,10 +33,12 @@ import type {
   ToolDefinition,
   ToolRun,
   UpdateConversationRequest,
+  UpdateDepartmentRequest,
   UpdateLibraryItemRequest,
   UpdateProjectRequest,
   UpdateProviderRequest,
   UpdateSkillRequest,
+  UpdateUserRequest,
   User,
   Workspace,
 } from "shared";
@@ -183,6 +188,8 @@ function rowToUser(r: Record<string, unknown>): User {
     username: r.username as string,
     displayName: r.display_name as string,
     role: r.role as User["role"],
+    departmentId: (r.department_id as string) || undefined,
+    position: (r.position as string) || undefined,
     createdAt: r.created_at as string,
   };
 }
@@ -236,6 +243,107 @@ export function getUser(id: string): User | undefined {
 
 export function deleteUser(id: string): boolean {
   const result = db().prepare("DELETE FROM users WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
+export function createUser(input: CreateUserRequest): User | undefined {
+  const enterprise = db().prepare("SELECT id FROM enterprises WHERE id = ?").get(input.enterpriseId);
+  if (!enterprise) return undefined;
+
+  const existing = db().prepare("SELECT id FROM users WHERE username = ?").get(input.username);
+  if (existing) return undefined;
+
+  const user: User = {
+    id: `user-${randomUUID()}`,
+    enterpriseId: input.enterpriseId,
+    username: input.username.trim(),
+    displayName: input.displayName.trim(),
+    role: input.role ?? "member",
+    departmentId: input.departmentId || undefined,
+    position: input.position?.trim() || undefined,
+    createdAt: new Date().toISOString(),
+  };
+
+  db()
+    .prepare("INSERT INTO users (id, enterprise_id, username, password_hash, display_name, role, department_id, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(user.id, user.enterpriseId, user.username, hashPassword(input.password), user.displayName, user.role, user.departmentId ?? null, user.position ?? null, user.createdAt);
+
+  return user;
+}
+
+export function updateUser(id: string, input: UpdateUserRequest): User | undefined {
+  const row = db().prepare("SELECT * FROM users WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const current = rowToUser(row);
+
+  const displayName = input.displayName ?? current.displayName;
+  const role = input.role ?? current.role;
+  const departmentId = input.departmentId !== undefined ? (input.departmentId || null) : (current.departmentId ?? null);
+  const position = input.position !== undefined ? (input.position || null) : (current.position ?? null);
+
+  db()
+    .prepare("UPDATE users SET display_name = ?, role = ?, department_id = ?, position = ? WHERE id = ?")
+    .run(displayName, role, departmentId, position, id);
+
+  return rowToUser(db().prepare("SELECT * FROM users WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+// ---- Departments ----
+
+function rowToDepartment(r: Record<string, unknown>): Department {
+  return {
+    id: r.id as string,
+    enterpriseId: r.enterprise_id as string,
+    parentId: (r.parent_id as string) || undefined,
+    name: r.name as string,
+    createdAt: r.created_at as string,
+  };
+}
+
+export function listDepartments(enterpriseId: string): Department[] {
+  return (db()
+    .prepare("SELECT * FROM departments WHERE enterprise_id = ? ORDER BY created_at ASC")
+    .all(enterpriseId) as Record<string, unknown>[])
+    .map(rowToDepartment);
+}
+
+export function createDepartment(input: CreateDepartmentRequest): Department {
+  const dept: Department = {
+    id: `dept-${randomUUID()}`,
+    enterpriseId: input.enterpriseId,
+    parentId: input.parentId || undefined,
+    name: input.name.trim(),
+    createdAt: new Date().toISOString(),
+  };
+  db()
+    .prepare("INSERT INTO departments (id, enterprise_id, parent_id, name, created_at) VALUES (?, ?, ?, ?, ?)")
+    .run(dept.id, dept.enterpriseId, dept.parentId ?? null, dept.name, dept.createdAt);
+  return dept;
+}
+
+export function updateDepartment(id: string, input: UpdateDepartmentRequest): Department | undefined {
+  const row = db().prepare("SELECT * FROM departments WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!row) return undefined;
+  const current = rowToDepartment(row);
+  const name = input.name ?? current.name;
+  const parentId = input.parentId !== undefined ? (input.parentId || null) : (current.parentId ?? null);
+
+  db()
+    .prepare("UPDATE departments SET name = ?, parent_id = ? WHERE id = ?")
+    .run(name, parentId, id);
+
+  return rowToDepartment(db().prepare("SELECT * FROM departments WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function deleteDepartment(id: string): boolean {
+  // Move children up to this department's parent
+  const dept = db().prepare("SELECT * FROM departments WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!dept) return false;
+  const parentId = dept.parent_id as string | null;
+  db().prepare("UPDATE departments SET parent_id = ? WHERE parent_id = ?").run(parentId, id);
+  // Clear department_id for users in this department
+  db().prepare("UPDATE users SET department_id = NULL WHERE department_id = ?").run(id);
+  const result = db().prepare("DELETE FROM departments WHERE id = ?").run(id);
   return result.changes > 0;
 }
 

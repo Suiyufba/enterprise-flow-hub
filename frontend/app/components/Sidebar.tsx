@@ -162,6 +162,11 @@ export function Sidebar() {
         <Link href="/personas" className={`nav-item ${pathname === "/personas" ? "active" : ""}`}>
           <span className="icon">◈</span> 人格
         </Link>
+        {user?.role === "admin" && (
+          <Link href="/enterprise" className={`nav-item ${pathname === "/enterprise" ? "active" : ""}`}>
+            <span className="icon">▦</span> 企业管理
+          </Link>
+        )}
       </nav>
 
       <div className="sidebar-scroll">

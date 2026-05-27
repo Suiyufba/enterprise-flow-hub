@@ -32,9 +32,13 @@ export function authRoutes(app: FastifyInstance): void {
     return reply.send(user);
   });
 
-  // Delete user
+  // Delete user (admin only)
   app.delete("/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const userId = (request.headers["x-user-id"] as string | undefined);
+    if (!userId) return reply.status(401).send({ error: "未登录" });
+    const actor = getUser(userId);
+    if (!actor || actor.role !== "admin") return reply.status(403).send({ error: "仅管理员可操作" });
     const ok = deleteUser(id);
     if (!ok) {
       return reply.status(404).send({ error: "用户不存在" });
