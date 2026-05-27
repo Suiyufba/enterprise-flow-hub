@@ -34,7 +34,7 @@ export default function SuppliersPage() {
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
-      const res = await fetchJson<PaginatedList<Supplier>>(`/suppliers?${params}`);
+      const res = await fetchJson<PaginatedList<Supplier>>(`/suppliers?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
     } catch {

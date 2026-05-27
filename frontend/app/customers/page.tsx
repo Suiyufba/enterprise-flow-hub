@@ -37,7 +37,7 @@ export default function CustomersPage() {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
       if (statusFilter) params.set("status", statusFilter);
-      const res = await fetchJson<PaginatedList<Customer>>(`/customers?${params}`);
+      const res = await fetchJson<PaginatedList<Customer>>(`/customers?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
     } catch {
