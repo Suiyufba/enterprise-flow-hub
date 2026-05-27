@@ -519,6 +519,11 @@ export function setAutomationEnabled(id: string, enabled: boolean): Automation |
   return { ...rowToAutomation(row), enabled };
 }
 
+export function getAutomation(id: string): Automation | undefined {
+  const row = db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  return row ? rowToAutomation(row) : undefined;
+}
+
 export function updateAutomation(id: string, input: Partial<CreateAutomationRequest> & { enabled?: boolean }): Automation | undefined {
   const row = db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!row) return undefined;
@@ -564,6 +569,17 @@ export function listEnabledScheduleAutomations(): Automation[] {
       .prepare("SELECT * FROM automations WHERE enabled = 1 AND trigger_type = 'schedule' ORDER BY rowid ASC")
       .all() as Record<string, unknown>[]
   ).map(rowToAutomation);
+}
+
+export function listEnabledAutomationsByTrigger(triggerType: Automation["triggerType"], projectId?: string): Automation[] {
+  const rows = projectId
+    ? db()
+      .prepare("SELECT * FROM automations WHERE enabled = 1 AND trigger_type = ? AND project_id = ? ORDER BY rowid ASC")
+      .all(triggerType, projectId)
+    : db()
+      .prepare("SELECT * FROM automations WHERE enabled = 1 AND trigger_type = ? ORDER BY rowid ASC")
+      .all(triggerType);
+  return (rows as Record<string, unknown>[]).map(rowToAutomation);
 }
 
 export function markAutomationRun(id: string, when = new Date()): Automation | undefined {

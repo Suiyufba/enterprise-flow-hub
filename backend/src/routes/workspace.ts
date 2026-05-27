@@ -24,6 +24,7 @@ import {
   deleteLibraryItem,
   deleteProject,
   deleteSkill,
+  getAutomation,
   getConversation,
   getPluginConfig,
   getProject,
@@ -37,6 +38,7 @@ import {
   updateProject,
   updateSkill,
 } from "../store.js";
+import { runAutomationNow, triggerProjectAutomations } from "../automation/scheduler.js";
 
 export async function workspaceRoutes(app: FastifyInstance) {
   app.get("/workspace", async () => getWorkspace());
@@ -200,6 +202,52 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return automation;
   });
 
+  app.post("/automations/:id/run", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const automation = await runAutomationNow(id, { source: "manual", body: request.body ?? {} }, app.log);
+      if (!automation) return reply.status(404).send({ error: "Automation not found or disabled" });
+      return automation;
+    } catch (e) {
+      return reply.status(500).send({ error: e instanceof Error ? e.message : "Automation run failed" });
+    }
+  });
+
+  app.post("/automations/:id/webhook", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const current = getAutomation(id);
+    if (!current) return reply.status(404).send({ error: "Automation not found" });
+    if (current.triggerType !== "webhook") {
+      return reply.status(400).send({ error: "Automation is not a webhook trigger" });
+    }
+    try {
+      const automation = await runAutomationNow(id, { source: "webhook", body: request.body ?? {} }, app.log);
+      if (!automation) return reply.status(400).send({ error: "Automation is disabled" });
+      return { ok: true, automation };
+    } catch (e) {
+      return reply.status(500).send({ error: e instanceof Error ? e.message : "Webhook automation failed" });
+    }
+  });
+
+  app.post("/automations/:id/events/:type", async (request, reply) => {
+    const { id, type } = request.params as { id: string; type: string };
+    if (!["email", "file"].includes(type)) {
+      return reply.status(400).send({ error: "Unsupported event type" });
+    }
+    const current = getAutomation(id);
+    if (!current) return reply.status(404).send({ error: "Automation not found" });
+    if (current.triggerType !== type) {
+      return reply.status(400).send({ error: `Automation is not a ${type} trigger` });
+    }
+    try {
+      const automation = await runAutomationNow(id, { source: type, body: request.body ?? {} }, app.log);
+      if (!automation) return reply.status(400).send({ error: "Automation is disabled" });
+      return { ok: true, automation };
+    } catch (e) {
+      return reply.status(500).send({ error: e instanceof Error ? e.message : "Event automation failed" });
+    }
+  });
+
   app.delete("/automations/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const ok = deleteAutomation(id);
@@ -289,9 +337,18 @@ export async function workspaceRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
     try {
+      const before = getConversation(id);
       const result = await addMessage(id, parsed.data);
       if (!result) {
         return reply.status(404).send({ error: "Conversation not found" });
+      }
+      if (before) {
+        void triggerProjectAutomations(
+          "message",
+          before.projectId,
+          { source: "message", conversationId: id, content: parsed.data.content },
+          app.log,
+        );
       }
       return reply.status(201).send(result);
     } catch (e) {

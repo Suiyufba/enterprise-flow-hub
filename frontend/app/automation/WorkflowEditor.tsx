@@ -402,10 +402,16 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                     <option value="schedule">定时执行</option>
                     <option value="webhook">Webhook</option>
                     <option value="message">消息触发</option>
-                    <option value="email">邮件触发</option>
-                    <option value="file">文件变化</option>
+                    <option value="email">邮件事件接入</option>
+                    <option value="file">文件事件接入</option>
                     <option value="manual">手动触发</option>
                   </select>
+                  {["email", "file"].includes(cfgValue("triggerType") ?? "") && (
+                    <p className="wf-config-warning">这个触发器需要外部系统调用事件接口；当前不会自动监听邮箱或服务器文件夹。</p>
+                  )}
+                  {cfgValue("triggerType") === "webhook" && (
+                    <p className="wf-config-warning">保存后可通过 /api/automations/&lt;id&gt;/webhook 触发。</p>
+                  )}
                   <label className="wf-props-label">描述</label>
                   <textarea
                     className="page-textarea wf-props-input"

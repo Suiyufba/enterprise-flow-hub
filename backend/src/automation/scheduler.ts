@@ -1,5 +1,5 @@
 import { aiChat } from "../ai/client.js";
-import { listEnabledScheduleAutomations, markAutomationRun, runTool } from "../store.js";
+import { getAutomation, listEnabledAutomationsByTrigger, listEnabledScheduleAutomations, markAutomationRun, runTool } from "../store.js";
 import type { Automation } from "shared";
 
 type Logger = {
@@ -88,12 +88,15 @@ function isDue(automation: Automation, now: Date, timeZone: string) {
   return zoned.minuteOfDay >= schedule.hour * 60 + schedule.minute;
 }
 
-async function executeAutomation(automation: Automation) {
+async function executeAutomation(automation: Automation, event?: Record<string, unknown>) {
   if (automation.actionType === "notify") {
     await runTool("tool-feishu-notify", {
       input: {
         pluginId: automation.actionPluginId,
-        message: `自动化「${automation.name}」触发：${automation.action}`,
+        message: [
+          `自动化「${automation.name}」触发：${automation.action}`,
+          event ? `事件：${JSON.stringify(event).slice(0, 800)}` : undefined,
+        ].filter(Boolean).join("\n"),
       },
       dryRun: false,
     });
@@ -107,12 +110,52 @@ async function executeAutomation(automation: Automation) {
         `自动化任务：${automation.name}`,
         `触发条件：${automation.trigger}`,
         `执行动作：${automation.action}`,
+        event ? `触发事件：${JSON.stringify(event).slice(0, 2000)}` : undefined,
         "请执行这次自动化分析；如果动作涉及删除或修改业务数据，请先输出可执行方案和安全校验，不要编造不存在的数据源。",
-      ].join("\n"),
+      ].filter(Boolean).join("\n"),
       temperature: 0.2,
       maxTokens: 1200,
     });
   }
+}
+
+export async function runAutomationNow(
+  automationId: string,
+  event: Record<string, unknown>,
+  logger?: Logger,
+) {
+  const automation = getAutomation(automationId);
+  if (!automation || !automation.enabled) return undefined;
+  if (running.has(automation.id)) return automation;
+
+  running.add(automation.id);
+  const now = new Date();
+  try {
+    await executeAutomation(automation, event);
+    const updated = markAutomationRun(automation.id, now);
+    logger?.info(
+      { automationId: automation.id, name: automation.name, triggerType: automation.triggerType, runCount: updated?.runCount },
+      "Automation executed",
+    );
+    return updated;
+  } finally {
+    running.delete(automation.id);
+  }
+}
+
+export async function triggerProjectAutomations(
+  triggerType: Exclude<Automation["triggerType"], "schedule" | "manual">,
+  projectId: string,
+  event: Record<string, unknown>,
+  logger?: Logger,
+) {
+  const automations = listEnabledAutomationsByTrigger(triggerType, projectId);
+  const results: Automation[] = [];
+  for (const automation of automations) {
+    const updated = await runAutomationNow(automation.id, event, logger);
+    if (updated) results.push(updated);
+  }
+  return results;
 }
 
 async function scanDueAutomations(logger: Logger, timeZone: string) {

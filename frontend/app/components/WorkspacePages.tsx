@@ -853,6 +853,18 @@ export function AutomationPage() {
     }
   }
 
+  async function runAutomation(id: string) {
+    try {
+      await fetchJson<Automation>(`/automations/${id}/run`, {
+        method: "POST",
+        body: JSON.stringify({ source: "ui" }),
+      });
+      await refresh();
+    } catch (e) {
+      console.error("运行自动化失败", e);
+    }
+  }
+
   const triggerLabel: Record<Automation["triggerType"], string> = {
     schedule: "定时",
     message: "消息",
@@ -947,6 +959,11 @@ export function AutomationPage() {
                   >
                     编辑
                   </button>
+                  {automation.triggerType === "manual" && (
+                    <button className="page-secondary-button" onClick={() => runAutomation(automation.id)} type="button">
+                      运行
+                    </button>
+                  )}
                   <button className="page-secondary-button" onClick={() => toggle(automation)} type="button">
                     {automation.enabled ? "暂停" : "启用"}
                   </button>
