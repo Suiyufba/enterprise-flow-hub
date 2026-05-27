@@ -2,6 +2,9 @@ import "./config/env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerAllRoutes } from "./routes/index.js";
+import { createAuditLog } from "./auth/audit.js";
+import { startIntegrationScheduler } from "./integration/queue.js";
+import { getUser } from "./store.js";
 import { registerTool } from "./tools/registry.js";
 import { csvProfile } from "./tools/executors/csv-profile.js";
 import { bashExecute } from "./tools/executors/bash-executor.js";
@@ -41,6 +44,28 @@ app.addHook("onRequest", async (request, reply) => {
   }
 });
 
+// Audit logging — log all write operations
+app.addHook("onResponse", async (request, reply) => {
+  if (["GET", "OPTIONS", "HEAD"].includes(request.method)) return;
+  if (reply.statusCode >= 500) return;
+  const userId = request.headers["x-user-id"] as string | undefined;
+  const user = userId ? getUser(userId) : undefined;
+  if (!user) return;
+  const path = request.url.split("?")[0];
+  const parts = path.split("/").filter(Boolean);
+  const objectType = parts[0] || "unknown";
+  const objectId = parts.length > 1 ? parts[1] : undefined;
+  createAuditLog({
+    enterpriseId: user.enterpriseId,
+    userId: user.id,
+    action: `${request.method} ${path}`,
+    objectType,
+    objectId,
+    changes: request.body ? (typeof request.body === "object" ? request.body as Record<string, unknown> : {}) : {},
+    ipAddress: request.ip,
+  });
+});
+
 app.get("/health", async () => ({
   ok: true,
   service: "enterprise-flow-hub-backend",
@@ -53,6 +78,7 @@ const host = process.env.HOST ?? "0.0.0.0";
 
 await app.listen({ port, host });
 startAutomationScheduler(app.log);
+startIntegrationScheduler();
 
 // Schedule daily midnight persona memory summarization
 function scheduleMidnight() {

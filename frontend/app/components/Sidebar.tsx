@@ -219,6 +219,9 @@ export function Sidebar() {
             <Link href="/orders" className={`nav-item ${pathname?.startsWith("/orders") ? "active" : ""}`}>
               <span className="icon">📋</span> 订单
             </Link>
+            <Link href="/files" className={`nav-item ${pathname?.startsWith("/files") ? "active" : ""}`}>
+              <span className="icon">📎</span> 文件
+            </Link>
           </div>
         )}
 
@@ -232,10 +235,18 @@ export function Sidebar() {
         </button>
         {navGroups.has("system") && (
           <div className="nav-group-items">
+            <Link href="/rules" className={`nav-item ${pathname === "/rules" ? "active" : ""}`}>
+              <span className="icon">⚙</span> 规则引擎
+            </Link>
             {user?.role === "admin" && (
-              <Link href="/enterprise" className={`nav-item ${pathname === "/enterprise" ? "active" : ""}`}>
-                <span className="icon">▦</span> 企业管理
-              </Link>
+              <>
+                <Link href="/enterprise" className={`nav-item ${pathname === "/enterprise" ? "active" : ""}`}>
+                  <span className="icon">▦</span> 企业管理
+                </Link>
+                <Link href="/audit" className={`nav-item ${pathname === "/audit" ? "active" : ""}`}>
+                  <span className="icon">📜</span> 操作日志
+                </Link>
+              </>
             )}
           </div>
         )}
