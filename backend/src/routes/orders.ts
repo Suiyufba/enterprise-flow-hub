@@ -20,6 +20,16 @@ function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): stri
   return user.enterpriseId;
 }
 
+function requireScope(request: FastifyRequest, reply: FastifyReply, recordEid: string): boolean {
+  const actorEid = getCallerEnterprise(request, reply);
+  if (!actorEid) return false;
+  if (actorEid !== recordEid) {
+    reply.status(403).send({ error: "无权操作其他企业的资源" });
+    return false;
+  }
+  return true;
+}
+
 export async function ordersRoutes(app: FastifyInstance): Promise<void> {
   // ---- Orders ----
   app.get("/orders", async (request) => {
@@ -32,6 +42,7 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const order = getOrder(id);
     if (!order) return reply.status(404).send({ error: "订单不存在" });
+    if (!requireScope(request, reply, order.enterpriseId)) return;
     return reply.send(order);
   });
 
@@ -49,9 +60,7 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const existing = getOrder(id);
     if (!existing) return reply.status(404).send({ error: "订单不存在" });
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (existing.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权操作" });
+    if (!requireScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateOrderRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     const order = updateOrder(id, parsed.data);
@@ -62,9 +71,7 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const existing = getOrder(id);
     if (!existing) return reply.status(404).send({ error: "订单不存在" });
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (existing.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权操作" });
+    if (!requireScope(request, reply, existing.enterpriseId)) return;
     deleteOrder(id);
     return reply.status(204).send();
   });
