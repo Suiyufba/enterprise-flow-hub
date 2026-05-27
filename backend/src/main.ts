@@ -1,13 +1,7 @@
 import "./config/env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { analysisRoutes } from "./routes/analysis.js";
-import { authRoutes } from "./routes/auth.js";
-import { enterpriseRoutes } from "./routes/enterprise.js";
-import { exportRoutes } from "./routes/export.js";
-import { settingsRoutes } from "./routes/settings.js";
-import { toolRoutes } from "./routes/tools.js";
-import { workspaceRoutes } from "./routes/workspace.js";
+import { registerAllRoutes } from "./routes/index.js";
 import { registerTool } from "./tools/registry.js";
 import { csvProfile } from "./tools/executors/csv-profile.js";
 import { bashExecute } from "./tools/executors/bash-executor.js";
@@ -52,13 +46,7 @@ app.get("/health", async () => ({
   service: "enterprise-flow-hub-backend",
 }));
 
-await app.register(analysisRoutes);
-await app.register(authRoutes);
-await app.register(enterpriseRoutes);
-await app.register(exportRoutes);
-await app.register(settingsRoutes);
-await app.register(toolRoutes);
-await app.register(workspaceRoutes);
+await registerAllRoutes(app);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

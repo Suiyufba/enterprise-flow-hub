@@ -19,6 +19,24 @@ export function Sidebar() {
   const { showToast } = useToast();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
+  const [navGroups, setNavGroups] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("efh_nav_groups");
+      return saved ? new Set(JSON.parse(saved)) : new Set(["ai-tools"]);
+    } catch {
+      return new Set(["ai-tools"]);
+    }
+  });
+
+  function toggleNavGroup(id: string) {
+    setNavGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem("efh_nav_groups", JSON.stringify([...next]));
+      return next;
+    });
+  }
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null);
@@ -145,27 +163,56 @@ export function Sidebar() {
     <aside className="sidebar">
       <nav className="primary-nav" aria-label="主导航">
         <Link href="/" className={`nav-item ${pathname === "/" ? "active" : ""}`}>
-          <span className="icon">✎</span> 新对话
+          <span className="icon">◫</span> 仪表盘
         </Link>
-        <Link href="/search" className={`nav-item ${pathname === "/search" ? "active" : ""}`}>
-          <span className="icon">⌕</span> 搜索
-        </Link>
-        <Link href="/library" className={`nav-item ${pathname === "/library" ? "active" : ""}`}>
-          <span className="icon">▣</span> 资料库
-        </Link>
-        <Link href="/plugins" className={`nav-item ${pathname === "/plugins" ? "active" : ""}`}>
-          <span className="icon">⌘</span> 插件
-        </Link>
-        <Link href="/automation" className={`nav-item ${pathname === "/automation" ? "active" : ""}`}>
-          <span className="icon">◷</span> 自动化
-        </Link>
-        <Link href="/personas" className={`nav-item ${pathname === "/personas" ? "active" : ""}`}>
-          <span className="icon">◈</span> 人格
-        </Link>
-        {user?.role === "admin" && (
-          <Link href="/enterprise" className={`nav-item ${pathname === "/enterprise" ? "active" : ""}`}>
-            <span className="icon">▦</span> 企业管理
-          </Link>
+
+        <button
+          className="nav-group-header"
+          onClick={() => toggleNavGroup("ai-tools")}
+          type="button"
+        >
+          <span className={`tree-chevron ${navGroups.has("ai-tools") ? "open" : ""}`}>▸</span>
+          AI 工具
+        </button>
+        {navGroups.has("ai-tools") && (
+          <div className="nav-group-items">
+            <Link href="/chat/new" className={`nav-item ${pathname === "/chat/new" ? "active" : ""}`}>
+              <span className="icon">✎</span> 新对话
+            </Link>
+            <Link href="/search" className={`nav-item ${pathname === "/search" ? "active" : ""}`}>
+              <span className="icon">⌕</span> 搜索
+            </Link>
+            <Link href="/library" className={`nav-item ${pathname === "/library" ? "active" : ""}`}>
+              <span className="icon">▣</span> 资料库
+            </Link>
+            <Link href="/plugins" className={`nav-item ${pathname === "/plugins" ? "active" : ""}`}>
+              <span className="icon">⌘</span> 插件
+            </Link>
+            <Link href="/automation" className={`nav-item ${pathname === "/automation" ? "active" : ""}`}>
+              <span className="icon">◷</span> 自动化
+            </Link>
+            <Link href="/personas" className={`nav-item ${pathname === "/personas" ? "active" : ""}`}>
+              <span className="icon">◈</span> 人格
+            </Link>
+          </div>
+        )}
+
+        <button
+          className="nav-group-header"
+          onClick={() => toggleNavGroup("system")}
+          type="button"
+        >
+          <span className={`tree-chevron ${navGroups.has("system") ? "open" : ""}`}>▸</span>
+          系统
+        </button>
+        {navGroups.has("system") && (
+          <div className="nav-group-items">
+            {user?.role === "admin" && (
+              <Link href="/enterprise" className={`nav-item ${pathname === "/enterprise" ? "active" : ""}`}>
+                <span className="icon">▦</span> 企业管理
+              </Link>
+            )}
+          </div>
         )}
       </nav>
 

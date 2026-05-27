@@ -1,207 +1,105 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import type { ConversationDetail } from "shared";
-import { fetchJson } from "./lib/api";
+import { useRef } from "react";
+import Link from "next/link";
+import { useAuth } from "./lib/auth-context";
 import { useWorkspace } from "./lib/workspace-context";
-import { useToast } from "./lib/toast-context";
+import { StatCard } from "./components/StatCard";
 import { gsap, useGSAP } from "./lib/gsap";
 
-export default function Home() {
-  const router = useRouter();
-  const [need, setNeed] = useState("");
-  const [enterpriseId, setEnterpriseId] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const { workspace, refresh } = useWorkspace();
-  const [personaId, setPersonaId] = useState("");
-  const [loading, setLoading] = useState(false);
-  const { showToast } = useToast();
+export default function DashboardPage() {
+  const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const pageRef = useRef<HTMLDivElement>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
-  const sendBtnRef = useRef<HTMLButtonElement>(null);
 
   useGSAP(() => {
-    gsap.from(pageRef.current, {
-      y: 32,
-      opacity: 0,
-      duration: 0.6,
-      ease: "power3.out",
-    });
+    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
+    gsap.from(".stat-card", { y: 16, autoAlpha: 0, duration: 0.4, stagger: 0.07, ease: "power3.out", delay: 0.1 });
+    gsap.from(".dashboard-card", { y: 12, autoAlpha: 0, duration: 0.35, stagger: 0.08, ease: "power3.out", delay: 0.2 });
   }, { scope: pageRef });
 
-  useGSAP(() => {
-    if (!composerRef.current) return;
-    const ta = composerRef.current.querySelector("textarea");
-    if (!ta) return;
-    const onFocus = () =>
-      gsap.to(composerRef.current, {
-        boxShadow: "0 0 0 2px rgba(74, 144, 230, 0.25)",
-        borderColor: "#4a90e6",
-        duration: 0.3,
-      });
-    const onBlur = () =>
-      gsap.to(composerRef.current, {
-        boxShadow: "0 16px 36px rgba(0, 0, 0, 0.28)",
-        borderColor: "var(--c-303030)",
-        duration: 0.3,
-      });
-    ta.addEventListener("focus", onFocus);
-    ta.addEventListener("blur", onBlur);
-    return () => {
-      ta.removeEventListener("focus", onFocus);
-      ta.removeEventListener("blur", onBlur);
-    };
-  }, { scope: composerRef });
-
-  useGSAP(() => {
-    if (loading) {
-      gsap.to(sendBtnRef.current, {
-        scale: 0.97,
-        duration: 0.6,
-        repeat: -1,
-        yoyo: true,
-        ease: "power1.inOut",
-      });
-    } else {
-      gsap.killTweensOf(sendBtnRef.current);
-      gsap.set(sendBtnRef.current, { scale: 1 });
-    }
-  }, { dependencies: [loading], scope: sendBtnRef });
-
-  const filteredProjects = workspace?.projects.filter((p) => p.enterpriseId === enterpriseId) ?? [];
-
-  useEffect(() => {
-    if (workspace.enterprises[0] && !enterpriseId) {
-      setEnterpriseId(workspace.enterprises[0].id);
-    }
-    const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
-    if (urlProjectId && workspace.projects.some((p) => p.id === urlProjectId)) {
-      setProjectId(urlProjectId);
-      const proj = workspace.projects.find((p) => p.id === urlProjectId);
-      if (proj) setEnterpriseId(proj.enterpriseId);
-    } else if (workspace.projects[0] && !projectId) {
-      setProjectId(workspace.projects[0].id);
-    }
-    if (workspace.personas[0] && !personaId) {
-      setPersonaId(workspace.personas[0].id);
-    }
-  }, [enterpriseId, personaId, projectId, workspace.projects, workspace.personas, workspace.enterprises]);
-
-  async function submit() {
-    if (!need.trim() || loading) return;
-    setLoading(true);
-
-    try {
-      // 1. Create a conversation so it persists in the sidebar
-      const project = workspace.projects.find((p) => p.id === projectId);
-      const enterpriseId = project?.enterpriseId ?? workspace.enterprises[0]?.id;
-      if (!enterpriseId) {
-        setLoading(false);
-        return;
-      }
-
-      const conversation = await fetchJson<ConversationDetail>("/conversations", {
-        method: "POST",
-        body: JSON.stringify({
-          enterpriseId,
-          projectId,
-          title: need.trim().slice(0, 30),
-        }),
-      });
-
-      // Immediately navigate to chat page with initial message
-      const msg = encodeURIComponent(need.trim());
-      router.push(`/chat/${conversation.id}?msg=${msg}`);
-    } catch (e) {
-      let errMsg = "创建对话失败，请重试";
-      try {
-        const body = JSON.parse((e as Error).message);
-        errMsg = body.error || body.detail || errMsg;
-      } catch { /* not JSON */ }
-      showToast(errMsg, "error");
-      setLoading(false);
-    }
-  }
+  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const enterpriseProjects = workspace.projects.filter((p) => p.enterpriseId === enterpriseId);
+  const enterpriseConversations = workspace.conversations.filter((c) => c.enterpriseId === enterpriseId);
 
   return (
-    <div className="main-inner" style={{ maxWidth: 800, paddingTop: 60 }} ref={pageRef}>
-      <h1 className="main-title">今天想做什么？</h1>
-
-      <div className="chat-composer" ref={composerRef}>
-        <textarea
-          className="chat-input"
-          placeholder="描述你的业务需求，如：帮我看这组客户表和聊天记录，怎么减少顾问漏跟进？"
-          rows={3}
-          value={need}
-          onChange={(e) => setNeed(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
-        <div style={{ display: "flex", alignItems: "flex-end" }}>
-          <button
-            className="chat-send-btn"
-            ref={sendBtnRef}
-            onClick={submit}
-            disabled={!need.trim() || loading}
-          >
-            {loading ? "创建中..." : "发送"}
-          </button>
+    <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
+      <div className="page-shell" ref={pageRef}>
+        <div className="page-header">
+          <div className="page-header-left">
+            <h1>仪表盘</h1>
+            <p>
+              欢迎回来{user ? `，${user.displayName}` : ""}
+              {workspace.enterprises.find((e) => e.id === enterpriseId)
+                ? ` — ${workspace.enterprises.find((e) => e.id === enterpriseId)!.name}`
+                : ""}
+            </p>
+          </div>
         </div>
 
-        <div className="chat-composer-controls">
-          <div className="project-picker enterprise-picker">
-            <span className="project-icon">▱</span>
-            <select
-              aria-label="选择企业"
-              className="project-select"
-              value={enterpriseId}
-              onChange={(e) => {
-                setEnterpriseId(e.target.value);
-                const first = workspace?.projects.find((p) => p.enterpriseId === e.target.value);
-                setProjectId(first?.id ?? "");
-              }}
-            >
-              <option value="">选择企业</option>
-              {workspace?.enterprises.map((ent) => (
-                <option key={ent.id} value={ent.id}>{ent.name}</option>
-              ))}
-            </select>
+        <div className="dashboard-grid">
+          <StatCard label="项目" value={enterpriseProjects.length} icon="📁" />
+          <StatCard label="对话" value={enterpriseConversations.length} icon="💬" />
+          <StatCard
+            label="资料库"
+            value={workspace.libraryItems.filter((l) => l.enterpriseId === enterpriseId).length}
+            icon="📚"
+          />
+          <StatCard
+            label="自动化"
+            value={workspace.automations.filter((a) => {
+              const proj = workspace.projects.find((p) => p.id === a.projectId);
+              return proj?.enterpriseId === enterpriseId;
+            }).length}
+            icon="⚡"
+          />
+        </div>
+
+        <div className="dashboard-cards">
+          <div className="dashboard-card">
+            <h3>快速操作</h3>
+            <div className="dashboard-actions">
+              <Link href="/chat/new" className="dashboard-action-btn">
+                <span>✎</span> 新建对话
+              </Link>
+              <Link href="/projects/new" className="dashboard-action-btn">
+                <span>+</span> 新建项目
+              </Link>
+              <Link href="/library" className="dashboard-action-btn">
+                <span>▣</span> 上传资料
+              </Link>
+              <Link href="/search" className="dashboard-action-btn">
+                <span>⌕</span> 全局搜索
+              </Link>
+            </div>
           </div>
-          <div className="project-picker subproject-picker">
-            <span className="project-picker-label">子类</span>
-            <select
-              aria-label="选择项目"
-              className="project-select"
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={!enterpriseId}
-            >
-              {filteredProjects.map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-              {filteredProjects.length === 0 && (
-                <option value="">{enterpriseId ? "暂无项目" : "请先选企业"}</option>
+
+          <div className="dashboard-card">
+            <h3>最近对话</h3>
+            <div className="dashboard-recent-list">
+              {enterpriseConversations.slice(0, 5).length === 0 ? (
+                <p style={{ color: "var(--c-8c8c8c)", fontSize: "13px", padding: "8px 0" }}>
+                  还没有对话，开始一个新对话吧
+                </p>
+              ) : (
+                enterpriseConversations
+                  .slice(0, 5)
+                  .map((conv) => (
+                    <Link
+                      key={conv.id}
+                      href={`/chat/${conv.id}`}
+                      className="dashboard-recent-item"
+                    >
+                      <span style={{ fontSize: "12px", color: "var(--c-8c8c8c)" }}>💬</span>
+                      <span className="item-title">{conv.title}</span>
+                      <span className="item-time">
+                        {conv.createdAt?.slice(0, 10)}
+                      </span>
+                    </Link>
+                  ))
               )}
-            </select>
+            </div>
           </div>
-          <select
-            className="access-select"
-            value={personaId}
-            onChange={(e) => setPersonaId(e.target.value)}
-            aria-label="选择角色"
-            style={{ border: 0, borderRadius: 10, background: "var(--c-303030)", color: "var(--c-d4d4d4)", fontSize: 13, fontWeight: 700, padding: "9px 12px" }}
-          >
-            {workspace?.personas.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
     </div>

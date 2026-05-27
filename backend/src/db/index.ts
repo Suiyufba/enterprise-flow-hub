@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { readFileSync, mkdirSync } from "node:fs";
+import { readFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,6 +57,30 @@ export function getDb(): Database.Database {
     }
     if (!userCols.some((c) => c.name === "position")) {
       db.prepare("ALTER TABLE users ADD COLUMN position TEXT DEFAULT ''").run();
+    }
+
+    // ---- File-based migration system (Phase 0+) ----
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id         TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    const applied = new Set(
+      (db.prepare("SELECT id FROM _migrations").all() as Array<{ id: string }>).map((r) => r.id),
+    );
+    const migrationDir = join(__dirname, "migrations");
+    let migrationFiles: string[] = [];
+    try {
+      migrationFiles = readdirSync(migrationDir).filter((f) => f.endsWith(".sql")).sort();
+    } catch {
+      // migrations directory might not exist yet
+    }
+    for (const file of migrationFiles) {
+      if (applied.has(file)) continue;
+      const sql = readFileSync(join(migrationDir, file), "utf-8");
+      db.exec(sql);
+      db.prepare("INSERT INTO _migrations (id) VALUES (?)").run(file);
     }
 
     // Ensure tool-create-automation exists (added after initial seed)
