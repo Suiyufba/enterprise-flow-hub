@@ -71,6 +71,18 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(201).send(file);
   });
 
+  app.post("/files/:id/ocr", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const file = getFile(id);
+    if (!file) return reply.status(404).send({ error: "文件不存在" });
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (file.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权操作" });
+    const result = await analyzeImageFile(file.storagePath, file.mimeType, file.filename);
+    if (!result) return reply.status(400).send({ error: "OCR 分析失败，文件可能不是图片或无法识别" });
+    return reply.send(result);
+  });
+
   app.delete("/files/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const existing = getFile(id);

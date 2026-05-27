@@ -21,6 +21,7 @@ export async function analyzeImageFile(
       userMessage: `请识别并提取这张图片 "${filename}" 中的文字和结构化信息。`,
       temperature: 0.3,
       maxTokens: 1024,
+      images: [{ data: base64, mimeType }],
     });
 
     if (!result || result.includes("无法识别")) return null;

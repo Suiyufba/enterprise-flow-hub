@@ -4,7 +4,7 @@ const MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
 
 interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string;
+  content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } }>;
   reasoning_content?: string;
   tool_call_id?: string;
   name?: string;
@@ -21,6 +21,7 @@ export interface AiCallOptions {
   temperature?: number;
   maxTokens?: number;
   provider?: AiProviderOptions;
+  images?: Array<{ data: string; mimeType: string }>;
 }
 
 export interface AiProviderOptions {
@@ -77,11 +78,27 @@ function buildBody(
 }
 
 export async function aiChat(options: AiCallOptions): Promise<string> {
-  const { systemPrompt, userMessage, temperature = 0.7, maxTokens = 2048, provider } = options;
+  const { systemPrompt, userMessage, temperature = 0.7, maxTokens = 2048, provider, images } = options;
+
+  // Build user content — string or vision array
+  let userContent: ChatMessage["content"] = userMessage;
+  if (images && images.length > 0) {
+    const parts: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } }> = [
+      { type: "text", text: userMessage },
+    ];
+    for (const img of images) {
+      parts.push({
+        type: "image_url",
+        image_url: { url: `data:${img.mimeType};base64,${img.data}`, detail: "auto" },
+      });
+    }
+    userContent = parts;
+  }
+
   const res = await aiChatMessages(
     [
       ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
-      { role: "user" as const, content: userMessage },
+      { role: "user" as const, content: userContent },
     ],
     { temperature, maxTokens, provider },
   );
