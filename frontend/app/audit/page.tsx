@@ -9,12 +9,20 @@ import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
 import { gsap, useGSAP } from "../lib/gsap";
 
+type AuditLogRow = {
+  id: string;
+  action: string;
+  object_type: string;
+  object_id?: string | null;
+  created_at: string;
+};
+
 export default function AuditPage() {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<AuditLogRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -29,7 +37,7 @@ export default function AuditPage() {
     setLoading(true);
     try {
       // Use the existing fetchJson approach — audit_logs query via a simple GET
-      const res = await fetchJson<{ items: any[]; total: number }>(`/audit?enterpriseId=${enterpriseId}&page=${page}&limit=50`, { adminUserId: user?.id })
+      const res = await fetchJson<{ items: AuditLogRow[]; total: number }>(`/audit?enterpriseId=${enterpriseId}&page=${page}&limit=50`, { adminUserId: user?.id })
         .catch(() => ({ items: [], total: 0 }));
       setData(res.items);
       setTotal(res.total);
@@ -42,7 +50,7 @@ export default function AuditPage() {
   const columns = [
     { key: "action", label: "操作" },
     { key: "object_type", label: "对象类型" },
-    { key: "object_id", label: "对象ID", render: (r: any) => <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{(r.object_id as string)?.slice(0, 16)}</span> },
+    { key: "object_id", label: "对象ID", render: (r: AuditLogRow) => <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.object_id?.slice(0, 16)}</span> },
     { key: "created_at", label: "时间" },
   ];
 

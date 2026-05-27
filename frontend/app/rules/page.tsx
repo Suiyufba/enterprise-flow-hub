@@ -10,12 +10,21 @@ import { DataTable } from "../components/DataTable";
 import { StatusBadge } from "../components/StatusBadge";
 import { gsap, useGSAP } from "../lib/gsap";
 
+type RuleRow = {
+  id: string;
+  name: string;
+  objectType: string;
+  triggerEvent: string;
+  actionType: string;
+  enabled: boolean;
+};
+
 export default function RulesPage() {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<RuleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const pageRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +36,7 @@ export default function RulesPage() {
     if (!enterpriseId) return;
     setLoading(true);
     try {
-      const res = await fetchJson<any[]>(`/rules?enterpriseId=${enterpriseId}`, { adminUserId: user?.id });
+      const res = await fetchJson<RuleRow[]>(`/rules?enterpriseId=${enterpriseId}`, { adminUserId: user?.id });
       setData(res);
     } catch { showToast("加载失败", "error"); }
     finally { setLoading(false); }
@@ -54,12 +63,12 @@ export default function RulesPage() {
     {
       key: "enabled",
       label: "状态",
-      render: (r: any) => <StatusBadge status={r.enabled ? "active" : "inactive"} label={r.enabled ? "启用" : "禁用"} />,
+      render: (r: RuleRow) => <StatusBadge status={r.enabled ? "active" : "inactive"} label={r.enabled ? "启用" : "禁用"} />,
     },
     {
       key: "actions",
       label: "操作",
-      render: (r: any) => (
+      render: (r: RuleRow) => (
         <div style={{ display: "flex", gap: "6px" }}>
           <button
             onClick={() => toggleRule(r.id)}
