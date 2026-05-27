@@ -1,0 +1,105 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import {
+  CreateOrderRequestSchema,
+  UpdateOrderRequestSchema,
+  CreatePaymentRequestSchema,
+  CreateInvoiceRequestSchema,
+} from "shared";
+import { getUser } from "../store.js";
+import {
+  listOrders, getOrder, createOrder, updateOrder, deleteOrder,
+  listPayments, createPayment,
+  listInvoices, createInvoice,
+} from "../store/orders.js";
+
+function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
+  const userId = request.headers["x-user-id"] as string | undefined;
+  if (!userId) { reply.status(401).send({ error: "未登录" }); return null; }
+  const user = getUser(userId);
+  if (!user) { reply.status(401).send({ error: "用户不存在" }); return null; }
+  return user.enterpriseId;
+}
+
+export async function ordersRoutes(app: FastifyInstance): Promise<void> {
+  // ---- Orders ----
+  app.get("/orders", async (request) => {
+    const { enterpriseId, status, customerId, page, limit } = request.query as Record<string, string | undefined>;
+    if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    return listOrders(enterpriseId, { status, customerId, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+  });
+
+  app.get("/orders/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const order = getOrder(id);
+    if (!order) return reply.status(404).send({ error: "订单不存在" });
+    return reply.send(order);
+  });
+
+  app.post("/orders", async (request, reply) => {
+    const parsed = CreateOrderRequestSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (parsed.data.enterpriseId !== actorEid) return reply.status(403).send({ error: "不能为其他企业创建订单" });
+    const order = createOrder(parsed.data);
+    return reply.status(201).send(order);
+  });
+
+  app.patch("/orders/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const existing = getOrder(id);
+    if (!existing) return reply.status(404).send({ error: "订单不存在" });
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (existing.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权操作" });
+    const parsed = UpdateOrderRequestSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const order = updateOrder(id, parsed.data);
+    return reply.send(order);
+  });
+
+  app.delete("/orders/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const existing = getOrder(id);
+    if (!existing) return reply.status(404).send({ error: "订单不存在" });
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (existing.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权操作" });
+    deleteOrder(id);
+    return reply.status(204).send();
+  });
+
+  // ---- Payments ----
+  app.get("/payments", async (request) => {
+    const { enterpriseId, orderId, status, page, limit } = request.query as Record<string, string | undefined>;
+    if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    return listPayments(enterpriseId, { orderId, status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+  });
+
+  app.post("/payments", async (request, reply) => {
+    const parsed = CreatePaymentRequestSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (parsed.data.enterpriseId !== actorEid) return reply.status(403).send({ error: "不能为其他企业创建付款" });
+    const payment = createPayment(parsed.data);
+    return reply.status(201).send(payment);
+  });
+
+  // ---- Invoices ----
+  app.get("/invoices", async (request) => {
+    const { enterpriseId, status, page, limit } = request.query as Record<string, string | undefined>;
+    if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    return listInvoices(enterpriseId, { status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+  });
+
+  app.post("/invoices", async (request, reply) => {
+    const parsed = CreateInvoiceRequestSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (parsed.data.enterpriseId !== actorEid) return reply.status(403).send({ error: "不能为其他企业创建发票" });
+    const invoice = createInvoice(parsed.data);
+    return reply.status(201).send(invoice);
+  });
+}

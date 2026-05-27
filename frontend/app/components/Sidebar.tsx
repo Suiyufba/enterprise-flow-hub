@@ -216,6 +216,9 @@ export function Sidebar() {
             <Link href="/products" className={`nav-item ${pathname === "/products" ? "active" : ""}`}>
               <span className="icon">📦</span> 商品
             </Link>
+            <Link href="/orders" className={`nav-item ${pathname?.startsWith("/orders") ? "active" : ""}`}>
+              <span className="icon">📋</span> 订单
+            </Link>
           </div>
         )}
 
