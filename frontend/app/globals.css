@@ -4006,8 +4006,13 @@ body {
 
 /* ---- Enterprise Org Chart ---- */
 
+.enterprise-page {
+  align-items: flex-start;
+  padding-top: 40px;
+}
+
 .enterprise-page .page-shell {
-  max-width: 960px;
+  max-width: 1200px;
 }
 
 .org-chart-container {
