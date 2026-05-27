@@ -14,6 +14,10 @@ interface DepartmentWithChildren extends Department {
   members: User[];
 }
 
+function countMembers(dept: DepartmentWithChildren): number {
+  return dept.members.length + dept.children.reduce((sum, child) => sum + countMembers(child), 0);
+}
+
 function DepartmentTreeNode({
   dept,
   allDepartments,
@@ -42,111 +46,131 @@ function DepartmentTreeNode({
   const [collapsed, setCollapsed] = useState(false);
   const childrenRef = useRef<HTMLDivElement>(null);
   const hasChildren = dept.children.length > 0 || dept.members.length > 0;
+  const parentDept = dept.parentId ? allDepartments.find((item) => item.id === dept.parentId) : undefined;
+  const totalMembers = countMembers(dept);
 
   useGSAP(() => {
     if (!childrenRef.current) return;
-    gsap.from(".org-dept-card, .org-user-card", {
-      y: -8,
+    gsap.from(childrenRef.current.querySelectorAll(".org-tree-child"), {
+      y: -14,
       autoAlpha: 0,
-      duration: 0.3,
-      stagger: 0.04,
+      scale: 0.96,
+      duration: 0.34,
+      stagger: 0.05,
+      ease: "back.out(1.2)",
+    });
+    gsap.from(childrenRef.current.querySelectorAll(".org-tree-connector, .org-child-connector"), {
+      scaleY: 0,
+      transformOrigin: "top center",
+      duration: 0.28,
+      stagger: 0.03,
       ease: "power2.out",
     });
   }, { dependencies: [collapsed, dept.children.length, dept.members.length], scope: childrenRef });
 
   return (
-    <div className="org-node-group">
-      <div className="org-node-row">
-        {depth > 0 && <div className="org-connector-line" />}
-        <div className={`org-dept-card ${isAdmin ? "admin" : ""}`}>
-          <div className="org-dept-header">
-            {hasChildren && (
-              <button
-                className="org-collapse-btn"
-                onClick={() => setCollapsed(!collapsed)}
-                type="button"
-              >
-                <span className={`tree-chevron ${!collapsed ? "open" : ""}`}>▸</span>
-              </button>
-            )}
-            <span className="org-dept-icon">🏢</span>
-            <span className="org-dept-name">{dept.name}</span>
-            <span className="org-dept-count">
-              {dept.members.length + dept.children.reduce((s, c) => s + c.members.length, 0)}人
-            </span>
-            {isAdmin && (
-              <div className="org-dept-actions">
-                <button onClick={() => onAddDept(dept.id)} title="添加子部门" type="button">+部门</button>
-                <button onClick={() => onAddUser(dept.id)} title="添加成员" type="button">+成员</button>
-                <button onClick={() => onEditDept(dept)} title="编辑" type="button">✏</button>
-                <button onClick={() => onDeleteDept(dept)} className="danger" title="删除" type="button">×</button>
-              </div>
-            )}
-          </div>
+    <div className={`org-tree-node depth-${depth}`}>
+      <div className={`org-dept-card org-tree-card ${isAdmin ? "admin" : ""}`}>
+        <div className="org-card-kicker">
+          <span>{depth === 0 ? "顶级部门" : "下级部门"}</span>
+          {parentDept && <span>上级：{parentDept.name}</span>}
         </div>
+        <div className="org-dept-header">
+          {hasChildren && (
+            <button
+              className="org-collapse-btn"
+              onClick={() => setCollapsed(!collapsed)}
+              type="button"
+              aria-label={collapsed ? "展开下级" : "收起下级"}
+            >
+              <span className={`tree-chevron ${!collapsed ? "open" : ""}`}>▸</span>
+            </button>
+          )}
+          <span className="org-dept-icon">部门</span>
+          <span className="org-dept-name">{dept.name}</span>
+          <span className="org-dept-count">{totalMembers}人</span>
+          {isAdmin && (
+            <div className="org-dept-actions">
+              <button onClick={() => onAddDept(dept.id)} title="添加子部门" type="button">+部门</button>
+              <button onClick={() => onAddUser(dept.id)} title="添加成员" type="button">+成员</button>
+              <button onClick={() => onEditDept(dept)} title="编辑" type="button">编辑</button>
+              <button onClick={() => onDeleteDept(dept)} className="danger" title="删除" type="button">×</button>
+            </div>
+          )}
+        </div>
+        {hasChildren && (
+          <div className="org-card-summary">
+            <span>{dept.children.length} 个直属部门</span>
+            <span>{dept.members.length} 位直属成员</span>
+          </div>
+        )}
       </div>
 
-      {!collapsed && (
-        <div className="org-children" ref={childrenRef}>
-          {dept.members.map((user) => (
-            <div className="org-node-row" key={user.id}>
-              <div className="org-connector-line" />
-              <div className={`org-user-card ${isAdmin ? "admin" : ""}`}>
-                <span className="org-user-avatar">👤</span>
-                <div className="org-user-info">
-                  <span className="org-user-name">{user.displayName}</span>
-                  <span className="org-user-pos">{user.position || "未设置职位"}</span>
-                  <span className="org-user-role-tag">{user.role === "admin" ? "管理员" : "成员"}</span>
-                </div>
-                {isAdmin && (
-                  <div className="org-user-actions">
-                    <button onClick={() => onEditUser(user)} title="编辑" type="button">✏</button>
-                    <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button">×</button>
+      {!collapsed && hasChildren && (
+        <div className="org-tree-children" ref={childrenRef}>
+          <div className="org-tree-connector" />
+          <div className="org-tree-children-row">
+            {dept.members.map((user) => (
+              <div className="org-tree-child org-member-child" key={user.id}>
+                <div className="org-child-connector" />
+                <div className={`org-user-card ${isAdmin ? "admin" : ""}`}>
+                  <span className="org-user-avatar">{user.displayName.slice(0, 1)}</span>
+                  <div className="org-user-info">
+                    <span className="org-user-reports">直属成员 · 上级 {dept.name}</span>
+                    <span className="org-user-name">{user.displayName}</span>
+                    <span className="org-user-pos">{user.position || "未设置职位"}</span>
+                    <span className="org-user-role-tag">{user.role === "admin" ? "管理员" : "成员"}</span>
                   </div>
-                )}
+                  {isAdmin && (
+                    <div className="org-user-actions">
+                      <button onClick={() => onEditUser(user)} title="编辑" type="button">编辑</button>
+                      <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button">×</button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
 
-          {dept.children.map((child) => (
-            <DepartmentTreeNode
-              key={child.id}
-              dept={child}
-              allDepartments={allDepartments}
-              allUsers={allUsers}
-              isAdmin={isAdmin}
-              onAddDept={onAddDept}
-              onEditDept={onEditDept}
-              onDeleteDept={onDeleteDept}
-              onAddUser={onAddUser}
-              onEditUser={onEditUser}
-              onDeleteUser={onDeleteUser}
-              depth={depth + 1}
-            />
-          ))}
+            {dept.children.map((child) => (
+              <div className="org-tree-child" key={child.id}>
+                <div className="org-child-connector" />
+                <DepartmentTreeNode
+                  dept={child}
+                  allDepartments={allDepartments}
+                  allUsers={allUsers}
+                  isAdmin={isAdmin}
+                  onAddDept={onAddDept}
+                  onEditDept={onEditDept}
+                  onDeleteDept={onDeleteDept}
+                  onAddUser={onAddUser}
+                  onEditUser={onEditUser}
+                  onDeleteUser={onDeleteUser}
+                  depth={depth + 1}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {depth === 0 && allUsers.filter((u) => !u.departmentId).length > 0 && (
-        <div className="org-children">
+        <div className="org-unassigned-group">
           <div className="org-unassigned-label">未分配部门</div>
           {allUsers.filter((u) => !u.departmentId).map((user) => (
-            <div className="org-node-row" key={user.id}>
-              <div className="org-connector-line" />
-              <div className={`org-user-card ${isAdmin ? "admin" : ""}`}>
-                <span className="org-user-avatar">👤</span>
-                <div className="org-user-info">
-                  <span className="org-user-name">{user.displayName}</span>
-                  <span className="org-user-pos">{user.position || "未设置职位"}</span>
-                  <span className="org-user-role-tag">{user.role === "admin" ? "管理员" : "成员"}</span>
-                </div>
-                {isAdmin && (
-                  <div className="org-user-actions">
-                    <button onClick={() => onEditUser(user)} title="编辑" type="button">✏</button>
-                    <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button">×</button>
+            <div className={`org-user-card ${isAdmin ? "admin" : ""}`} key={user.id}>
+              <span className="org-user-avatar">{user.displayName.slice(0, 1)}</span>
+              <div className="org-user-info">
+                <span className="org-user-reports">尚未指定上级部门</span>
+                <span className="org-user-name">{user.displayName}</span>
+                <span className="org-user-pos">{user.position || "未设置职位"}</span>
+                <span className="org-user-role-tag">{user.role === "admin" ? "管理员" : "成员"}</span>
+              </div>
+              {isAdmin && (
+                <div className="org-user-actions">
+                  <button onClick={() => onEditUser(user)} title="编辑" type="button">编辑</button>
+                  <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button">×</button>
                   </div>
                 )}
-              </div>
             </div>
           ))}
         </div>
