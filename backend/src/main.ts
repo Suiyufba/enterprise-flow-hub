@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { registerAllRoutes } from "./routes/index.js";
 import { createAuditLog } from "./auth/audit.js";
 import { startIntegrationScheduler } from "./integration/queue.js";
+import { setupRulesExecutor } from "./rules/executor.js";
 import { getUser } from "./store.js";
 import { registerTool } from "./tools/registry.js";
 import { csvProfile } from "./tools/executors/csv-profile.js";
@@ -75,6 +76,9 @@ await registerAllRoutes(app);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";
+
+// Initialize rules engine event subscription
+setupRulesExecutor();
 
 await app.listen({ port, host });
 startAutomationScheduler(app.log);

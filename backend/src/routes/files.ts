@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { mkdirSync, createReadStream, existsSync } from "node:fs";
 import { getUser } from "../store.js";
 import { listFiles, getFile, createFile, deleteFile } from "../store/files.js";
+import { analyzeImageFile } from "../ai/ocr.js";
 
 function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
   const userId = request.headers["x-user-id"] as string | undefined;
@@ -63,6 +64,10 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       relatedType,
       relatedId,
     });
+    // Trigger async OCR for images
+    if (data.mimetype.startsWith("image/")) {
+      analyzeImageFile(storagePath, data.mimetype, data.filename).catch(() => {});
+    }
     return reply.status(201).send(file);
   });
 
