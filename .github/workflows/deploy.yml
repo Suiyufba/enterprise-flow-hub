@@ -114,17 +114,19 @@ jobs:
           docker image prune -af --filter "until=72h"
           docker container prune -f
 
-          if command -v pm2 >/dev/null 2>&1; then
-            pm2 delete poke-card-api || true
-            pm2 save || true
-          fi
-
           sudo cp /opt/enterprise-flow-hub/nginx.conf /etc/nginx/sites-available/enterprise-flow-hub
           sudo ln -sf /etc/nginx/sites-available/enterprise-flow-hub /etc/nginx/sites-enabled/enterprise-flow-hub
           sudo rm -f /etc/nginx/sites-enabled/poke-card-emulator
           sudo nginx -t
           sudo systemctl reload nginx
 
-          ( (crontab -l 2>/dev/null || true) | grep -v "/opt/enterprise-flow-hub/backup-db.sh" || true; echo "20 3 * * * /opt/enterprise-flow-hub/backup-db.sh >> /opt/enterprise-flow-hub/backups/backup.log 2>&1" ) | crontab -
+          mkdir -p /opt/enterprise-flow-hub/backups
+          AVAILABLE_KB="$(df -Pk /tmp | awk 'NR==2 {print $4}')"
+          if [ "${AVAILABLE_KB:-0}" -gt 1024 ]; then
+            ( (crontab -l 2>/dev/null || true) | grep -v "/opt/enterprise-flow-hub/backup-db.sh" || true; echo "20 3 * * * /opt/enterprise-flow-hub/backup-db.sh >> /opt/enterprise-flow-hub/backups/backup.log 2>&1" ) | crontab -
+          else
+            echo "Skipping crontab update because /tmp has less than 1MB free. Disk usage:"
+            df -h
+          fi
           docker compose ps
           EOF
