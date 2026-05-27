@@ -50,7 +50,9 @@ export function emitEvent(
     .run(event.id, event.eventType, event.objectType, event.objectId, JSON.stringify(event.payload), event.source, event.createdAt);
   // Fire handlers (best-effort)
   for (const h of [...(handlers.get(eventType) ?? []), ...globalHandlers]) {
-    try { void h(event); } catch (e) { /* silently log */ }
+    try { void h(event); } catch (e) {
+      console.error(`[events] Handler failed for "${eventType}":`, e instanceof Error ? e.message : e);
+    }
   }
   return event;
 }

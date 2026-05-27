@@ -32,9 +32,12 @@ function requireScope(request: FastifyRequest, reply: FastifyReply, recordEid: s
 
 export async function ordersRoutes(app: FastifyInstance): Promise<void> {
   // ---- Orders ----
-  app.get("/orders", async (request) => {
+  app.get("/orders", async (request, reply) => {
     const { enterpriseId, status, customerId, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
     return listOrders(enterpriseId, { status, customerId, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
@@ -77,9 +80,12 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Payments ----
-  app.get("/payments", async (request) => {
+  app.get("/payments", async (request, reply) => {
     const { enterpriseId, orderId, status, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
     return listPayments(enterpriseId, { orderId, status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
@@ -94,9 +100,12 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Invoices ----
-  app.get("/invoices", async (request) => {
+  app.get("/invoices", async (request, reply) => {
     const { enterpriseId, status, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
     return listInvoices(enterpriseId, { status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 

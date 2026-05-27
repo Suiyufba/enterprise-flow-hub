@@ -56,9 +56,12 @@ function requireEnterpriseScope(
 
 export async function crmRoutes(app: FastifyInstance): Promise<void> {
   // ---- Customers ----
-  app.get("/customers", async (request) => {
+  app.get("/customers", async (request, reply) => {
     const { enterpriseId, status, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
     return listCustomers(enterpriseId, {
       status, search,
       page: page ? Number(page) : undefined,
@@ -107,9 +110,12 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Suppliers ----
-  app.get("/suppliers", async (request) => {
+  app.get("/suppliers", async (request, reply) => {
     const { enterpriseId, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
     return listSuppliers(enterpriseId, { search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
@@ -154,9 +160,12 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---- Products ----
-  app.get("/products", async (request) => {
+  app.get("/products", async (request, reply) => {
     const { enterpriseId, category, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
+    const actorEid = getCallerEnterprise(request, reply);
+    if (!actorEid) return;
+    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
     return listProducts(enterpriseId, { category, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 

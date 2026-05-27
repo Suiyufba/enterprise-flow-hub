@@ -42,16 +42,21 @@ export function listOrders(
   enterpriseId: string,
   opts?: { status?: string; customerId?: string; search?: string; page?: number; limit?: number },
 ): PaginatedList<Order> {
-  const conds: string[] = ["enterprise_id = ?"];
+  const conds: string[] = ["orders.enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
-  if (opts?.status) { conds.push("status = ?"); params.push(opts.status); }
-  if (opts?.customerId) { conds.push("customer_id = ?"); params.push(opts.customerId); }
+  if (opts?.status) { conds.push("orders.status = ?"); params.push(opts.status); }
+  if (opts?.customerId) { conds.push("orders.customer_id = ?"); params.push(opts.customerId); }
+  if (opts?.search) {
+    conds.push("(customers.name LIKE ? OR orders.notes LIKE ?)");
+    params.push(`%${opts.search}%`, `%${opts.search}%`);
+  }
   const where = conds.join(" AND ");
-  const total = (db().prepare(`SELECT COUNT(*) as cnt FROM orders WHERE ${where}`).get(...params) as { cnt: number }).cnt;
+  const from = "orders LEFT JOIN customers ON orders.customer_id = customers.id";
+  const total = (db().prepare(`SELECT COUNT(*) as cnt FROM ${from} WHERE ${where}`).get(...params) as { cnt: number }).cnt;
   const page = opts?.page ?? 1;
   const limit = opts?.limit ?? 20;
   const rows = db()
-    .prepare(`SELECT * FROM orders WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .prepare(`SELECT orders.* FROM ${from} WHERE ${where} ORDER BY orders.created_at DESC LIMIT ? OFFSET ?`)
     .all(...params, limit, (page - 1) * limit) as Record<string, unknown>[];
   return { items: rows.map(rowToOrder), total, page, limit };
 }
