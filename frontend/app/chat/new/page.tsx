@@ -7,6 +7,7 @@ import { fetchJson } from "../../lib/api";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { gsap, useGSAP } from "../../lib/gsap";
+import { AppIcon } from "../../components/AppIcon";
 
 export default function Home() {
   const router = useRouter();
@@ -155,7 +156,7 @@ export default function Home() {
 
         <div className="chat-composer-controls">
           <div className="project-picker enterprise-picker">
-            <span className="project-icon">▱</span>
+            <AppIcon name="project" className="project-icon" />
             <select
               aria-label="选择企业"
               className="project-select"

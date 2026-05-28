@@ -114,7 +114,8 @@
 }
 
 .wf-palette-icon {
-  font-size: 18px;
+  width: 18px;
+  height: 18px;
 }
 
 .wf-palette-hint {
@@ -164,7 +165,8 @@
 }
 
 .wf-node-icon {
-  font-size: 22px;
+  width: 22px;
+  height: 22px;
 }
 
 .wf-node-label {
@@ -192,9 +194,17 @@
 }
 
 .wf-props-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 650;
   color: var(--c-f4f4f4);
+}
+
+.wf-props-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .wf-props-delete {

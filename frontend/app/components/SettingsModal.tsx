@@ -112,9 +112,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setTestingId(id);
     try {
       const res = await fetchJson<{ ok: boolean; message: string }>(`/settings/providers/${id}/test`);
-      setTestResults((prev) => ({ ...prev, [id]: (res.ok ? "✅ " : "❌ ") + res.message }));
+      setTestResults((prev) => ({ ...prev, [id]: `${res.ok ? "通过" : "失败"}：${res.message}` }));
     } catch {
-      setTestResults((prev) => ({ ...prev, [id]: "❌ 测试请求失败" }));
+      setTestResults((prev) => ({ ...prev, [id]: "失败：测试请求失败" }));
     }
     setTestingId("");
   }

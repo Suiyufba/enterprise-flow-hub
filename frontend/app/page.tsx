@@ -8,6 +8,7 @@ import { useWorkspace } from "./lib/workspace-context";
 import { useToast } from "./lib/toast-context";
 import { StatCard } from "./components/StatCard";
 import { StatusBadge } from "./components/StatusBadge";
+import { AppIcon } from "./components/AppIcon";
 import { gsap, useGSAP } from "./lib/gsap";
 import type { Order, Payment, PaginatedList } from "shared";
 
@@ -76,12 +77,12 @@ export default function DashboardPage() {
         </div>
 
         <div className="dashboard-grid">
-          <StatCard label="项目" value={enterpriseProjects.length} icon="📁" />
-          <StatCard label="对话" value={enterpriseConversations.length} icon="💬" />
+          <StatCard label="项目" value={enterpriseProjects.length} icon="project" />
+          <StatCard label="对话" value={enterpriseConversations.length} icon="chat" />
           <StatCard
             label="资料库"
             value={workspace.libraryItems.filter((l) => l.enterpriseId === enterpriseId).length}
-            icon="📚"
+            icon="library"
           />
           <StatCard
             label="自动化"
@@ -89,15 +90,15 @@ export default function DashboardPage() {
               const proj = workspace.projects.find((p) => p.id === a.projectId);
               return proj?.enterpriseId === enterpriseId;
             }).length}
-            icon="⚡"
+            icon="automation"
           />
         </div>
 
         <div className="dashboard-grid" style={{ marginTop: 16 }}>
-          <StatCard label="收入总额" value={statsLoading ? "..." : `¥${revenueTotal.toLocaleString()}`} icon="💰" />
-          <StatCard label="订单总数" value={statsLoading ? "..." : orderTotal} icon="📋" />
-          <StatCard label="待处理订单" value={statsLoading ? "..." : recentOrders.filter((o) => ["confirmed", "processing"].includes(o.status)).length} icon="🔄" />
-          <StatCard label="已交付订单" value={statsLoading ? "..." : recentOrders.filter((o) => o.status === "delivered").length} icon="✅" />
+          <StatCard label="收入总额" value={statsLoading ? "..." : `¥${revenueTotal.toLocaleString()}`} icon="payment" />
+          <StatCard label="订单总数" value={statsLoading ? "..." : orderTotal} icon="clipboard" />
+          <StatCard label="待处理订单" value={statsLoading ? "..." : recentOrders.filter((o) => ["confirmed", "processing"].includes(o.status)).length} icon="sync" />
+          <StatCard label="已交付订单" value={statsLoading ? "..." : recentOrders.filter((o) => o.status === "delivered").length} icon="check" />
         </div>
 
         <div className="dashboard-cards" style={{ marginTop: 20 }}>
@@ -105,22 +106,22 @@ export default function DashboardPage() {
             <h3>快速操作</h3>
             <div className="dashboard-actions">
               <Link href="/chat/new" className="dashboard-action-btn">
-                <span>✎</span> 新建对话
+                <AppIcon name="chat" /> 新建对话
               </Link>
               <Link href="/projects/new" className="dashboard-action-btn">
-                <span>+</span> 新建项目
+                <AppIcon name="project" /> 新建项目
               </Link>
               <Link href="/orders/new" className="dashboard-action-btn">
-                <span>📋</span> 新建订单
+                <AppIcon name="clipboard" /> 新建订单
               </Link>
               <Link href="/library" className="dashboard-action-btn">
-                <span>▣</span> 上传资料
+                <AppIcon name="library" /> 上传资料
               </Link>
               <Link href="/payments" className="dashboard-action-btn">
-                <span>💰</span> 付款管理
+                <AppIcon name="payment" /> 付款管理
               </Link>
               <Link href="/invoices" className="dashboard-action-btn">
-                <span>🧾</span> 发票管理
+                <AppIcon name="invoice" /> 发票管理
               </Link>
             </div>
           </div>
@@ -141,7 +142,7 @@ export default function DashboardPage() {
                       href={`/chat/${conv.id}`}
                       className="dashboard-recent-item"
                     >
-                      <span style={{ fontSize: "12px", color: "var(--c-8c8c8c)" }}>💬</span>
+                      <AppIcon name="chat" className="dashboard-inline-icon" />
                       <span className="item-title">{conv.title}</span>
                       <span className="item-time">
                         {conv.createdAt?.slice(0, 10)}
@@ -190,7 +191,7 @@ export default function DashboardPage() {
               ) : (
                 recentPayments.slice(0, 5).map((p) => (
                   <div key={p.id} className="dashboard-recent-item">
-                    <span>💰</span>
+                    <AppIcon name="payment" className="dashboard-inline-icon" />
                     <span className="item-title" style={{ color: "var(--c-f0f0f0)", fontWeight: 600 }}>
                       ¥{p.amount.toFixed(2)}
                     </span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { AppIcon } from "./AppIcon";
 
 export function SearchInput({
   value,
@@ -26,7 +27,7 @@ export function SearchInput({
 
   return (
     <div className="search-input-wrap">
-      <span className="search-input-icon">⌕</span>
+      <AppIcon name="search" className="search-input-icon" />
       <input
         className="search-input-field"
         value={local}

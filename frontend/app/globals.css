@@ -20,6 +20,17 @@ body {
   display: flex;
 }
 
+.app-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* ========================================
    Theme Variables — auto-generated
    ======================================== */
@@ -743,6 +754,12 @@ body {
   flex-shrink: 0;
 }
 
+.inline-confirm .sidebar-svg-icon,
+.inline-cancel .sidebar-svg-icon {
+  width: 13px;
+  height: 13px;
+}
+
 .inline-confirm {
   background: var(--c-3a6b3a);
   color: var(--c-a6e3a1);
@@ -1221,7 +1238,8 @@ body {
 
 .project-icon {
   color: var(--c-9a9a9a);
-  font-size: 15px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 
@@ -1484,6 +1502,10 @@ body {
 
 .page-primary-button,
 .page-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 0;
   border-radius: 10px;
   font: inherit;
@@ -2000,7 +2022,16 @@ body {
 }
 
 .lib-file-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--c-f4f4f4);
+}
+
+.lib-file-label span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .lib-card-header {
@@ -2203,7 +2234,8 @@ body {
 }
 
 .workflow-node-icon {
-  font-size: 20px;
+  width: 20px;
+  height: 20px;
 }
 
 .workflow-node-label {
@@ -2443,12 +2475,33 @@ body {
 }
 
 .result-card h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--c-b98ed9);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 12px;
+}
+
+.result-card h3 .app-icon,
+.problem-item .app-icon,
+.rule-item .app-icon,
+.export-btn .app-icon,
+.code-block .warn .app-icon {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+}
+
+.problem-item,
+.rule-item,
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .result-card h3.warn {
@@ -2582,6 +2635,7 @@ body {
 }
 
 .export-btn {
+  align-items: center;
   padding: 8px 16px;
   background: var(--c-303030);
   border: 1px solid var(--c-404040);
@@ -3547,7 +3601,6 @@ body {
 }
 
 .project-metric-icon {
-  font-size: 18px;
   margin-bottom: 10px;
   width: 34px;
   height: 34px;
@@ -3555,6 +3608,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.project-metric-icon .app-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .project-metric-icon.conversations {
@@ -3770,8 +3828,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
   flex-shrink: 0;
+}
+
+.project-resource-icon .app-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .project-resource-icon.doc {
@@ -3865,7 +3927,9 @@ body {
 }
 
 .project-quick-action-icon {
-  font-size: 22px;
+  width: 22px;
+  height: 22px;
+  color: var(--c-b4b4b4);
 }
 
 .project-quick-action h4 {
@@ -4404,9 +4468,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: 800;
   flex-shrink: 0;
+}
+
+.org-user-avatar .app-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.org-user-actions .app-icon {
+  width: 13px;
+  height: 13px;
 }
 
 .org-user-info {
@@ -4605,7 +4677,16 @@ body {
 }
 
 .stat-card-icon {
+  display: inline-flex;
+  color: var(--c-b4b4b4);
   font-size: 18px;
+}
+
+.dashboard-action-btn .app-icon,
+.dashboard-inline-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--c-8c8c8c);
 }
 
 .stat-card-value {
@@ -4668,7 +4749,8 @@ body {
 }
 
 .search-input-icon {
-  font-size: 14px;
+  width: 15px;
+  height: 15px;
   color: var(--c-8c8c8c);
 }
 
@@ -4717,9 +4799,14 @@ body {
 }
 
 .empty-state-icon {
-  font-size: 36px;
-  display: block;
+  display: inline-flex;
   margin-bottom: 12px;
+  color: var(--c-8c8c8c);
+}
+
+.empty-state-icon .app-icon {
+  width: 36px;
+  height: 36px;
 }
 
 .empty-state h3 {

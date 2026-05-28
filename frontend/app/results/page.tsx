@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import type { AnalysisResult } from "shared";
 import { fetchJson } from "../lib/api";
 import { gsap, useGSAP } from "../lib/gsap";
+import { AppIcon } from "../components/AppIcon";
 
 function ResultsContent() {
   const searchParams = useSearchParams();
@@ -143,7 +144,7 @@ function ResultsContent() {
             <div key={f.name}>
               <span className="key">&quot;{f.name}&quot;</span>:{" "}
               <span className="str">&quot;{f.label}&quot;</span> → {f.type}
-              {f.missing && <span className="warn"> ⚠ missing</span>}
+              {f.missing && <span className="warn"> <AppIcon name="alert" /> missing</span>}
             </div>
           ))}
         </div>
@@ -164,27 +165,27 @@ function ResultsContent() {
 
       {/* Problems */}
       <div className="result-card">
-        <h3 className="warn">⚠ 流程问题</h3>
+        <h3 className="warn"><AppIcon name="alert" /> 流程问题</h3>
         {data.problems.map((p, i) => (
           <div key={i} className="problem-item">
-            ⚠ {p}
+            <AppIcon name="alert" /> {p}
           </div>
         ))}
       </div>
 
       {/* Automation Rules */}
       <div className="result-card">
-        <h3>🔔 自动化规则建议</h3>
+        <h3><AppIcon name="bell" /> 自动化规则建议</h3>
         {data.automationRules.map((r, i) => (
           <div key={i} className="rule-item">
-            🔔 IF {r.trigger} AND {r.condition} → {r.action}
+            <AppIcon name="bell" /> IF {r.trigger} AND {r.condition} → {r.action}
           </div>
         ))}
       </div>
 
       {/* Dashboard Metrics */}
       <div className="result-card">
-        <h3>📊 建议仪表盘指标</h3>
+        <h3><AppIcon name="chart" /> 建议仪表盘指标</h3>
         <div className="tag-list">
           {data.dashboardMetrics.map((m) => (
             <span key={m} className="tag blue">
@@ -207,10 +208,10 @@ function ResultsContent() {
       {/* Export */}
       <div className="export-bar">
         <button className="export-btn" onClick={() => exportResult("markdown")}>
-          📥 Markdown 诊断报告
+          <AppIcon name="download" /> Markdown 诊断报告
         </button>
         <button className="export-btn" onClick={() => exportResult("json")}>
-          🔄 JSON 工作流规则
+          <AppIcon name="refresh" /> JSON 工作流规则
         </button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { AppIcon } from "./AppIcon";
 
 type Theme = "dark" | "light";
 
@@ -79,7 +80,7 @@ export function ThemeToggle() {
       title={isDark ? "切换浅色模式" : "切换深色模式"}
       aria-label={isDark ? "切换浅色模式" : "切换深色模式"}
     >
-      {isDark ? "☀" : "☾"}
+      <AppIcon name={isDark ? "spark" : "moon"} />
     </button>
   );
 }

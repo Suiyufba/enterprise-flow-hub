@@ -20,14 +20,15 @@ import "@xyflow/react/dist/style.css";
 import "./WorkflowEditor.css";
 import { fetchJson } from "../lib/api";
 import { useWorkspace } from "../lib/workspace-context";
+import { AppIcon, type AppIconName } from "../components/AppIcon";
 import type { Automation } from "shared";
 
 const nodeTypes = {
-  trigger: { label: "触发器", icon: "⚡", color: "#1a2535", border: "#4a90e6" },
-  agent: { label: "AI Agent", icon: "🤖", color: "#251f30", border: "#b98ed9" },
-  condition: { label: "条件判断", icon: "🔀", color: "#2a1f14", border: "#fe640b" },
-  action: { label: "动作", icon: "⚙", color: "#1a2e22", border: "#6ecf8a" },
-  loop: { label: "循环", icon: "🔁", color: "#1a1a1a", border: "#8c8c8c" },
+  trigger: { label: "触发器", icon: "automation", color: "#1a2535", border: "#4a90e6" },
+  agent: { label: "AI Agent", icon: "spark", color: "#251f30", border: "#b98ed9" },
+  condition: { label: "条件判断", icon: "settings", color: "#2a1f14", border: "#fe640b" },
+  action: { label: "动作", icon: "settings", color: "#1a2e22", border: "#6ecf8a" },
+  loop: { label: "循环", icon: "refresh", color: "#1a1a1a", border: "#8c8c8c" },
 };
 
 type NodeType = keyof typeof nodeTypes;
@@ -49,7 +50,7 @@ function createNode(type: NodeType, x: number, y: number): Node {
     data: {
       label: (
         <div className="wf-node">
-          <span className="wf-node-icon">{def.icon}</span>
+          <AppIcon name={def.icon as AppIconName} className="wf-node-icon" />
           <span className="wf-node-label">{def.label}</span>
         </div>
       ),
@@ -343,7 +344,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                 }}
                 style={{ borderColor: opt.border }}
               >
-                <span className="wf-palette-icon">{opt.icon}</span>
+                <AppIcon name={opt.icon as AppIconName} className="wf-palette-icon" />
                 <span>{opt.label}</span>
               </div>
             ))}
@@ -382,7 +383,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
           <aside className="wf-props">
             <div className="wf-props-header">
               <span className="wf-props-title">
-                {nodeTypes[selectedNode.data?.nodeType as NodeType]?.icon}{" "}
+                <AppIcon name={nodeTypes[selectedNode.data?.nodeType as NodeType]?.icon as AppIconName} className="wf-props-icon" />{" "}
                 {nodeTypes[selectedNode.data?.nodeType as NodeType]?.label}
               </span>
               <button className="wf-props-delete" onClick={deleteSelected} type="button" title="删除节点">

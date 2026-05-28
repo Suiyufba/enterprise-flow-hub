@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { AppIcon, type AppIconName } from "./AppIcon";
 
 export function StatCard({
   label,
@@ -8,14 +8,18 @@ export function StatCard({
 }: {
   label: string;
   value: string | number;
-  icon?: string;
+  icon?: AppIconName;
   trend?: { direction: "up" | "down"; text: string };
 }) {
   return (
     <div className="stat-card">
       <div className="stat-card-top">
         <span className="stat-card-label">{label}</span>
-        {icon && <span className="stat-card-icon">{icon}</span>}
+        {icon && (
+          <span className="stat-card-icon">
+            <AppIcon name={icon} />
+          </span>
+        )}
       </div>
       <strong className="stat-card-value">{value}</strong>
       {trend && (

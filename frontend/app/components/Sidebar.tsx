@@ -12,7 +12,7 @@ import { SettingsModal } from "./SettingsModal";
 import { AnimateHeight } from "./AnimateHeight";
 
 type SidebarIconName =
-  | "dashboard" | "chat" | "search" | "library" | "plugins" | "automation" | "personas"
+  | "dashboard" | "chat" | "search" | "library" | "plugins" | "automation" | "personas" | "check" | "x"
   | "customers" | "suppliers" | "products" | "orders" | "files" | "payments" | "invoices"
   | "rules" | "enterprise" | "audit" | "project" | "edit" | "delete" | "settings" | "user" | "logout";
 
@@ -23,6 +23,7 @@ const iconPaths: Record<SidebarIconName, string[]> = {
   library: ["M5 4h11a3 3 0 0 1 3 3v13H7a2 2 0 0 1-2-2z", "M7 16h12", "M8 8h7"],
   plugins: ["M9 4v4", "M15 4v4", "M7 8h10v5a5 5 0 0 1-10 0z", "M12 18v3"],
   automation: ["M13 3 5 14h6l-1 7 8-11h-6z"],
+  check: ["M5 12.5 10 17 19 7"],
   personas: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", "M4 20a8 8 0 0 1 16 0"],
   customers: ["M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z", "M17 12a3 3 0 1 0 0-6", "M3 20a6 6 0 0 1 12 0", "M14 20a5 5 0 0 1 7-4.6"],
   suppliers: ["M4 20V8l6-4v16", "M10 10l6-4v14", "M4 20h16", "M7 13h1", "M13 13h1", "M17 13h1"],
@@ -40,6 +41,7 @@ const iconPaths: Record<SidebarIconName, string[]> = {
   settings: ["M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z", "M19 12h2", "M3 12h2", "M12 3v2", "M12 19v2", "M17 5.6l-1.4 1.4", "M8.4 17 7 18.4", "M7 5.6 8.4 7", "M15.6 17l1.4 1.4"],
   user: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", "M5 20a7 7 0 0 1 14 0"],
   logout: ["M9 5H5v14h4", "M14 8l4 4-4 4", "M18 12H9"],
+  x: ["M6 6l12 12", "M18 6 6 18"],
 };
 
 function SidebarIcon({ name, className = "" }: { name: SidebarIconName; className?: string }) {
@@ -340,8 +342,8 @@ export function Sidebar() {
                             if (e.key === "Escape") cancelRename();
                           }}
                         />
-                        <button className="inline-confirm" onClick={() => submitProjectRename(project.id)} type="button">✓</button>
-                        <button className="inline-cancel" onClick={cancelRename} type="button">×</button>
+                        <button className="inline-confirm" onClick={() => submitProjectRename(project.id)} type="button"><SidebarIcon name="check" /></button>
+                        <button className="inline-cancel" onClick={cancelRename} type="button"><SidebarIcon name="x" /></button>
                       </div>
                     ) : (
                       <Link
@@ -380,7 +382,7 @@ export function Sidebar() {
                         onClick={() => addProject(enterprise.id)}
                         type="button"
                       >
-                        ✓
+                        <SidebarIcon name="check" />
                       </button>
                       <button
                         className="inline-cancel"
@@ -390,7 +392,7 @@ export function Sidebar() {
                         }}
                         type="button"
                       >
-                        ×
+                        <SidebarIcon name="x" />
                       </button>
                     </div>
                   ) : (
@@ -445,8 +447,8 @@ export function Sidebar() {
                           if (e.key === "Escape") cancelRename();
                         }}
                       />
-                      <button className="inline-confirm" onClick={() => submitConversationRename(conversation.id)} type="button">✓</button>
-                      <button className="inline-cancel" onClick={cancelRename} type="button">×</button>
+                      <button className="inline-confirm" onClick={() => submitConversationRename(conversation.id)} type="button"><SidebarIcon name="check" /></button>
+                      <button className="inline-cancel" onClick={cancelRename} type="button"><SidebarIcon name="x" /></button>
                     </div>
                   ) : (
                     <button

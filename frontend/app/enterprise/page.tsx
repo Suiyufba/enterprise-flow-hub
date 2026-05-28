@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
 import { useWorkspace } from "../lib/workspace-context";
 import { gsap, useGSAP } from "../lib/gsap";
+import { AppIcon } from "../components/AppIcon";
 import type { Department, User } from "shared";
 
 interface DepartmentWithChildren extends Department {
@@ -530,14 +531,14 @@ export default function EnterprisePage() {
                 <div className="org-flat-list">
                   {users.map((u) => (
                     <div className={`org-user-card standalone ${isAdmin ? "admin" : ""}`} key={u.id}>
-                      <span className="org-user-avatar">👤</span>
+                      <span className="org-user-avatar"><AppIcon name="user" /></span>
                       <div className="org-user-info">
                         <span className="org-user-name">{u.displayName}</span>
                         <span className="org-user-pos">{u.position || "未设置职位"}</span>
                       </div>
                       {isAdmin && (
                         <div className="org-user-actions">
-                          <button onClick={() => openEditUser(u)} title="编辑" type="button">✏</button>
+                          <button onClick={() => openEditUser(u)} title="编辑" type="button"><AppIcon name="edit" /></button>
                           <button onClick={() => setDeleteConfirm({ open: true, type: "user", id: u.id, name: u.displayName })} className="danger" title="删除" type="button">×</button>
                         </div>
                       )}

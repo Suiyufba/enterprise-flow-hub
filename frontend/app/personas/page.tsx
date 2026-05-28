@@ -5,6 +5,7 @@ import type { AgentPersona, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
 import { gsap, useGSAP } from "../lib/gsap";
+import { AppIcon } from "../components/AppIcon";
 export default function PersonasPage() {
   const { showToast } = useToast();
   const pageRef = useRef<HTMLDivElement>(null);
@@ -194,7 +195,7 @@ export default function PersonasPage() {
                           style={{ alignSelf: "flex-start", fontSize: 11, padding: "3px 8px" }}
                           type="button"
                         >
-                          {dreamingId === p.id ? "收起梦境" : `💭 梦境记录 (${(p.memory.match(/###/g) || []).length} 天)`}
+                          {dreamingId === p.id ? "收起梦境" : <> <AppIcon name="spark" /> 梦境记录 ({(p.memory.match(/###/g) || []).length} 天)</>}
                         </button>
                         {dreamingId === p.id && (
                           <div className="settings-prompt-preview" style={{ fontSize: 12, whiteSpace: "pre-wrap", lineHeight: 1.6, maxHeight: 300, overflowY: "auto" }}>
@@ -212,7 +213,7 @@ export default function PersonasPage() {
                           await refresh();
                           showToast("梦境已更新", "success");
                         } catch { showToast("总结失败", "error"); }
-                      }}>💭 立即总结</button>
+                      }}><AppIcon name="spark" /> 立即总结</button>
                       <button className="page-secondary-button" onClick={() => deletePersona(p.id)}>删除</button>
                     </div>
                   </>

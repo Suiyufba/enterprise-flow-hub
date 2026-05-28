@@ -6,6 +6,7 @@ import type { AgentSkill, Automation, LibraryItem, Plugin, PluginConfigResponse,
 import { fetchJson } from "../lib/api";
 import { useWorkspace } from "../lib/workspace-context";
 import { gsap, useGSAP } from "../lib/gsap";
+import { AppIcon, type AppIconName } from "./AppIcon";
 
 export function SearchPage() {
   const router = useRouter();
@@ -344,9 +345,9 @@ export function LibraryPage() {
             />
             <label htmlFor="lib-file-input" className="lib-file-label">
               {selectedFile ? (
-                <span className="lib-file-name">📎 {selectedFile.name}</span>
+                <span className="lib-file-name"><AppIcon name="file" /> {selectedFile.name}</span>
               ) : (
-                <span>📁 选择文件上传</span>
+                <span><AppIcon name="folder" /> 选择文件上传</span>
               )}
             </label>
           </div>
@@ -439,7 +440,7 @@ export function LibraryPage() {
                   title="编辑资料"
                   style={{ display: "inline-flex" }}
                 >
-                  ✏
+                  <AppIcon name="edit" />
                 </button>
                 <button
                   className="lib-delete-btn"
@@ -662,8 +663,8 @@ export function PluginsPage() {
                   <div className="skill-card-top">
                     <span className={skill.enabled ? "skill-on" : "skill-off"}>{skill.enabled ? "启用中" : "已停用"}</span>
                     <div className="skill-card-actions">
-                      <button className="sidebar-mini-action" onClick={() => startEditSkill(skill)} title="编辑能力包" type="button" style={{ display: "inline-flex" }}>✏</button>
-                      <button className="sidebar-mini-action danger" onClick={() => removeSkill(skill.id)} title="删除能力包" type="button" style={{ display: "inline-flex" }}>×</button>
+                      <button className="sidebar-mini-action" onClick={() => startEditSkill(skill)} title="编辑能力包" type="button" style={{ display: "inline-flex" }}><AppIcon name="edit" /></button>
+                      <button className="sidebar-mini-action danger" onClick={() => removeSkill(skill.id)} title="删除能力包" type="button" style={{ display: "inline-flex" }}><AppIcon name="x" /></button>
                     </div>
                   </div>
                   <h3>{skill.name}</h3>
@@ -976,7 +977,7 @@ export function AutomationPage() {
 
               <div className="workflow-flow">
                 <div className="workflow-node workflow-trigger">
-                  <span className="workflow-node-icon">⚡</span>
+                  <AppIcon name="automation" className="workflow-node-icon" />
                   <span className="workflow-node-label">{triggerLabel[automation.triggerType]}</span>
                   <span className="workflow-node-text">{automation.trigger}</span>
                 </div>
@@ -984,14 +985,14 @@ export function AutomationPage() {
                 {automation.agentModel && (
                   <>
                     <div className="workflow-node workflow-agent">
-                      <span className="workflow-node-icon">🤖</span>
+                      <AppIcon name="spark" className="workflow-node-icon" />
                       <span className="workflow-node-label">{modelLabel(automation.agentModel)}</span>
                     </div>
                     <span className="workflow-arrow">→</span>
                   </>
                 )}
                 <div className="workflow-node workflow-action">
-                  <span className="workflow-node-icon">⚙</span>
+                  <AppIcon name="settings" className="workflow-node-icon" />
                   <span className="workflow-node-label">{actionLabel[automation.actionType]}</span>
                   <span className="workflow-node-text">{automation.action}</span>
                   {automation.actionPluginId && (
@@ -1077,11 +1078,11 @@ export function ProjectDetailPage({ id }: { id: string }) {
   const automations = workspace.automations.filter((item) => item.projectId === id);
   const activeAutomations = automations.filter((a) => a.enabled);
 
-  const typeIcon: Record<string, string> = {
-    screenshot: "🖼",
-    spreadsheet: "📊",
-    document: "📄",
-    note: "📝",
+  const typeIcon: Record<string, AppIconName> = {
+    screenshot: "image",
+    spreadsheet: "table",
+    document: "document",
+    note: "edit",
   };
   const typeClass: Record<string, string> = {
     screenshot: "image",
@@ -1128,7 +1129,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
             onClick={() => router.push(`/?projectId=${project.id}`)}
             type="button"
           >
-            ⚡ 开始诊断
+            <AppIcon name="automation" /> 开始诊断
           </button>
           <button
             className="project-hero-btn secondary"
@@ -1150,7 +1151,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
       {/* ── Metric Grid ── */}
       <div className="project-metrics">
         <div className="project-metric">
-          <div className="project-metric-icon conversations">💬</div>
+          <div className="project-metric-icon conversations"><AppIcon name="chat" /></div>
           <div className="project-metric-value">{conversations.length}</div>
           <div className="project-metric-label">诊断对话</div>
           {conversations.length > 0 && (
@@ -1162,12 +1163,12 @@ export function ProjectDetailPage({ id }: { id: string }) {
           )}
         </div>
         <div className="project-metric">
-          <div className="project-metric-icon library">📚</div>
+          <div className="project-metric-icon library"><AppIcon name="library" /></div>
           <div className="project-metric-value">{libraryItems.length}</div>
           <div className="project-metric-label">业务资料</div>
         </div>
         <div className="project-metric">
-          <div className="project-metric-icon automations">⚙</div>
+          <div className="project-metric-icon automations"><AppIcon name="settings" /></div>
           <div className="project-metric-value">{automations.length}</div>
           <div className="project-metric-label">自动化规则</div>
           {automations.length > 0 && (
@@ -1249,7 +1250,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
                     }}
                   >
                     <div className={`project-resource-icon ${typeClass[item.type]}`}>
-                      {typeIcon[item.type]}
+                      <AppIcon name={typeIcon[item.type]} />
                     </div>
                     <div className="project-resource-info">
                       <div className="project-resource-name">{item.name}</div>
@@ -1288,7 +1289,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
                       if (e.key === "Enter") router.push("/automation");
                     }}
                   >
-                    <div className="project-resource-icon bot">🤖</div>
+                    <div className="project-resource-icon bot"><AppIcon name="spark" /></div>
                     <div className="project-resource-info">
                       <div className="project-resource-name">{auto.name}</div>
                       <div className="project-resource-sub">
@@ -1317,7 +1318,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
             if (e.key === "Enter") router.push(`/?projectId=${project.id}`);
           }}
         >
-          <span className="project-quick-action-icon">🔍</span>
+          <AppIcon name="search" className="project-quick-action-icon" />
           <h4>业务流程诊断</h4>
           <p>上传截图或描述流程，AI 自动分析瓶颈与优化机会</p>
         </div>
@@ -1330,7 +1331,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
             if (e.key === "Enter") router.push("/library");
           }}
         >
-          <span className="project-quick-action-icon">📁</span>
+          <AppIcon name="folder" className="project-quick-action-icon" />
           <h4>管理项目资料</h4>
           <p>上传 Excel、截图、文档，沉淀业务知识与数据</p>
         </div>
@@ -1343,7 +1344,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
             if (e.key === "Enter") router.push("/automation");
           }}
         >
-          <span className="project-quick-action-icon">⚡</span>
+          <AppIcon name="automation" className="project-quick-action-icon" />
           <h4>配置自动化</h4>
           <p>设置触发规则与 AI 动作，让重复流程自动运行</p>
         </div>

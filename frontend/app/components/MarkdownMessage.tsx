@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AppIcon } from "./AppIcon";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -21,7 +22,7 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       title={copied ? "已复制" : "复制"}
     >
-      {copied ? "✓" : "⎘"}
+      <AppIcon name={copied ? "check" : "copy"} />
     </button>
   );
 }
