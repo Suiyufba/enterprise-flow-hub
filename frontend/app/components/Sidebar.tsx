@@ -11,6 +11,45 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { SettingsModal } from "./SettingsModal";
 import { AnimateHeight } from "./AnimateHeight";
 
+type SidebarIconName =
+  | "dashboard" | "chat" | "search" | "library" | "plugins" | "automation" | "personas"
+  | "customers" | "suppliers" | "products" | "orders" | "files" | "payments" | "invoices"
+  | "rules" | "enterprise" | "audit" | "project" | "edit" | "delete" | "settings" | "user" | "logout";
+
+const iconPaths: Record<SidebarIconName, string[]> = {
+  dashboard: ["M4 5h7v7H4z", "M13 5h7v4h-7z", "M13 11h7v8h-7z", "M4 14h7v5H4z"],
+  chat: ["M5 6h14v10H8l-3 3z", "M8 9h8", "M8 12h5"],
+  search: ["M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13Z", "M15.5 15.5 20 20"],
+  library: ["M5 4h11a3 3 0 0 1 3 3v13H7a2 2 0 0 1-2-2z", "M7 16h12", "M8 8h7"],
+  plugins: ["M9 4v4", "M15 4v4", "M7 8h10v5a5 5 0 0 1-10 0z", "M12 18v3"],
+  automation: ["M13 3 5 14h6l-1 7 8-11h-6z"],
+  personas: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", "M4 20a8 8 0 0 1 16 0"],
+  customers: ["M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z", "M17 12a3 3 0 1 0 0-6", "M3 20a6 6 0 0 1 12 0", "M14 20a5 5 0 0 1 7-4.6"],
+  suppliers: ["M4 20V8l6-4v16", "M10 10l6-4v14", "M4 20h16", "M7 13h1", "M13 13h1", "M17 13h1"],
+  products: ["M4 8 12 4l8 4-8 4z", "M4 8v8l8 4 8-4V8", "M12 12v8"],
+  orders: ["M7 4h10l2 2v14H5V6z", "M8 9h8", "M8 13h8", "M8 17h5"],
+  files: ["M7 3h7l5 5v13H7z", "M14 3v6h5", "M9 14h6", "M9 17h4"],
+  payments: ["M4 7h16v10H4z", "M4 10h16", "M8 15h3"],
+  invoices: ["M7 3h10v18l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2z", "M9 8h6", "M9 12h6", "M9 16h4"],
+  rules: ["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z", "M12 4v2", "M12 18v2", "M4 12h2", "M18 12h2", "M6.6 6.6 8 8", "M16 16l1.4 1.4", "M17.4 6.6 16 8", "M8 16l-1.4 1.4"],
+  enterprise: ["M4 20V5h9v15", "M13 10h7v10", "M7 8h2", "M7 12h2", "M7 16h2", "M16 13h1", "M16 17h1"],
+  audit: ["M6 4h12v16H6z", "M9 8h6", "M9 12h6", "M9 16h4"],
+  project: ["M5 7h5l2 3h7v9H5z"],
+  edit: ["M5 19l4-.8L18.5 8.7a2.1 2.1 0 0 0-3-3L6 15.2z", "M14 7l3 3"],
+  delete: ["M6 7h12", "M9 7V5h6v2", "M8 10l1 9h6l1-9"],
+  settings: ["M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z", "M19 12h2", "M3 12h2", "M12 3v2", "M12 19v2", "M17 5.6l-1.4 1.4", "M8.4 17 7 18.4", "M7 5.6 8.4 7", "M15.6 17l1.4 1.4"],
+  user: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", "M5 20a7 7 0 0 1 14 0"],
+  logout: ["M9 5H5v14h4", "M14 8l4 4-4 4", "M18 12H9"],
+};
+
+function SidebarIcon({ name, className = "" }: { name: SidebarIconName; className?: string }) {
+  return (
+    <svg className={`sidebar-svg-icon ${className}`} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {iconPaths[name].map((path) => <path key={path} d={path} />)}
+    </svg>
+  );
+}
+
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -161,9 +200,10 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
+      <div className="sidebar-scroll">
       <nav className="primary-nav" aria-label="主导航">
         <Link href="/" className={`nav-item ${pathname === "/" ? "active" : ""}`}>
-          <span className="icon">◫</span> 仪表盘
+          <SidebarIcon name="dashboard" /> 仪表盘
         </Link>
 
         <button
@@ -177,22 +217,22 @@ export function Sidebar() {
         {navGroups.has("ai-tools") && (
           <div className="nav-group-items">
             <Link href="/chat/new" className={`nav-item ${pathname === "/chat/new" ? "active" : ""}`}>
-              <span className="icon">✎</span> 新对话
+              <SidebarIcon name="chat" /> 新对话
             </Link>
             <Link href="/search" className={`nav-item ${pathname === "/search" ? "active" : ""}`}>
-              <span className="icon">⌕</span> 搜索
+              <SidebarIcon name="search" /> 搜索
             </Link>
             <Link href="/library" className={`nav-item ${pathname === "/library" ? "active" : ""}`}>
-              <span className="icon">▣</span> 资料库
+              <SidebarIcon name="library" /> 资料库
             </Link>
             <Link href="/plugins" className={`nav-item ${pathname === "/plugins" ? "active" : ""}`}>
-              <span className="icon">⌘</span> 插件
+              <SidebarIcon name="plugins" /> 插件
             </Link>
             <Link href="/automation" className={`nav-item ${pathname === "/automation" ? "active" : ""}`}>
-              <span className="icon">◷</span> 自动化
+              <SidebarIcon name="automation" /> 自动化
             </Link>
             <Link href="/personas" className={`nav-item ${pathname === "/personas" ? "active" : ""}`}>
-              <span className="icon">◈</span> 人格
+              <SidebarIcon name="personas" /> 人格
             </Link>
           </div>
         )}
@@ -208,25 +248,25 @@ export function Sidebar() {
         {navGroups.has("business") && (
           <div className="nav-group-items">
             <Link href="/customers" className={`nav-item ${pathname === "/customers" ? "active" : ""}`}>
-              <span className="icon">👥</span> 客户
+              <SidebarIcon name="customers" /> 客户
             </Link>
             <Link href="/suppliers" className={`nav-item ${pathname === "/suppliers" ? "active" : ""}`}>
-              <span className="icon">🏭</span> 供应商
+              <SidebarIcon name="suppliers" /> 供应商
             </Link>
             <Link href="/products" className={`nav-item ${pathname === "/products" ? "active" : ""}`}>
-              <span className="icon">📦</span> 商品
+              <SidebarIcon name="products" /> 商品
             </Link>
             <Link href="/orders" className={`nav-item ${pathname?.startsWith("/orders") ? "active" : ""}`}>
-              <span className="icon">📋</span> 订单
+              <SidebarIcon name="orders" /> 订单
             </Link>
             <Link href="/files" className={`nav-item ${pathname?.startsWith("/files") ? "active" : ""}`}>
-              <span className="icon">📎</span> 文件
+              <SidebarIcon name="files" /> 文件
             </Link>
             <Link href="/payments" className={`nav-item ${pathname?.startsWith("/payments") ? "active" : ""}`}>
-              <span className="icon">💰</span> 付款
+              <SidebarIcon name="payments" /> 付款
             </Link>
             <Link href="/invoices" className={`nav-item ${pathname?.startsWith("/invoices") ? "active" : ""}`}>
-              <span className="icon">🧾</span> 发票
+              <SidebarIcon name="invoices" /> 发票
             </Link>
           </div>
         )}
@@ -242,23 +282,21 @@ export function Sidebar() {
         {navGroups.has("system") && (
           <div className="nav-group-items">
             <Link href="/rules" className={`nav-item ${pathname === "/rules" ? "active" : ""}`}>
-              <span className="icon">⚙</span> 规则引擎
+              <SidebarIcon name="rules" /> 规则引擎
             </Link>
             {user?.role === "admin" && (
               <>
                 <Link href="/enterprise" className={`nav-item ${pathname === "/enterprise" ? "active" : ""}`}>
-                  <span className="icon">▦</span> 企业管理
+                  <SidebarIcon name="enterprise" /> 企业管理
                 </Link>
                 <Link href="/audit" className={`nav-item ${pathname === "/audit" ? "active" : ""}`}>
-                  <span className="icon">📜</span> 操作日志
+                  <SidebarIcon name="audit" /> 操作日志
                 </Link>
               </>
             )}
           </div>
         )}
       </nav>
-
-      <div className="sidebar-scroll">
 
       <div className="sidebar-section-header">
         <span>项目</span>
@@ -311,11 +349,11 @@ export function Sidebar() {
                         href={`/projects/${project.id}`}
                         key={project.id}
                       >
-                        <span className="sub-item-icon">▱</span>
+                        <SidebarIcon name="project" className="sub-item-icon" />
                         <span className="sidebar-row-title">{project.name}</span>
                         <span className="sidebar-row-actions">
-                          <button className="sidebar-mini-action" onClick={(e) => startRenameProject(project.id, project.name, e)} title="重命名项目" type="button">✏</button>
-                          <button className="sidebar-mini-action danger" onClick={(e) => removeProject(project.id, e)} title="删除项目" type="button">×</button>
+                          <button className="sidebar-mini-action" onClick={(e) => startRenameProject(project.id, project.name, e)} title="重命名项目" type="button"><SidebarIcon name="edit" /></button>
+                          <button className="sidebar-mini-action danger" onClick={(e) => removeProject(project.id, e)} title="删除项目" type="button"><SidebarIcon name="delete" /></button>
                         </span>
                       </Link>
                     )
@@ -421,8 +459,8 @@ export function Sidebar() {
                         {conversation.title.length > 8 ? conversation.title.slice(0, 8) + "…" : conversation.title}
                       </span>
                       <span className="sidebar-row-actions">
-                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话">✏</span>
-                        <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话">×</span>
+                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话"><SidebarIcon name="edit" /></span>
+                        <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话"><SidebarIcon name="delete" /></span>
                       </span>
                     </button>
                   )
@@ -441,20 +479,20 @@ export function Sidebar() {
         {user ? (
           <div className="sidebar-user-info">
             <div className="sidebar-user-top">
-              <div className="sidebar-avatar">👤</div>
+              <div className="sidebar-avatar"><SidebarIcon name="user" /></div>
               <div className="sidebar-user-detail">
                 <span className="sidebar-username">{user.displayName}</span>
                 <span className="sidebar-user-role">{user.role === "admin" ? "管理员" : "成员"}</span>
               </div>
-              <button className="sidebar-settings-btn" onClick={() => setSettingsOpen(true)} title="设置" type="button">⚙</button>
+              <button className="sidebar-settings-btn" onClick={() => setSettingsOpen(true)} title="设置" type="button"><SidebarIcon name="settings" /></button>
             </div>
             <button className="sidebar-logout-btn" onClick={() => { logout(); router.push("/login"); }} type="button">
-              退出登录
+              <SidebarIcon name="logout" /> 退出登录
             </button>
           </div>
         ) : (
           <button className="sidebar-login-link" onClick={() => router.push("/login")} type="button">
-            👤 登录
+            <SidebarIcon name="user" /> 登录
           </button>
         )}
       </div>
