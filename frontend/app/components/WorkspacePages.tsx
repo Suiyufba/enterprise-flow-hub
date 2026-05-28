@@ -120,11 +120,11 @@ export function SearchPage() {
           placeholder="搜索线索、订单、资料或规则"
         />
         <button
-          className="page-primary-button"
-          onClick={() => router.push("/library")}
+          className="page-secondary-button"
+          onClick={() => router.push("/projects/new")}
           type="button"
         >
-          + 添加资料
+          + 新建项目
         </button>
       </div>
 

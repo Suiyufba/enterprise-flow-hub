@@ -222,6 +222,12 @@ export function Sidebar() {
             <Link href="/files" className={`nav-item ${pathname?.startsWith("/files") ? "active" : ""}`}>
               <span className="icon">📎</span> 文件
             </Link>
+            <Link href="/payments" className={`nav-item ${pathname?.startsWith("/payments") ? "active" : ""}`}>
+              <span className="icon">💰</span> 付款
+            </Link>
+            <Link href="/invoices" className={`nav-item ${pathname?.startsWith("/invoices") ? "active" : ""}`}>
+              <span className="icon">🧾</span> 发票
+            </Link>
           </div>
         )}
 

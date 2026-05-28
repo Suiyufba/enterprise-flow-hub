@@ -37,11 +37,12 @@ export default function AuditPage() {
     setLoading(true);
     try {
       // Use the existing fetchJson approach — audit_logs query via a simple GET
-      const res = await fetchJson<{ items: AuditLogRow[]; total: number }>(`/audit?enterpriseId=${enterpriseId}&page=${page}&limit=50`, { adminUserId: user?.id })
-        .catch(() => ({ items: [], total: 0 }));
+      const res = await fetchJson<{ items: AuditLogRow[]; total: number }>(`/audit?enterpriseId=${enterpriseId}&page=${page}&limit=50`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
-    } catch { /* audit may not have route yet */ }
+    } catch {
+      showToast("加载审计日志失败", "error");
+    }
     finally { setLoading(false); }
   }, [enterpriseId, page, user?.id, showToast]);
 

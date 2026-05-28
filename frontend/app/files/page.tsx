@@ -66,13 +66,34 @@ export default function FilesPage() {
         body: form,
         headers,
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) { showToast("上传失败", "error"); return; }
       showToast("上传成功", "success");
       await load();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "上传失败", "error");
+    } catch {
+      showToast("上传失败", "error");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleDownload(fileId: string, filename: string) {
+    try {
+      const headers: Record<string, string> = { "x-user-id": user?.id ?? "" };
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+      const storedToken = typeof window !== "undefined" ? localStorage.getItem("efh_token") : null;
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      else if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
+      const res = await fetch(`${apiUrl}/files/${fileId}/download`, { headers });
+      if (!res.ok) { showToast("下载失败", "error"); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast("下载失败", "error");
     }
   }
 
@@ -85,14 +106,13 @@ export default function FilesPage() {
       key: "actions",
       label: "操作",
       render: (f: FileRecord) => (
-        <a
-          href={`${apiUrl}/files/${f.id}/download`}
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: "var(--c-4a90e6)", fontSize: "12px", textDecoration: "none" }}
+        <button
+          onClick={() => handleDownload(f.id, f.filename)}
+          style={{ color: "var(--c-4a90e6)", fontSize: "12px", textDecoration: "none", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          type="button"
         >
           下载
-        </a>
+        </button>
       ),
     },
   ];
