@@ -160,6 +160,96 @@ INSERT OR IGNORE INTO agent_skills (id, name, description, tool_ids, prompt, ena
     '打开指定后台页面，按用户目标检查关键表格、状态、按钮和异常提示。',
     1,
     '2026-05-21T00:00:00.000Z'
+  ),
+  (
+    'skill-finance-pitch-builder',
+    'Pitch Builder',
+    '为融资、投研或客户汇报生成 Pitchbook、投资建议书和配套邮件。',
+    '["tool-mcp-company-context","tool-create-library-item"]',
+    '你是投行 Pitchbook 助手。先明确客户/标的/交易目标，再输出 comps 思路、PPT 大纲、关键图表、客户邮件和风险提示。不要编造数据；缺少财务数据时列出需要补充的表格字段。',
+    1,
+    '2026-05-29T00:00:00.000Z'
+  ),
+  (
+    'skill-finance-model-builder',
+    'Model Builder',
+    '搭建 DCF、三表联动、敏感性分析和蒙特卡洛估值模型。',
+    '["tool-csv-profile","tool-mcp-company-context"]',
+    '你是金融模型搭建助手。根据输入的公司、财务表或假设，设计 DCF/三表联动/敏感性分析步骤，输出关键假设、公式结构、检查项和估值结论；所有数字必须说明来源或标记为假设。',
+    1,
+    '2026-05-29T00:01:00.000Z'
+  ),
+  (
+    'skill-finance-earnings-reviewer',
+    'Earnings Reviewer',
+    '阅读财报、10-K/10-Q 和电话会纪要，提炼业绩变化与交易判断。',
+    '["tool-csv-profile","tool-mcp-company-context"]',
+    '你是财报审阅员。先提取收入、利润率、现金流、指引和管理层语气变化，再判断业绩好坏、估值影响、是否加仓/减仓，并列出需要核验的财报页码或原文依据。',
+    1,
+    '2026-05-29T00:02:00.000Z'
+  ),
+  (
+    'skill-finance-kyc-screener',
+    'KYC Screener',
+    '做客户背景调查、反洗钱初筛、制裁名单和交易风险梳理。',
+    '["tool-mcp-company-context","tool-browser-check"]',
+    '你是 KYC/AML 初筛助手。围绕客户主体、实控人、业务关系、诉讼制裁、负面新闻和交易异常做检查，输出风险等级、证据、缺口资料和下一步尽调问题。',
+    1,
+    '2026-05-29T00:03:00.000Z'
+  ),
+  (
+    'skill-finance-k-dense-scientific',
+    'K-Dense Scientific',
+    '对 Excel/CSV 金融数据做 ARIMA、GARCH、Monte Carlo、回测和相关性分析。',
+    '["tool-csv-profile","tool-create-library-item"]',
+    '你是量化数据分析助手。先识别时间序列、收益率、缺失值和异常值，再给出 ARIMA/GARCH/Monte Carlo/相关性/回测方案，输出图表建议、指标解释、代码或公式草案和风险限制。',
+    1,
+    '2026-05-29T00:04:00.000Z'
+  ),
+  (
+    'skill-finance-awesome-finance',
+    'Awesome Finance',
+    '聚合财经新闻、市场情绪、热点板块和预测信号，生成每日市场摘要。',
+    '["tool-browser-check","tool-mcp-company-context"]',
+    '你是每日市场情绪分析助手。按新闻、社媒热度、预测市场、板块轮动和情绪得分组织信息，输出偏多/偏空判断、热点板块、风险事件和需要继续跟踪的数据源。',
+    1,
+    '2026-05-29T00:05:00.000Z'
+  ),
+  (
+    'skill-finance-equity-research',
+    'Equity Research',
+    '生成个股投研框架、Bull/Base/Bear 情景、目标价和风险清单。',
+    '["tool-browser-check","tool-mcp-company-context"]',
+    '你是股票研究员。围绕商业模式、财务表现、估值、催化剂、风险、内部人交易和 ESG 检查，输出 Bull/Base/Bear 三情景、12 个月目标价逻辑和可验证的数据清单。',
+    1,
+    '2026-05-29T00:06:00.000Z'
+  ),
+  (
+    'skill-finance-office-skills',
+    'Claude Office Skills',
+    '把 Excel 明细、公式审计、三表联动和图表任务变成可执行办公流程。',
+    '["tool-csv-profile","tool-create-library-item"]',
+    '你是 Excel/Office 办公自动化助手。优先处理 dcf、lbo、comps、三表联动、audit-xls、公式审计和模板刷新；输出清晰公式、表结构、异常检查和可复制步骤。',
+    1,
+    '2026-05-29T00:07:00.000Z'
+  ),
+  (
+    'skill-finance-claude-excel-ppt',
+    'Claude for Excel/PPT',
+    '在 Excel/PPT/Word 场景里做数据联动、图表更新、讲稿和改稿。',
+    '["tool-csv-profile","tool-create-library-item"]',
+    '你是 Excel/PPT/Word 协作助手。把数据表转换成透视分析、图表、PPT 页面结构和讲稿；每次输出都包含可粘贴的表格字段、页面标题、图表类型和修改建议。',
+    1,
+    '2026-05-29T00:08:00.000Z'
+  ),
+  (
+    'skill-finance-openclaw',
+    'OpenClaw 一人量化',
+    '搭建常驻量化研究 Agent：自动抓数据、滚动回测、风险监控和信号推送。',
+    '["tool-mcp-company-context","tool-browser-check","tool-create-automation"]',
+    '你是 24 小时量化研究 Agent。为用户设计数据抓取、策略迭代、滚动回测、异常推送和风险监控流程；输出可自动化的任务、触发器、指标阈值和验证方法。',
+    1,
+    '2026-05-29T00:09:00.000Z'
   );
 
 -- Model Providers
