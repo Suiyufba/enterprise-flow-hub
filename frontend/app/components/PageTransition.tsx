@@ -15,16 +15,13 @@ export function PageTransition({ children }: { children: ReactNode }) {
         autoAlpha: 0,
         duration: 0.5,
         ease: "power3.out",
+        overwrite: true,
       });
     },
     { scope: ref, dependencies: [pathname] }
   );
 
-  return (
-    <div key={pathname} ref={ref}>
-      {children}
-    </div>
-  );
+  return <div ref={ref}>{children}</div>;
 }
 
 export function CardStagger({
