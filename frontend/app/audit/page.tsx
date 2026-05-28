@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
-import { gsap, useGSAP } from "../lib/gsap";
 
 type AuditLogRow = {
   id: string;
@@ -26,12 +25,6 @@ export default function AuditPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -68,7 +61,7 @@ export default function AuditPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <PageHeader title="操作日志" description="记录所有写入操作，满足审计合规要求" />
         <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无日志" emptyDesc="尚未有操作记录" />
       </div>

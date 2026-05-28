@@ -18,18 +18,8 @@ export default function Home() {
   const [personaId, setPersonaId] = useState("");
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
-  const pageRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const sendBtnRef = useRef<HTMLButtonElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, {
-      y: 32,
-      opacity: 0,
-      duration: 0.6,
-      ease: "power3.out",
-    });
-  }, { scope: pageRef });
 
   useGSAP(() => {
     if (!composerRef.current) return;
@@ -126,7 +116,7 @@ export default function Home() {
   }
 
   return (
-    <div className="main-inner" style={{ maxWidth: 800, paddingTop: 60 }} ref={pageRef}>
+    <div className="main-inner" style={{ maxWidth: 800, paddingTop: 60 }}>
       <h1 className="main-title">今天想做什么？</h1>
 
       <div className="chat-composer" ref={composerRef}>

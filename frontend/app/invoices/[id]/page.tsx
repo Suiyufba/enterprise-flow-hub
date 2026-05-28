@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, use } from "react";
+import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
@@ -8,7 +8,6 @@ import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
-import { gsap, useGSAP } from "../../lib/gsap";
 import type { Invoice, PaginatedList } from "shared";
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,12 +17,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +55,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button className="chat-back" onClick={() => router.push("/invoices")} type="button">←</button>

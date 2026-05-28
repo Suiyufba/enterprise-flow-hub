@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { AnalysisResult } from "shared";
 import { fetchJson } from "../lib/api";
-import { gsap, useGSAP } from "../lib/gsap";
 import { AppIcon } from "../components/AppIcon";
 
 function ResultsContent() {
@@ -13,19 +12,6 @@ function ResultsContent() {
   const id = searchParams.get("id");
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    if (!loading && data) {
-      gsap.from(pageRef.current, {
-        y: 24,
-        opacity: 0,
-        duration: 0.5,
-        ease: "power3.out",
-      });
-    }
-  }, { dependencies: [loading, data], scope: pageRef });
-
   useEffect(() => {
     if (!id) {
       setLoading(false);
@@ -97,7 +83,7 @@ function ResultsContent() {
   }
 
   return (
-    <div className="results-inner" ref={pageRef}>
+    <div className="results-inner">
       {/* Back + Title */}
       <div className="results-back">
         <button onClick={() => router.push("/")}>←</button>

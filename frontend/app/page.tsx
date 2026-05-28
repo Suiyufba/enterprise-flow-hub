@@ -19,7 +19,6 @@ export default function DashboardPage() {
   const pageRef = useRef<HTMLDivElement>(null);
 
   useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
     gsap.from(".stat-card", { y: 16, autoAlpha: 0, duration: 0.4, stagger: 0.07, ease: "power3.out", delay: 0.1 });
     gsap.from(".dashboard-card", { y: 12, autoAlpha: 0, duration: 0.35, stagger: 0.08, ease: "power3.out", delay: 0.2 });
   }, { scope: pageRef });

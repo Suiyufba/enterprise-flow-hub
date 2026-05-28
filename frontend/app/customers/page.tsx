@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -10,7 +10,6 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
 import { DataTable } from "../components/DataTable";
-import { gsap, useGSAP } from "../lib/gsap";
 import type { Customer, PaginatedList } from "shared";
 
 export default function CustomersPage() {
@@ -24,12 +23,6 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -66,7 +59,7 @@ export default function CustomersPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <PageHeader
           title="客户管理"
           description="管理所有客户和潜在客户信息"

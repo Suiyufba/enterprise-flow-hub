@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -9,7 +9,6 @@ import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { DataTable } from "../components/DataTable";
-import { gsap, useGSAP } from "../lib/gsap";
 import type { Invoice, PaginatedList } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -27,12 +26,6 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -105,7 +98,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <PageHeader
           title="发票管理"
           description="管理所有发票，跟踪开票和付款状态"

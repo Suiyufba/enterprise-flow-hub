@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef, use } from "react";
+import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
-import { gsap, useGSAP } from "../../lib/gsap";
 import type { Order } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -20,12 +19,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -84,7 +77,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button className="chat-back" onClick={() => router.push("/orders")} type="button">←</button>

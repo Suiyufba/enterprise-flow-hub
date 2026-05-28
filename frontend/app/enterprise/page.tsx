@@ -211,8 +211,6 @@ export default function EnterprisePage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const pageRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -294,13 +292,6 @@ export default function EnterprisePage() {
     }
     return roots;
   }, [departments, users]);
-
-  // Page entrance — scoped to the page shell
-  useGSAP(() => {
-    if (loading) return;
-    gsap.from(headerRef.current, { y: 16, autoAlpha: 0, duration: 0.45, ease: "power3.out" });
-    gsap.from(".page-stat", { y: 20, autoAlpha: 0, duration: 0.4, stagger: 0.08, ease: "power3.out", delay: 0.1 });
-  }, { dependencies: [loading], scope: pageRef });
 
   // Org chart entrance + node stagger — scoped to the chart container
   useGSAP(() => {
@@ -473,8 +464,8 @@ export default function EnterprisePage() {
 
   return (
     <div className="enterprise-page">
-      <div className="page-shell" ref={pageRef}>
-        <div className="page-header" ref={headerRef}>
+      <div className="page-shell">
+        <div className="page-header">
           <h1>企业管理</h1>
           <p>组织架构一目了然，高效管理团队</p>
         </div>

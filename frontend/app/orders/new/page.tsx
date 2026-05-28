@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
-import { gsap, useGSAP } from "../../lib/gsap";
 import type { Customer, Product, PaginatedList } from "shared";
 
 interface LineItem {
@@ -21,12 +20,6 @@ export default function NewOrderPage() {
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customerId, setCustomerId] = useState("");
@@ -111,7 +104,7 @@ export default function NewOrderPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <div className="page-header">
           <h1>新建订单</h1>
           <p>选择客户和商品来创建新订单</p>

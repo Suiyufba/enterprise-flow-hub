@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
@@ -8,7 +8,6 @@ import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
 import { StatusBadge } from "../components/StatusBadge";
-import { gsap, useGSAP } from "../lib/gsap";
 
 type RuleRow = {
   id: string;
@@ -32,12 +31,6 @@ export default function RulesPage() {
   const [data, setData] = useState<RuleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -128,7 +121,7 @@ export default function RulesPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <PageHeader
           title="规则引擎"
           description="管理自动化业务规则，当条件满足时触发动作"

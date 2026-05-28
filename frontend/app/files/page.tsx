@@ -7,7 +7,6 @@ import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
-import { gsap, useGSAP } from "../lib/gsap";
 import type { FileRecord, PaginatedList } from "shared";
 
 function formatSize(bytes: number): string {
@@ -28,12 +27,6 @@ export default function FilesPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -119,7 +112,7 @@ export default function FilesPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <PageHeader
           title="文件管理"
           description="上传和管理企业文件"

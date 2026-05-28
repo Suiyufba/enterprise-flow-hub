@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
+import { PageTransition } from "./PageTransition";
 import { useAuth } from "../lib/auth-context";
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -51,7 +52,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <Sidebar />
       <main className="main">
         <ThemeToggle />
-        {children}
+        <PageTransition>{children}</PageTransition>
       </main>
     </>
   );

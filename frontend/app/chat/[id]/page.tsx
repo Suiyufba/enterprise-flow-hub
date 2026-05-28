@@ -32,18 +32,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgCounterRef = useRef(0);
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
-  const chatShellRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-
-  // Page entrance animation
-  useGSAP(() => {
-    gsap.from(chatShellRef.current, {
-      y: 24,
-      opacity: 0,
-      duration: 0.5,
-      ease: "power3.out",
-    });
-  }, { scope: chatShellRef });
 
   // Animate new messages as they appear
   const prevCountRef = useRef(0);
@@ -367,7 +356,7 @@ export default function ChatPage() {
   const currentEnterpriseProjects = workspace?.projects.filter((project) => project.enterpriseId === currentEnterpriseId) ?? [];
 
   return (
-    <div className="chat-shell" ref={chatShellRef}>
+    <div className="chat-shell">
       {/* Header */}
       <header className="chat-header">
         <button className="chat-back" onClick={() => router.push("/")} type="button">

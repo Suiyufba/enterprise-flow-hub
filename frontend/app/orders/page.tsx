@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -10,7 +10,6 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
 import { DataTable } from "../components/DataTable";
-import { gsap, useGSAP } from "../lib/gsap";
 import type { Order, PaginatedList } from "shared";
 
 export default function OrdersPage() {
@@ -24,12 +23,6 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -63,7 +56,7 @@ export default function OrdersPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <PageHeader title="订单管理" description="管理所有订单、付款和发票" />
         <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索订单号..." />

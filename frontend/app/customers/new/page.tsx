@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
-import { gsap, useGSAP } from "../../lib/gsap";
 import type { Customer } from "shared";
 
 export default function NewCustomerPage() {
@@ -15,12 +14,6 @@ export default function NewCustomerPage() {
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
@@ -59,7 +52,7 @@ export default function NewCustomerPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <div className="page-header">
           <h1>新建客户</h1>
           <p>添加新的客户信息</p>

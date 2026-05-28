@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef, use } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
-import { gsap, useGSAP } from "../../lib/gsap";
 import type { Customer } from "shared";
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -13,12 +12,6 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const pageRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(pageRef.current, { y: 24, autoAlpha: 0, duration: 0.5, ease: "power3.out" });
-  }, { scope: pageRef });
-
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -113,7 +106,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button className="chat-back" onClick={() => router.push("/customers")} type="button">←</button>

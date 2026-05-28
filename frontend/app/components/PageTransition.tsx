@@ -1,24 +1,30 @@
 "use client";
 
 import { useRef, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { gsap, useGSAP } from "../lib/gsap";
 
 export function PageTransition({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const ref = useRef<HTMLDivElement>(null);
 
   useGSAP(
     () => {
       gsap.from(ref.current, {
         y: 24,
-        opacity: 0,
+        autoAlpha: 0,
         duration: 0.5,
         ease: "power3.out",
       });
     },
-    { scope: ref }
+    { scope: ref, dependencies: [pathname] }
   );
 
-  return <div ref={ref}>{children}</div>;
+  return (
+    <div key={pathname} ref={ref}>
+      {children}
+    </div>
+  );
 }
 
 export function CardStagger({
