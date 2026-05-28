@@ -34,11 +34,11 @@ export default function DashboardPage() {
   const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
-    if (!enterpriseId) return;
+    if (!enterpriseId || !user?.id) return;
     setStatsLoading(true);
     Promise.all([
-      fetchJson<PaginatedList<Order>>(`/orders?enterpriseId=${enterpriseId}&limit=50`),
-      fetchJson<PaginatedList<Payment>>(`/payments?enterpriseId=${enterpriseId}&limit=50`),
+      fetchJson<PaginatedList<Order>>(`/orders?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+      fetchJson<PaginatedList<Payment>>(`/payments?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
     ])
       .then(([ordersRes, paymentsRes]) => {
         setRecentOrders(ordersRes.items);
@@ -48,7 +48,7 @@ export default function DashboardPage() {
       })
       .catch(() => showToast("加载统计数据失败", "error"))
       .finally(() => setStatsLoading(false));
-  }, [enterpriseId, showToast]);
+  }, [enterpriseId, user?.id, showToast]);
 
   const orderStatusCounts: Record<string, number> = {};
   for (const o of recentOrders) {
