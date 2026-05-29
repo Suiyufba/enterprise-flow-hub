@@ -116,7 +116,7 @@ export default function Home() {
   }
 
   return (
-    <div className="main-inner" style={{ maxWidth: 800, paddingTop: 60 }}>
+    <div className="main-inner" style={{ maxWidth: 800, display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
       <h1 className="main-title">今天想做什么？</h1>
 
       <div className="chat-composer" ref={composerRef}>
