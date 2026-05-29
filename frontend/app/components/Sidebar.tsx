@@ -84,7 +84,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       top: activeRect.top - navRect.top,
       height: activeRect.height,
       duration: 350,
-      ease: spring({ mass: 1, stiffness: 80, damping: 12, velocity: 0 }),
+      ease: "outExpo",
     });
   }, [pathname]);
 
