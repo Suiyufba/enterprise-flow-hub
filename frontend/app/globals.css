@@ -413,8 +413,8 @@ body {
 .nav-indicator {
   position: absolute;
   left: 0;
-  width: 2px;
-  border-radius: 0;
+  width: 3px;
+  border-radius: 999px;
   background: var(--c-4a90e6);
   pointer-events: none;
   z-index: 1;
@@ -473,6 +473,7 @@ body {
 
 .sidebar .nav-item.active {
   background: var(--c-303030);
+  border-radius: 0 8px 8px 0;
 }
 
 .sidebar-svg-icon {

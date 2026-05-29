@@ -80,9 +80,11 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
     const activeRect = active.getBoundingClientRect();
     const indicator = nav.querySelector(".nav-indicator") as HTMLElement | null;
     if (!indicator) return;
+    const indicatorHeight = activeRect.height * 0.4;
+    const indicatorTop = activeRect.top - navRect.top + (activeRect.height - indicatorHeight) / 2;
     animate(indicator, {
-      top: activeRect.top - navRect.top,
-      height: activeRect.height,
+      top: indicatorTop,
+      height: indicatorHeight,
       duration: 350,
       ease: "outExpo",
     });
