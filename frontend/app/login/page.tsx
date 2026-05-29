@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth-context";
+import { animate } from "../lib/anime";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -30,6 +32,13 @@ export default function LoginPage() {
       router.replace("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "操作失败");
+      if (formRef.current) {
+        animate(formRef.current, {
+          x: [0, -8, 8, -6, 6, -4, 4, -2, 2, 0],
+          duration: 500,
+          ease: "inOutSine",
+        });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -56,7 +65,7 @@ export default function LoginPage() {
           <p className="login-sub">企业流程自动化平台</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="login-form">
+        <form ref={formRef} onSubmit={handleSubmit} className="login-form">
           <input
             className="login-input"
             type="text"

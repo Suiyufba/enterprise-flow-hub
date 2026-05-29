@@ -8,6 +8,7 @@ import { useToast } from "../../lib/toast-context";
 import MarkdownMessage from "../../components/MarkdownMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
 import { gsap, useGSAP } from "../../lib/gsap";
+import { animate } from "../../lib/anime";
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -147,20 +148,20 @@ export default function ChatPage() {
           setLocalMessages((prev) => [...prev, aiMsg]);
           setStreamingMsgId(aiMsg.id);
           const fullContent = result.message.content;
-          // Throttled: max 30 ticks at 100ms, large chunks per tick
-          const totalTicks = Math.min(30, Math.ceil(fullContent.length / 20));
-          const charsPerTick = Math.ceil(fullContent.length / totalTicks);
-          let pos = 0;
-          const interval = setInterval(() => {
-            pos += charsPerTick;
-            if (pos >= fullContent.length) {
-              clearInterval(interval);
+          const streamObj = { progress: 0 };
+          animate(streamObj, {
+            progress: fullContent.length,
+            duration: Math.max(500, Math.min(4000, fullContent.length * 25)),
+            ease: "outExpo",
+            onUpdate: () => {
+              const pos = Math.floor(streamObj.progress);
+              setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
+            },
+            onComplete: () => {
               setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent } : m));
               setStreamingMsgId(null);
-            } else {
-              setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
-            }
-          }, 100);
+            },
+          });
         } catch (e) {
           let errMsg = "消息发送失败，请重试";
           try {
@@ -294,20 +295,20 @@ export default function ChatPage() {
       setStreamingMsgId(aiMsg.id);
 
       const fullContent = result.message.content;
-      // Throttled: max 30 ticks at 100ms
-      const totalTicks = Math.min(30, Math.ceil(fullContent.length / 20));
-      const charsPerTick = Math.ceil(fullContent.length / totalTicks);
-      let pos = 0;
-      const interval = setInterval(() => {
-        pos += charsPerTick;
-        if (pos >= fullContent.length) {
-          clearInterval(interval);
+      const streamObj = { progress: 0 };
+      animate(streamObj, {
+        progress: fullContent.length,
+        duration: Math.max(500, Math.min(4000, fullContent.length * 25)),
+        ease: "outExpo",
+        onUpdate: () => {
+          const pos = Math.floor(streamObj.progress);
+          setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
+        },
+        onComplete: () => {
           setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent } : m));
           setStreamingMsgId(null);
-        } else {
-          setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
-        }
-      }, 100);
+        },
+      });
     } catch (e) {
       let errMsg = "消息发送失败，请重试";
       try {

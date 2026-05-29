@@ -6,6 +6,8 @@ import type { AgentSkill, Automation, LibraryItem, Plugin, PluginConfigResponse,
 import { fetchJson } from "../lib/api";
 import { useWorkspace } from "../lib/workspace-context";
 
+import { animate, stagger, spring } from "../lib/anime";
+
 import { AppIcon, type AppIconName } from "./AppIcon";
 
 export function SearchPage() {
@@ -250,6 +252,20 @@ export function LibraryPage() {
       setProjectId(projectsForEnterprise[0]?.id ?? "");
     }
   }, [enterpriseId, projectId, projectsForEnterprise]);
+
+  useEffect(() => {
+    const cards = document.querySelectorAll(".page-card-grid .page-card");
+    if (cards.length === 0) return;
+    const animation = animate(".page-card-grid .page-card", {
+      scale: [0.92, 1],
+      opacity: [0, 1],
+      y: [16, 0],
+      duration: 500,
+      delay: stagger(60),
+      ease: spring({ mass: 1, stiffness: 80, damping: 12, velocity: 0 }),
+    });
+    return () => { animation?.cancel(); };
+  }, [filtered]);
 
   function resetLibraryForm() {
     setEditingItemId(null);
@@ -626,6 +642,20 @@ export function PluginsPage() {
     }
   }
 
+  useEffect(() => {
+    const cards = document.querySelectorAll(".page-card-grid .page-card, .tool-grid .page-card");
+    if (cards.length === 0) return;
+    const animation = animate(".page-card-grid .page-card, .tool-grid .page-card", {
+      scale: [0.92, 1],
+      opacity: [0, 1],
+      y: [16, 0],
+      duration: 500,
+      delay: stagger(60),
+      ease: spring({ mass: 1, stiffness: 80, damping: 12, velocity: 0 }),
+    });
+    return () => { animation?.cancel(); };
+  }, [workspace.tools, workspace.plugins]);
+
   return (
     <PageShell title="插件" description="管理工具、Skills 和外部连接。">
       {/* Tools */}
@@ -906,6 +936,20 @@ export function AutomationPage() {
     const diffDay = Math.floor(diffHour / 24);
     return `${diffDay} 天前`;
   }
+
+  useEffect(() => {
+    const cards = document.querySelectorAll(".workflow-card");
+    if (cards.length === 0) return;
+    const animation = animate(".workflow-card", {
+      scale: [0.92, 1],
+      opacity: [0, 1],
+      y: [16, 0],
+      duration: 500,
+      delay: stagger(60),
+      ease: spring({ mass: 1, stiffness: 80, damping: 12, velocity: 0 }),
+    });
+    return () => { animation?.cancel(); };
+  }, [filtered]);
 
   return (
     <PageShell title="自动化" description="AI 驱动的自动化工作流：触发器 + Agent + 动作。">

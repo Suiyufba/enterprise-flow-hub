@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
@@ -10,6 +10,7 @@ import { useToast } from "../lib/toast-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SettingsModal } from "./SettingsModal";
 import { AnimateHeight } from "./AnimateHeight";
+import { animate, spring } from "../lib/anime";
 
 type SidebarIconName =
   | "dashboard" | "chat" | "search" | "library" | "plugins" | "automation" | "personas" | "check" | "x"
@@ -59,6 +60,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const { user, logout } = useAuth();
   const { showToast } = useToast();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const navRef = useRef<HTMLElement>(null);
   const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
   const [navGroups, setNavGroups] = useState<Set<string>>(() => {
     try {
@@ -68,6 +70,23 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       return new Set(["ai-tools"]);
     }
   });
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const active = nav.querySelector(".nav-item.active") as HTMLElement | null;
+    if (!active) return;
+    const navRect = nav.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const indicator = nav.querySelector(".nav-indicator") as HTMLElement | null;
+    if (!indicator) return;
+    animate(indicator, {
+      top: activeRect.top - navRect.top,
+      height: activeRect.height,
+      duration: 350,
+      ease: spring({ mass: 1, stiffness: 80, damping: 12, velocity: 0 }),
+    });
+  }, [pathname]);
 
   function toggleNavGroup(id: string) {
     setNavGroups((prev) => {
@@ -219,7 +238,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       </button>
       <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
         <div className="sidebar-scroll">
-      <nav className="primary-nav" aria-label="主导航">
+      <nav className="primary-nav" ref={navRef} aria-label="主导航">
+          <div className="nav-indicator" />
         <Link href="/" className={`nav-item ${pathname === "/" ? "active" : ""}`}>
           <SidebarIcon name="dashboard" /> 仪表盘
         </Link>

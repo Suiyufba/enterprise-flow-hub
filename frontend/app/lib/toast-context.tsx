@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { animate } from "./anime";
 
 interface ToastItem {
   id: number;
@@ -27,7 +28,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const id = nextId++;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
+      const el = document.querySelector(`[data-toast-id="${id}"]`);
+      if (el) {
+        animate(el, {
+          x: [0, 100],
+          opacity: [1, 0],
+          duration: 300,
+          ease: "inCubic",
+          onComplete: () => {
+            setToasts((prev) => prev.filter((t) => t.id !== id));
+          },
+        });
+      } else {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }
     }, 4000);
   }, []);
 
@@ -36,7 +50,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toast-container">
         {toasts.map((t) => (
-          <div key={t.id} className={`toast-item toast-${t.type}`}>
+          <div
+            key={t.id}
+            data-toast-id={t.id}
+            className={`toast-item toast-${t.type}`}
+          >
             {t.message}
           </div>
         ))}

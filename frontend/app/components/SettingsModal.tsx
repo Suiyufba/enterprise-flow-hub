@@ -1,15 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgentPersona, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
+import { animate, spring } from "../lib/anime";
 import "./SettingsModal.css";
 
 type Tab = "providers" | "personas";
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { showToast } = useToast();
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open || !overlayRef.current || !contentRef.current) return;
+    animate(overlayRef.current, {
+      opacity: [0, 1],
+      duration: 250,
+      ease: "outCubic",
+    });
+    animate(contentRef.current, {
+      scale: [0.9, 1],
+      y: [10, 0],
+      opacity: [0, 1],
+      duration: 500,
+      ease: spring({ mass: 1, stiffness: 80, damping: 12, velocity: 0 }),
+    });
+  }, [open]);
+
   const [tab, setTab] = useState<Tab>("providers");
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [personas, setPersonas] = useState<AgentPersona[]>([]);
@@ -240,8 +260,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   if (!open) return null;
 
   return (
-    <div className="settings-overlay" onClick={onClose}>
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="settings-overlay" onClick={onClose} ref={overlayRef}>
+      <div className="settings-modal" onClick={(e) => e.stopPropagation()} ref={contentRef}>
         <div className="settings-header">
           <h2>设置</h2>
           <button className="settings-close" onClick={onClose} type="button">×</button>

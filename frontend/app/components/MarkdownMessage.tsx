@@ -1,22 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AppIcon } from "./AppIcon";
+import { animate, spring } from "../lib/anime";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   function copy() {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     });
+    if (!btnRef.current) return;
+    animate(btnRef.current, {
+      scale: [1, 0.85, 1.1, 1],
+      duration: 400,
+      ease: spring({ mass: 1, stiffness: 100, damping: 12, velocity: 0 }),
+    });
   }
 
   return (
     <button
+      ref={btnRef}
       className="msg-copy-btn"
       onClick={copy}
       type="button"

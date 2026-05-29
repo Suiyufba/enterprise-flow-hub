@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
 import { useWorkspace } from "../lib/workspace-context";
 import { gsap, useGSAP } from "../lib/gsap";
+import { animate, stagger } from "../lib/anime";
 import { AppIcon } from "../components/AppIcon";
 import type { Department, User } from "shared";
 
@@ -60,14 +61,20 @@ function DepartmentTreeNode({
       stagger: 0.05,
       ease: "back.out(1.2)",
     });
-    gsap.from(childrenRef.current.querySelectorAll(".org-tree-connector, .org-child-connector"), {
-      scaleY: 0,
-      transformOrigin: "top center",
-      duration: 0.28,
-      stagger: 0.03,
-      ease: "power2.out",
-    });
   }, { dependencies: [collapsed, dept.children.length, dept.members.length], scope: childrenRef });
+
+  useEffect(() => {
+    if (!childrenRef.current) return;
+    const connectors = childrenRef.current.querySelectorAll(".org-tree-connector, .org-child-connector");
+    if (connectors.length === 0) return;
+    const animation = animate(connectors, {
+      scaleY: [0, 1],
+      duration: 400,
+      delay: stagger(40),
+      ease: "outCubic",
+    });
+    return () => { animation?.cancel(); };
+  }, [collapsed, dept.children.length, dept.members.length]);
 
   return (
     <div className={`org-tree-node depth-${depth}`}>
