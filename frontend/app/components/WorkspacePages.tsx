@@ -216,15 +216,6 @@ export function LibraryPage() {
     else if (ext && ["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) setType("screenshot");
   }
 
-  useEffect(() => {
-    if (!enterpriseId && workspace.enterprises[0]) {
-      setEnterpriseId(workspace.enterprises[0].id);
-    }
-    if (!projectId && workspace.projects[0]) {
-      setProjectId(workspace.projects[0].id);
-    }
-  }, [enterpriseId, projectId, workspace.enterprises, workspace.projects]);
-
   const filtered = useMemo(() => {
     let items = workspace.libraryItems;
     if (enterpriseFilter !== "全部") {
@@ -246,6 +237,19 @@ export function LibraryPage() {
     () => workspace.projects.filter((p) => p.enterpriseId === enterpriseId),
     [workspace.projects, enterpriseId],
   );
+
+  useEffect(() => {
+    if (!enterpriseId && workspace.enterprises[0]) {
+      setEnterpriseId(workspace.enterprises[0].id);
+    }
+  }, [enterpriseId, workspace.enterprises]);
+
+  useEffect(() => {
+    if (!enterpriseId) return;
+    if (!projectsForEnterprise.some((project) => project.id === projectId)) {
+      setProjectId(projectsForEnterprise[0]?.id ?? "");
+    }
+  }, [enterpriseId, projectId, projectsForEnterprise]);
 
   function resetLibraryForm() {
     setEditingItemId(null);
@@ -270,7 +274,7 @@ export function LibraryPage() {
   }
 
   async function saveItem() {
-    if (!name.trim() || !summary.trim()) return;
+    if (!name.trim() || !summary.trim() || !enterpriseId || !projectId) return;
     try {
       const body = { enterpriseId, projectId, name, summary, type, visibility };
       if (editingItemId) {
@@ -381,7 +385,7 @@ export function LibraryPage() {
           </select>
           <input className="page-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="资料名称" />
           <input className="page-input" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="资料说明" />
-          <button className="page-primary-button" onClick={saveItem} type="button">
+          <button className="page-primary-button" onClick={saveItem} type="button" disabled={!name.trim() || !summary.trim() || !enterpriseId || !projectId}>
             {editingItemId ? "保存修改" : "确认添加"}
           </button>
         </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
@@ -10,6 +10,7 @@ import { useToast } from "../lib/toast-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SettingsModal } from "./SettingsModal";
 import { AnimateHeight } from "./AnimateHeight";
+import { gsap, useGSAP } from "../lib/gsap";
 
 type SidebarIconName =
   | "dashboard" | "chat" | "search" | "library" | "plugins" | "automation" | "personas" | "check" | "x"
@@ -52,12 +53,13 @@ function SidebarIcon({ name, className = "" }: { name: SidebarIconName; classNam
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const { workspace, refresh } = useWorkspace();
   const { user, logout } = useAuth();
   const { showToast } = useToast();
+  const asideRef = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
   const [navGroups, setNavGroups] = useState<Set<string>>(() => {
@@ -68,6 +70,18 @@ export function Sidebar() {
       return new Set(["ai-tools"]);
     }
   });
+
+  useGSAP(() => {
+    if (!asideRef.current) return;
+    gsap.to(asideRef.current, {
+      width: collapsed ? 0 : 240,
+      paddingLeft: collapsed ? 0 : 12,
+      paddingRight: collapsed ? 0 : 12,
+      borderRightWidth: collapsed ? 0 : 1,
+      duration: 0.3,
+      ease: "power3.inOut",
+    });
+  }, { dependencies: [collapsed], scope: asideRef });
 
   function toggleNavGroup(id: string) {
     setNavGroups((prev) => {
@@ -201,8 +215,24 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-scroll">
+    <>
+      <button
+        className={`sidebar-toggle ${collapsed ? "collapsed" : ""}`}
+        onClick={onToggle}
+        type="button"
+        aria-label={collapsed ? "展开侧栏" : "收起侧栏"}
+        title={collapsed ? "展开侧栏" : "收起侧栏"}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {collapsed ? (
+            <path d="M9 18l6-6-6-6" />
+          ) : (
+            <path d="M15 18l-6-6 6-6" />
+          )}
+        </svg>
+      </button>
+      <aside className="sidebar" ref={asideRef}>
+        <div className="sidebar-scroll">
       <nav className="primary-nav" aria-label="主导航">
         <Link href="/" className={`nav-item ${pathname === "/" ? "active" : ""}`}>
           <SidebarIcon name="dashboard" /> 仪表盘
@@ -510,5 +540,6 @@ export function Sidebar() {
         onCancel={() => setDeleteTarget(null)}
       />
     </aside>
+    </>
   );
 }

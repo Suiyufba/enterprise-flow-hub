@@ -331,6 +331,32 @@ body {
   background: var(--c-333333);
 }
 
+.sidebar-toggle {
+  position: fixed;
+  top: 14px;
+  left: 228px;
+  z-index: 100;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--c-404040);
+  border-radius: 6px;
+  background: var(--c-202020);
+  color: var(--c-a0a0a0);
+  cursor: pointer;
+  padding: 0;
+  transition: left 0.3s ease, color 0.15s, background 0.15s;
+}
+.sidebar-toggle:hover {
+  background: var(--c-303030);
+  color: var(--c-f0f0f0);
+}
+.sidebar-toggle.collapsed {
+  left: 8px;
+}
+
 .sidebar {
   width: 240px;
   height: 100vh;
