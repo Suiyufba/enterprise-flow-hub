@@ -68,7 +68,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return (
     <>
       <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-      <main className="main">
+      <main className="main" style={{ paddingLeft: sidebarCollapsed ? 0 : 252 }}>
         <ThemeToggle />
         {isWorkflowEditorPage ? children : <PageTransition>{children}</PageTransition>}
       </main>

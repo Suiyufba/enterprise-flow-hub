@@ -335,7 +335,7 @@ body {
   position: fixed;
   top: 14px;
   left: 228px;
-  z-index: 100;
+  z-index: 110;
   width: 24px;
   height: 24px;
   display: flex;
@@ -358,24 +358,23 @@ body {
 }
 
 .sidebar {
-  width: 240px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 252px;
   height: 100vh;
   background: var(--c-1d1d1d);
   border-right: 1px solid var(--c-2a2a2a);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
   padding: 12px;
   gap: 2px;
   overflow: hidden;
-  min-width: 0;
-  transition: width 0.3s ease, padding-left 0.3s ease, padding-right 0.3s ease, border-right-width 0.3s ease;
+  z-index: 100;
+  transition: transform 0.3s ease;
 }
 .sidebar.collapsed {
-  width: 0;
-  padding-left: 0;
-  padding-right: 0;
-  border-right-width: 0;
+  transform: translateX(-100%);
 }
 
 .sidebar .win-controls {
@@ -1024,6 +1023,7 @@ body {
   justify-content: flex-start;
   padding-top: 84px;
   overflow-y: auto;
+  transition: padding-left 0.3s ease;
 }
 
 .main-inner {
