@@ -77,19 +77,23 @@ function DepartmentTreeNode({
           {parentDept && <span>上级：{parentDept.name}</span>}
         </div>
         <div className="org-dept-header">
-          {hasChildren && (
-            <button
-              className="org-collapse-btn"
-              onClick={() => setCollapsed(!collapsed)}
-              type="button"
-              aria-label={collapsed ? "展开下级" : "收起下级"}
-            >
-              <span className={`tree-chevron ${!collapsed ? "open" : ""}`}>▸</span>
-            </button>
-          )}
-          <span className="org-dept-icon">部门</span>
-          <span className="org-dept-name">{dept.name}</span>
-          <span className="org-dept-count">{totalMembers}人</span>
+          <div className="org-dept-info">
+            {hasChildren && (
+              <button
+                className="org-collapse-btn"
+                onClick={() => setCollapsed(!collapsed)}
+                type="button"
+                aria-label={collapsed ? "展开下级" : "收起下级"}
+              >
+                <span className={`tree-chevron ${!collapsed ? "open" : ""}`}>▸</span>
+              </button>
+            )}
+            <span className="org-dept-icon">部门</span>
+            <div className="org-dept-text">
+              <span className="org-dept-name">{dept.name}</span>
+              <span className="org-dept-count">{totalMembers}人</span>
+            </div>
+          </div>
           {isAdmin && (
             <div className="org-dept-actions">
               <button onClick={() => onAddDept(dept.id)} title="添加子部门" type="button">+部门</button>
