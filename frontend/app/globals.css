@@ -369,6 +369,13 @@ body {
   gap: 2px;
   overflow: hidden;
   min-width: 0;
+  transition: width 0.3s ease, padding-left 0.3s ease, padding-right 0.3s ease, border-right-width 0.3s ease;
+}
+.sidebar.collapsed {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
 }
 
 .sidebar .win-controls {
