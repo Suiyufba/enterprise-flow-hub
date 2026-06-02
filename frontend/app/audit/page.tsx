@@ -45,7 +45,13 @@ export default function AuditPage() {
     { key: "action", label: "操作" },
     { key: "object_type", label: "对象类型" },
     { key: "object_id", label: "对象ID", render: (r: AuditLogRow) => <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.object_id?.slice(0, 16)}</span> },
-    { key: "created_at", label: "时间" },
+    { key: "created_at", label: "时间", render: (r: AuditLogRow) => {
+      try {
+        return new Date(r.created_at).toLocaleString("zh-CN", { hour12: false });
+      } catch {
+        return r.created_at;
+      }
+    }},
   ];
 
   if (!user || user.role !== "admin") {
