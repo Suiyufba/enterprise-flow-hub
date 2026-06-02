@@ -13,6 +13,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const { user } = useAuth();
   const { showToast } = useToast();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
@@ -37,7 +38,10 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         setAddress(data.address);
         setStatus(data.status);
       })
-      .catch(() => showToast("加载客户信息失败", "error"))
+      .catch(() => {
+        setError("加载客户信息失败，请检查网络连接后重试");
+        showToast("加载客户信息失败", "error");
+      })
       .finally(() => setLoading(false));
   }, [id, user?.id, showToast]);
 
@@ -91,6 +95,23 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     );
   }
 
+  if (error) {
+    return (
+      <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
+        <div className="page-shell">
+          <p style={{ color: "var(--c-ff3b30)", textAlign: "center", padding: 48 }}>{error}</p>
+          <div style={{ textAlign: "center" }}>
+            <button className="page-primary-button" onClick={() => { setError(null); setLoading(true); window.location.reload(); }}>
+              重试
+            </button>
+            <span style={{ margin: "0 10px" }} />
+            <button className="page-secondary-button" onClick={() => router.push("/customers")}>返回列表</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!customer) {
     return (
       <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
@@ -109,7 +130,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/customers")} type="button">←</button>
+            <button className="chat-back" onClick={() => router.push("/customers")} type="button" aria-label="返回列表">←</button>
             <h1>{editing ? "编辑客户" : customer.name}</h1>
           </div>
           {!editing && (
@@ -122,23 +143,23 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
         {editing ? (
           <div className="page-form-grid" style={{ maxWidth: 560 }}>
-            <label className="form-label">名称 *</label>
-            <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="客户名称" />
+            <label className="form-label" htmlFor="customer-name">名称 *</label>
+            <input id="customer-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="客户名称" />
 
-            <label className="form-label">联系人</label>
-            <input className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="主要联系人" />
+            <label className="form-label" htmlFor="customer-contact">联系人</label>
+            <input id="customer-contact" className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="主要联系人" />
 
-            <label className="form-label">电话</label>
-            <input className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="联系电话" />
+            <label className="form-label" htmlFor="customer-phone">电话</label>
+            <input id="customer-phone" className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="联系电话" />
 
-            <label className="form-label">邮箱</label>
-            <input className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="电子邮箱" />
+            <label className="form-label" htmlFor="customer-email">邮箱</label>
+            <input id="customer-email" className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="电子邮箱" />
 
-            <label className="form-label">地址</label>
-            <input className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
+            <label className="form-label" htmlFor="customer-address">地址</label>
+            <input id="customer-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
 
-            <label className="form-label">状态</label>
-            <select className="page-input" value={status} onChange={(e) => setStatus(e.target.value as Customer["status"])}>
+            <label className="form-label" htmlFor="customer-status">状态</label>
+            <select id="customer-status" className="page-input" value={status} onChange={(e) => setStatus(e.target.value as Customer["status"])}>
               <option value="active">活跃</option>
               <option value="inactive">非活跃</option>
               <option value="lead">潜在</option>
@@ -196,7 +217,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
               <div className="settings-header">
                 <h2>确认删除</h2>
-                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button">×</button>
+                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button" aria-label="关闭">×</button>
               </div>
               <div className="settings-body">
                 <p>确定要删除客户「{customer.name}」吗？此操作不可撤销。</p>

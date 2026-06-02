@@ -9,6 +9,7 @@ import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
+import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import type { Payment, PaginatedList } from "shared";
 
@@ -28,10 +29,12 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (statusFilter) params.set("status", statusFilter);
@@ -39,7 +42,7 @@ export default function PaymentsPage() {
       const res = await fetchJson<PaginatedList<Payment>>(`/payments?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
-    } catch { showToast("加载失败", "error"); }
+    } catch { showToast("加载失败", "error"); setError("加载失败，请检查网络后重试"); }
     finally { setLoading(false); }
   }, [enterpriseId, page, statusFilter, search, showToast, user?.id]);
 
@@ -51,7 +54,8 @@ export default function PaymentsPage() {
   const [saving, setSaving] = useState(false);
 
   async function createPayment() {
-    if (!amount || !enterpriseId) return;
+    const parsed = parseFloat(amount);
+    if (!amount || isNaN(parsed) || parsed <= 0 || !enterpriseId) return;
     setSaving(true);
     try {
       await fetchJson("/payments", {
@@ -114,12 +118,15 @@ export default function PaymentsPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
-              <select className="page-input" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <label className="form-label" htmlFor="payment-method">支付方式</label>
+              <select id="payment-method" className="page-input" value={method} onChange={(e) => setMethod(e.target.value)}>
                 {Object.entries(methodLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
-              <input className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
-              <input className="page-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="关联订单 ID（可选）" />
-              <button className="page-primary-button" onClick={createPayment} disabled={saving || !amount} type="button">
+              <label className="form-label" htmlFor="payment-amount">金额 *</label>
+              <input id="payment-amount" className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
+              <label className="form-label" htmlFor="payment-orderid">关联订单 ID（可选）</label>
+              <input id="payment-orderid" className="page-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="关联订单 ID（可选）" />
+              <button className="page-primary-button" onClick={createPayment} disabled={saving || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
                 {saving ? "创建中..." : "确认创建"}
               </button>
             </div>
@@ -137,7 +144,11 @@ export default function PaymentsPage() {
           </select>
         </div>
 
-        <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无付款" emptyDesc="还没有任何付款记录" />
+        {error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : (
+          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无付款" emptyDesc="还没有任何付款记录" />
+        )}
       </div>
     </div>
   );

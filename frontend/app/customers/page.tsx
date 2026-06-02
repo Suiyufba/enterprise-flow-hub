@@ -9,6 +9,7 @@ import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
+import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import type { Customer, PaginatedList } from "shared";
 
@@ -23,9 +24,11 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
@@ -34,6 +37,7 @@ export default function CustomersPage() {
       setData(res.items);
       setTotal(res.total);
     } catch {
+      setError("加载失败，请检查网络后重试");
       showToast("加载失败", "error");
     } finally {
       setLoading(false);
@@ -75,7 +79,11 @@ export default function CustomersPage() {
             <option value="lost">已流失</option>
           </select>
         </div>
-        <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无客户" emptyDesc="还没有添加任何客户" />
+        {error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : (
+          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无客户" emptyDesc="还没有添加任何客户" />
+        )}
       </div>
     </div>
   );

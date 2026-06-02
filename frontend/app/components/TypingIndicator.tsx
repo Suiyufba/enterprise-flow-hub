@@ -19,7 +19,7 @@ export function TypingIndicator() {
   }, { scope: ref });
 
   return (
-    <div className="chat-msg chat-msg-assistant chat-typing">
+    <div className="chat-msg chat-msg-assistant chat-typing" aria-label="AI 正在输入..." role="status">
       <div className="chat-msg-content" ref={ref} style={{ display: "flex", alignItems: "center", gap: 4 }}>
         <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.5)", opacity: 0.4 }} />
         <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.5)", opacity: 0.4 }} />

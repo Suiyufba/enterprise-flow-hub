@@ -31,7 +31,25 @@ export default function LoginPage() {
       await login(username.trim(), password);
       router.replace("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "操作失败");
+      const rawMsg = err instanceof Error ? err.message : "操作失败";
+      const errorMap: Record<string, string> = {
+        NetworkError: "网络连接失败，请检查网络后重试",
+        "Failed to fetch": "网络连接失败，请检查网络后重试",
+        TypeError: "网络连接失败，请检查网络后重试",
+        Unauthorized: "用户名或密码错误",
+        "Invalid credentials": "用户名或密码错误",
+        "401": "用户名或密码错误",
+        "403": "账号已被禁用",
+        "500": "服务器内部错误，请稍后重试",
+      };
+      let friendly = rawMsg;
+      for (const [key, value] of Object.entries(errorMap)) {
+        if (rawMsg.includes(key)) {
+          friendly = value;
+          break;
+        }
+      }
+      setError(friendly);
       if (formRef.current) {
         animate(formRef.current, {
           x: [0, -8, 8, -6, 6, -4, 4, -2, 2, 0],
@@ -74,6 +92,7 @@ export default function LoginPage() {
             onChange={(e) => setUsername(e.target.value)}
             autoFocus
             required
+            autoComplete="username"
           />
 
           <input
@@ -83,6 +102,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoComplete="current-password"
           />
 
           {error && <div className="login-error">{error}</div>}

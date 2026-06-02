@@ -492,12 +492,15 @@ export default function ChatPage() {
               sendMessage();
             }
           }}
+          maxLength={2000}
+          aria-label="输入消息"
         />
         <button
           className="chat-send-btn"
           onClick={sendMessage}
           disabled={!input.trim() || sending}
           type="button"
+          aria-label="发送消息"
         >
           发送
         </button>

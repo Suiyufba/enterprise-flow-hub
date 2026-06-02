@@ -9,6 +9,7 @@ import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
+import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import type { Order, PaginatedList } from "shared";
 
@@ -23,9 +24,11 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (statusFilter) params.set("status", statusFilter);
@@ -33,7 +36,7 @@ export default function OrdersPage() {
       const res = await fetchJson<PaginatedList<Order>>(`/orders?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
-    } catch { showToast("加载失败", "error"); }
+    } catch { showToast("加载失败", "error"); setError("加载失败，请检查网络后重试"); }
     finally { setLoading(false); }
   }, [enterpriseId, page, statusFilter, search, showToast, user?.id]);
 
@@ -70,7 +73,11 @@ export default function OrdersPage() {
             <option value="cancelled">已取消</option>
           </select>
         </div>
-        <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无订单" emptyDesc="还没有任何订单" />
+        {error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : (
+          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无订单" emptyDesc="还没有任何订单" />
+        )}
       </div>
     </div>
   );

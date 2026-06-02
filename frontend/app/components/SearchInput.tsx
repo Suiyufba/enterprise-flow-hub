@@ -35,7 +35,7 @@ export function SearchInput({
         placeholder={placeholder}
       />
       {local && (
-        <button className="search-input-clear" onClick={() => handleChange("")} type="button">
+        <button className="search-input-clear" onClick={() => handleChange("")} type="button" aria-label="清除搜索">
           ×
         </button>
       )}

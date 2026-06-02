@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
+import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import type { FileRecord, PaginatedList } from "shared";
 
@@ -26,16 +27,18 @@ export default function FilesPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       const res = await fetchJson<PaginatedList<FileRecord>>(`/files?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
-    } catch { showToast("加载失败", "error"); }
+    } catch { showToast("加载失败", "error"); setError("加载失败，请检查网络后重试"); }
     finally { setLoading(false); }
   }, [enterpriseId, page, user?.id, showToast]);
 
@@ -134,7 +137,11 @@ export default function FilesPage() {
           onChange={handleUpload}
           style={{ display: "none" }}
         />
-        <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无文件" emptyDesc="还没有上传任何文件" />
+        {error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : (
+          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无文件" emptyDesc="还没有上传任何文件" />
+        )}
       </div>
     </div>
   );

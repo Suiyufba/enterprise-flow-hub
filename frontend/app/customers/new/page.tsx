@@ -59,23 +59,23 @@ export default function NewCustomerPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="page-form-grid" style={{ maxWidth: 560 }}>
-          <label className="form-label">名称 *</label>
-          <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="客户名称" required />
+          <label className="form-label" htmlFor="new-customer-name">名称 *</label>
+          <input id="new-customer-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="客户名称" required />
 
-          <label className="form-label">联系人</label>
-          <input className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="主要联系人" />
+          <label className="form-label" htmlFor="new-customer-contact">联系人</label>
+          <input id="new-customer-contact" className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="主要联系人" />
 
-          <label className="form-label">电话</label>
-          <input className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="联系电话" />
+          <label className="form-label" htmlFor="new-customer-phone">电话</label>
+          <input id="new-customer-phone" className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="联系电话" />
 
-          <label className="form-label">邮箱</label>
-          <input className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="电子邮箱" />
+          <label className="form-label" htmlFor="new-customer-email">邮箱</label>
+          <input id="new-customer-email" className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="电子邮箱" />
 
-          <label className="form-label">地址</label>
-          <input className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
+          <label className="form-label" htmlFor="new-customer-address">地址</label>
+          <input id="new-customer-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
 
-          <label className="form-label">状态</label>
-          <select className="page-input" value={status} onChange={(e) => setStatus(e.target.value as Customer["status"])}>
+          <label className="form-label" htmlFor="new-customer-status">状态</label>
+          <select id="new-customer-status" className="page-input" value={status} onChange={(e) => setStatus(e.target.value as Customer["status"])}>
             <option value="active">活跃</option>
             <option value="inactive">非活跃</option>
             <option value="lead">潜在</option>

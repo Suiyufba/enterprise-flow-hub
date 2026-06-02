@@ -8,6 +8,7 @@ import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
+import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import type { Supplier, PaginatedList } from "shared";
 
@@ -22,9 +23,11 @@ export default function SuppliersPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState("");
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
@@ -32,6 +35,7 @@ export default function SuppliersPage() {
       setData(res.items);
       setTotal(res.total);
     } catch {
+      setError("加载失败，请检查网络后重试");
       showToast("加载失败", "error");
     } finally {
       setLoading(false);
@@ -106,7 +110,7 @@ export default function SuppliersPage() {
               <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="供应商名称 *" />
               <input className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="联系人" />
               <input className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="电话" />
-              <input className="page-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" />
+              <input className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" />
               <input className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
               <button className="page-primary-button" onClick={createSupplier} disabled={saving || !name.trim()} type="button">
                 {saving ? "添加中..." : "确认添加"}
@@ -118,7 +122,11 @@ export default function SuppliersPage() {
         <div style={{ marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索供应商..." />
         </div>
-        <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无供应商" emptyDesc="还没有添加任何供应商" />
+        {error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : (
+          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无供应商" emptyDesc="还没有添加任何供应商" />
+        )}
       </div>
     </div>
   );

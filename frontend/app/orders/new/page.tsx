@@ -70,7 +70,7 @@ export default function NewOrderPage() {
   }
 
   async function handleSubmit() {
-    if (items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0)) {
+    if (items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)) {
       showToast("请完善订单项目", "error");
       return;
     }
@@ -111,16 +111,16 @@ export default function NewOrderPage() {
         </div>
 
         <div className="page-form-grid" style={{ maxWidth: 640 }}>
-          <label className="form-label">客户</label>
-          <select className="page-input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+          <label className="form-label" htmlFor="new-order-customer">客户</label>
+          <select id="new-order-customer" className="page-input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
             <option value="">选择客户（可选）</option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
 
-          <label className="form-label">订单项目</label>
-          <div style={{ display: "grid", gap: 8 }}>
+          <label className="form-label" htmlFor="new-order-items">订单项目</label>
+          <div id="new-order-items" style={{ display: "grid", gap: 8 }}>
             {items.map((item, index) => (
               <div key={index} style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <select
@@ -156,7 +156,7 @@ export default function NewOrderPage() {
                 <span style={{ width: 70, textAlign: "right", fontSize: 13, color: "var(--c-c0c0c0)", whiteSpace: "nowrap" }}>
                   ¥{(item.quantity * item.unitPrice).toFixed(2)}
                 </span>
-                <button className="sidebar-mini-action danger" onClick={() => removeItem(index)} type="button" title="删除" style={{ flexShrink: 0 }}>
+                <button className="sidebar-mini-action danger" onClick={() => removeItem(index)} type="button" title="删除" style={{ flexShrink: 0 }} aria-label="删除项目">
                   ×
                 </button>
               </div>
@@ -172,14 +172,14 @@ export default function NewOrderPage() {
             </div>
           )}
 
-          <label className="form-label">备注</label>
-          <textarea className="page-textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="订单备注..." rows={3} />
+          <label className="form-label" htmlFor="new-order-notes">备注</label>
+          <textarea id="new-order-notes" className="page-textarea" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="订单备注..." rows={3} />
 
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
             <button
               className="page-primary-button"
               onClick={handleSubmit}
-              disabled={saving || items.length === 0 || items.some((i) => !i.productId)}
+              disabled={saving || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)}
               type="button"
             >
               {saving ? "创建中..." : "创建订单"}

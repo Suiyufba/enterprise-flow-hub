@@ -20,13 +20,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const { user } = useAuth();
   const { showToast } = useToast();
   const [order, setOrder] = useState<Order | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchJson<Order>(`/orders/${id}`, { adminUserId: user?.id })
       .then(setOrder)
-      .catch(() => showToast("加载订单失败", "error"))
+      .catch(() => {
+        setError("加载订单失败，请检查网络连接后重试");
+        showToast("加载订单失败", "error");
+      })
       .finally(() => setLoading(false));
   }, [id, user?.id, showToast]);
 
@@ -62,6 +66,23 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     );
   }
 
+  if (error) {
+    return (
+      <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
+        <div className="page-shell">
+          <p style={{ color: "var(--c-ff3b30)", textAlign: "center", padding: 48 }}>{error}</p>
+          <div style={{ textAlign: "center" }}>
+            <button className="page-primary-button" onClick={() => { setError(null); setLoading(true); window.location.reload(); }}>
+              重试
+            </button>
+            <span style={{ margin: "0 10px" }} />
+            <button className="page-secondary-button" onClick={() => router.push("/orders")}>返回列表</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!order) {
     return (
       <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
@@ -80,7 +101,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/orders")} type="button">←</button>
+            <button className="chat-back" onClick={() => router.push("/orders")} type="button" aria-label="返回列表">←</button>
             <h1>订单 {order.id.slice(0, 12)}</h1>
           </div>
         </div>

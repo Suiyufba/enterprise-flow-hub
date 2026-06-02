@@ -8,6 +8,7 @@ import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
+import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import type { Product, PaginatedList } from "shared";
 
@@ -23,9 +24,11 @@ export default function ProductsPage() {
   const [category, setCategory] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [error, setError] = useState("");
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
@@ -34,6 +37,7 @@ export default function ProductsPage() {
       setData(res.items);
       setTotal(res.total);
     } catch {
+      setError("加载失败，请检查网络后重试");
       showToast("加载失败", "error");
     } finally {
       setLoading(false);
@@ -51,7 +55,8 @@ export default function ProductsPage() {
   const [saving, setSaving] = useState(false);
 
   async function createProduct() {
-    if (!name.trim() || !enterpriseId) return;
+    const price = parseFloat(unitPrice);
+    if (!name.trim() || !enterpriseId || (unitPrice && (isNaN(price) || price <= 0))) return;
     setSaving(true);
     try {
       await fetchJson("/products", {
@@ -61,7 +66,7 @@ export default function ProductsPage() {
           name: name.trim(),
           sku: sku.trim() || undefined,
           category: cat.trim() || undefined,
-          unitPrice: unitPrice ? parseFloat(unitPrice) : undefined,
+          unitPrice: unitPrice && !isNaN(parseFloat(unitPrice)) && parseFloat(unitPrice) > 0 ? parseFloat(unitPrice) : undefined,
           unit: unit.trim() || undefined,
           description: description.trim() || undefined,
         }),
@@ -115,7 +120,7 @@ export default function ProductsPage() {
                 <input className="page-input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="单位（如：个/箱）" style={{ flex: 1 }} />
               </div>
               <input className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
-              <button className="page-primary-button" onClick={createProduct} disabled={saving || !name.trim()} type="button">
+              <button className="page-primary-button" onClick={createProduct} disabled={saving || !name.trim() || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>
             </div>
@@ -131,7 +136,11 @@ export default function ProductsPage() {
             ))}
           </select>
         </div>
-        <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无商品" emptyDesc="还没有添加任何商品" />
+        {error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : (
+          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无商品" emptyDesc="还没有添加任何商品" />
+        )}
       </div>
     </div>
   );

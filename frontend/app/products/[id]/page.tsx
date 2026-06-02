@@ -13,6 +13,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const { user } = useAuth();
   const { showToast } = useToast();
   const [product, setProduct] = useState<Product | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
@@ -37,12 +38,16 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         setUnit(data.unit);
         setDescription(data.description);
       })
-      .catch(() => showToast("加载商品信息失败", "error"))
+      .catch(() => {
+        setError("加载商品信息失败，请检查网络连接后重试");
+        showToast("加载商品信息失败", "error");
+      })
       .finally(() => setLoading(false));
   }, [id, user?.id, showToast]);
 
   async function handleSave() {
-    if (!name.trim()) return;
+    const price = parseFloat(unitPrice);
+    if (!name.trim() || (unitPrice && (isNaN(price) || price <= 0))) return;
     setSaving(true);
     try {
       const updated = await fetchJson<Product>(`/products/${id}`, {
@@ -51,7 +56,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           name: name.trim(),
           sku: sku.trim() || undefined,
           category: category.trim() || undefined,
-          unitPrice: unitPrice ? parseFloat(unitPrice) : undefined,
+          unitPrice: unitPrice && !isNaN(parseFloat(unitPrice)) && parseFloat(unitPrice) > 0 ? parseFloat(unitPrice) : undefined,
           unit: unit.trim() || undefined,
           description: description.trim() || undefined,
         }),
@@ -82,6 +87,23 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  if (error) {
+    return (
+      <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
+        <div className="page-shell">
+          <p style={{ color: "var(--c-ff3b30)", textAlign: "center", padding: 48 }}>{error}</p>
+          <div style={{ textAlign: "center" }}>
+            <button className="page-primary-button" onClick={() => { setError(null); setLoading(true); window.location.reload(); }}>
+              重试
+            </button>
+            <span style={{ margin: "0 10px" }} />
+            <button className="page-secondary-button" onClick={() => router.push("/products")}>返回列表</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!product) {
     return (
       <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
@@ -100,7 +122,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/products")} type="button">←</button>
+            <button className="chat-back" onClick={() => router.push("/products")} type="button" aria-label="返回列表">←</button>
             <h1>{editing ? "编辑商品" : product.name}</h1>
           </div>
           {!editing && (
@@ -113,31 +135,31 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
         {editing ? (
           <div className="page-form-grid" style={{ maxWidth: 560 }}>
-            <label className="form-label">名称 *</label>
-            <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="商品名称" />
+            <label className="form-label" htmlFor="product-name">名称 *</label>
+            <input id="product-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="商品名称" />
 
-            <label className="form-label">SKU</label>
-            <input className="page-input" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU" />
+            <label className="form-label" htmlFor="product-sku">SKU</label>
+            <input id="product-sku" className="page-input" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU" />
 
-            <label className="form-label">分类</label>
-            <input className="page-input" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="分类" />
+            <label className="form-label" htmlFor="product-category">分类</label>
+            <input id="product-category" className="page-input" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="分类" />
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <div>
-                <label className="form-label">单价</label>
-                <input className="page-input" type="number" step="0.01" min="0" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder="单价" />
+                <label className="form-label" htmlFor="product-unitprice">单价</label>
+                <input id="product-unitprice" className="page-input" type="number" step="0.01" min="0" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder="单价" />
               </div>
               <div>
-                <label className="form-label">单位</label>
-                <input className="page-input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="个/箱/件" />
+                <label className="form-label" htmlFor="product-unit">单位</label>
+                <input id="product-unit" className="page-input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="个/箱/件" />
               </div>
             </div>
 
-            <label className="form-label">描述</label>
-            <input className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
+            <label className="form-label" htmlFor="product-description">描述</label>
+            <input id="product-description" className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
 
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-              <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim()}>
+              <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim() || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))}>
                 {saving ? "保存中..." : "保存"}
               </button>
               <button className="page-secondary-button" onClick={() => {
@@ -177,7 +199,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
               <div className="settings-header">
                 <h2>确认删除</h2>
-                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button">×</button>
+                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button" aria-label="关闭">×</button>
               </div>
               <div className="settings-body">
                 <p>确定要删除商品「{product.name}」吗？此操作不可撤销。</p>

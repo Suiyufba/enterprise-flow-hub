@@ -13,6 +13,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const { user } = useAuth();
   const { showToast } = useToast();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
@@ -35,7 +36,10 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         setEmail(data.email);
         setAddress(data.address);
       })
-      .catch(() => showToast("加载供应商信息失败", "error"))
+      .catch(() => {
+        setError("加载供应商信息失败，请检查网络连接后重试");
+        showToast("加载供应商信息失败", "error");
+      })
       .finally(() => setLoading(false));
   }, [id, user?.id, showToast]);
 
@@ -79,6 +83,23 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     );
   }
 
+  if (error) {
+    return (
+      <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
+        <div className="page-shell">
+          <p style={{ color: "var(--c-ff3b30)", textAlign: "center", padding: 48 }}>{error}</p>
+          <div style={{ textAlign: "center" }}>
+            <button className="page-primary-button" onClick={() => { setError(null); setLoading(true); window.location.reload(); }}>
+              重试
+            </button>
+            <span style={{ margin: "0 10px" }} />
+            <button className="page-secondary-button" onClick={() => router.push("/suppliers")}>返回列表</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!supplier) {
     return (
       <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
@@ -97,7 +118,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/suppliers")} type="button">←</button>
+            <button className="chat-back" onClick={() => router.push("/suppliers")} type="button" aria-label="返回列表">←</button>
             <h1>{editing ? "编辑供应商" : supplier.name}</h1>
           </div>
           {!editing && (
@@ -110,20 +131,20 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
         {editing ? (
           <div className="page-form-grid" style={{ maxWidth: 560 }}>
-            <label className="form-label">名称 *</label>
-            <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="供应商名称" />
+            <label className="form-label" htmlFor="supplier-name">名称 *</label>
+            <input id="supplier-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="供应商名称" />
 
-            <label className="form-label">联系人</label>
-            <input className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="联系人" />
+            <label className="form-label" htmlFor="supplier-contact">联系人</label>
+            <input id="supplier-contact" className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="联系人" />
 
-            <label className="form-label">电话</label>
-            <input className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="电话" />
+            <label className="form-label" htmlFor="supplier-phone">电话</label>
+            <input id="supplier-phone" className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="电话" />
 
-            <label className="form-label">邮箱</label>
-            <input className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" />
+            <label className="form-label" htmlFor="supplier-email">邮箱</label>
+            <input id="supplier-email" className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" />
 
-            <label className="form-label">地址</label>
-            <input className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
+            <label className="form-label" htmlFor="supplier-address">地址</label>
+            <input id="supplier-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
 
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
               <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim()}>
@@ -166,7 +187,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
               <div className="settings-header">
                 <h2>确认删除</h2>
-                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button">×</button>
+                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button" aria-label="关闭">×</button>
               </div>
               <div className="settings-body">
                 <p>确定要删除供应商「{supplier.name}」吗？此操作不可撤销。</p>

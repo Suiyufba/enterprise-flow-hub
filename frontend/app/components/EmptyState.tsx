@@ -14,7 +14,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <span className="empty-state-icon"><AppIcon name={icon} /></span>
+      <span className="empty-state-icon" aria-hidden="true"><AppIcon name={icon} /></span>
       <h3>{title}</h3>
       {description && <p>{description}</p>}
       {action && <div className="empty-state-action">{action}</div>}

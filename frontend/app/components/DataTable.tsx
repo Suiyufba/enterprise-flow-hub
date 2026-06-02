@@ -75,6 +75,7 @@ export function DataTable<T extends { id: string }>({
               disabled={page <= 1}
               onClick={() => onPageChange?.(page - 1)}
               type="button"
+              aria-label="上一页"
             >
               ‹
             </button>
@@ -89,6 +90,7 @@ export function DataTable<T extends { id: string }>({
                       className={p === page ? "active" : ""}
                       onClick={() => onPageChange?.(p)}
                       type="button"
+                      {...(p === page ? { "aria-current": "page" as const } : {})}
                     >
                       {p}
                     </button>
@@ -99,6 +101,7 @@ export function DataTable<T extends { id: string }>({
               disabled={page >= totalPages}
               onClick={() => onPageChange?.(page + 1)}
               type="button"
+              aria-label="下一页"
             >
               ›
             </button>

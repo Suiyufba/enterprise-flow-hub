@@ -132,6 +132,8 @@ export default function Home() {
               submit();
             }
           }}
+          maxLength={500}
+          aria-label="输入业务需求"
         />
         <div style={{ display: "flex", alignItems: "flex-end" }}>
           <button
@@ -139,6 +141,7 @@ export default function Home() {
             ref={sendBtnRef}
             onClick={submit}
             disabled={!need.trim() || loading}
+            aria-label="发送消息"
           >
             {loading ? "创建中..." : "发送"}
           </button>
