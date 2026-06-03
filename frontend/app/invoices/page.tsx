@@ -125,28 +125,32 @@ export default function InvoicesPage() {
         </Link>
       ),
     },
-    { key: "invoiceNumber", label: "发票号码", render: (inv: Invoice) => inv.invoiceNumber ?? "-" },
+    { key: "invoiceNumber", label: "发票号码", width: "100px", render: (inv: Invoice) => inv.invoiceNumber ?? "-" },
     {
       key: "invoiceType",
       label: "发票类型",
+      width: "130px",
       render: (inv: Invoice) => (inv.invoiceType ? invoiceTypeLabels[inv.invoiceType] ?? inv.invoiceType : "-"),
     },
     {
       key: "taxRate",
       label: "税率",
+      width: "60px",
       render: (inv: Invoice) => (inv.taxRate != null ? `${(inv.taxRate * 100).toFixed(0)}%` : "-"),
     },
-    { key: "amount", label: "金额", render: (inv: Invoice) => `¥${inv.amount.toFixed(2)}` },
+    { key: "amount", label: "金额", width: "100px", render: (inv: Invoice) => `¥${inv.amount.toFixed(2)}` },
     {
       key: "totalAmount",
       label: "价税合计",
+      width: "100px",
       render: (inv: Invoice) => (inv.totalAmount != null ? `¥${inv.totalAmount.toFixed(2)}` : "-"),
     },
-    { key: "status", label: "状态", render: (inv: Invoice) => <StatusBadge status={inv.status} /> },
-    { key: "dueDate", label: "到期日", render: (inv: Invoice) => inv.dueDate?.slice(0, 10) ?? "-" },
+    { key: "status", label: "状态", width: "80px", render: (inv: Invoice) => <StatusBadge status={inv.status} /> },
+    { key: "dueDate", label: "到期日", width: "100px", render: (inv: Invoice) => inv.dueDate?.slice(0, 10) ?? "-" },
     {
       key: "orderId",
       label: "关联订单",
+      width: "130px",
       render: (inv: Invoice) =>
         inv.orderId ? (
           <Link href={`/orders/${inv.orderId}`} style={{ fontFamily: "monospace", fontSize: 11, color: "var(--c-4a90e6)", textDecoration: "none" }}>
@@ -154,10 +158,11 @@ export default function InvoicesPage() {
           </Link>
         ) : <span style={{ color: "var(--c-8c8c8c)", fontSize: 12 }}>-</span>,
     },
-    { key: "createdAt", label: "创建时间", render: (inv: Invoice) => inv.createdAt?.slice(0, 10) },
+    { key: "createdAt", label: "创建时间", width: "100px", render: (inv: Invoice) => inv.createdAt?.slice(0, 10) },
     {
       key: "actions",
       label: "操作",
+      width: "60px",
       render: (inv: Invoice) => (
         <button
           type="button"
