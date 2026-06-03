@@ -118,8 +118,9 @@ export default function InvoicesPage() {
     {
       key: "id",
       label: "编号",
+      width: "130px",
       render: (inv: Invoice) => (
-        <Link href={`/invoices/${inv.id}`} style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--c-f0f0f0)", textDecoration: "none", fontWeight: 600 }}>
+        <Link href={`/invoices/${inv.id}`} style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--c-f0f0f0)", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>
           {inv.id.slice(0, 12)}
         </Link>
       ),
