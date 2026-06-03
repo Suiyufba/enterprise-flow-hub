@@ -4982,6 +4982,23 @@ body {
   border-bottom: none;
 }
 
+.invoice-page-shell {
+  max-width: 1500px;
+}
+
+.invoice-table-wrap {
+  overflow-x: auto;
+}
+
+.invoice-table-wrap .data-table {
+  min-width: 1354px;
+}
+
+.invoice-table-wrap .data-table th,
+.invoice-table-wrap .data-table td {
+  white-space: nowrap;
+}
+
 .data-table-footer {
   display: flex;
   align-items: center;

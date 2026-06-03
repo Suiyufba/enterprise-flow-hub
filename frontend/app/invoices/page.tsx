@@ -118,51 +118,51 @@ export default function InvoicesPage() {
     {
       key: "id",
       label: "编号",
-      width: "130px",
+      width: "142px",
       render: (inv: Invoice) => (
         <Link href={`/invoices/${inv.id}`} style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--c-f0f0f0)", textDecoration: "none", fontWeight: 600, whiteSpace: "nowrap" }}>
           {inv.id.slice(0, 12)}
         </Link>
       ),
     },
-    { key: "invoiceNumber", label: "发票号码", width: "100px", render: (inv: Invoice) => inv.invoiceNumber ?? "-" },
+    { key: "invoiceNumber", label: "发票号码", width: "112px", render: (inv: Invoice) => inv.invoiceNumber ?? "-" },
     {
       key: "invoiceType",
       label: "发票类型",
-      width: "130px",
+      width: "136px",
       render: (inv: Invoice) => (inv.invoiceType ? invoiceTypeLabels[inv.invoiceType] ?? inv.invoiceType : "-"),
     },
     {
       key: "taxRate",
       label: "税率",
-      width: "60px",
+      width: "72px",
       render: (inv: Invoice) => (inv.taxRate != null ? `${(inv.taxRate * 100).toFixed(0)}%` : "-"),
     },
-    { key: "amount", label: "金额", width: "100px", render: (inv: Invoice) => `¥${inv.amount.toFixed(2)}` },
+    { key: "amount", label: "金额", width: "120px", render: (inv: Invoice) => `¥${inv.amount.toFixed(2)}` },
     {
       key: "totalAmount",
       label: "价税合计",
-      width: "100px",
+      width: "124px",
       render: (inv: Invoice) => (inv.totalAmount != null ? `¥${inv.totalAmount.toFixed(2)}` : "-"),
     },
-    { key: "status", label: "状态", width: "80px", render: (inv: Invoice) => <StatusBadge status={inv.status} /> },
-    { key: "dueDate", label: "到期日", width: "100px", render: (inv: Invoice) => inv.dueDate?.slice(0, 10) ?? "-" },
+    { key: "status", label: "状态", width: "90px", render: (inv: Invoice) => <StatusBadge status={inv.status} /> },
+    { key: "dueDate", label: "到期日", width: "118px", render: (inv: Invoice) => inv.dueDate?.slice(0, 10) ?? "-" },
     {
       key: "orderId",
       label: "关联订单",
-      width: "130px",
+      width: "150px",
       render: (inv: Invoice) =>
         inv.orderId ? (
-          <Link href={`/orders/${inv.orderId}`} style={{ fontFamily: "monospace", fontSize: 11, color: "var(--c-4a90e6)", textDecoration: "none" }}>
+          <Link href={`/orders/${inv.orderId}`} style={{ fontFamily: "monospace", fontSize: 11, color: "var(--c-4a90e6)", textDecoration: "none", whiteSpace: "nowrap" }}>
             {inv.orderId.slice(0, 12)}
           </Link>
         ) : <span style={{ color: "var(--c-8c8c8c)", fontSize: 12 }}>-</span>,
     },
-    { key: "createdAt", label: "创建时间", width: "100px", render: (inv: Invoice) => inv.createdAt?.slice(0, 10) },
+    { key: "createdAt", label: "创建时间", width: "118px", render: (inv: Invoice) => inv.createdAt?.slice(0, 10) },
     {
       key: "actions",
       label: "操作",
-      width: "60px",
+      width: "72px",
       render: (inv: Invoice) => (
         <button
           type="button"
@@ -177,7 +177,7 @@ export default function InvoicesPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell">
+      <div className="page-shell invoice-page-shell">
         <PageHeader
           title="发票管理"
           description="管理所有发票，跟踪开票和付款状态"
@@ -267,7 +267,7 @@ export default function InvoicesPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无发票" emptyDesc="还没有任何发票记录" />
+          <DataTable className="invoice-table-wrap" columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无发票" emptyDesc="还没有任何发票记录" />
         )}
       </div>
     </div>

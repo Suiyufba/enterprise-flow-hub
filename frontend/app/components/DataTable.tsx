@@ -14,6 +14,7 @@ export function DataTable<T extends { id: string }>({
   columns,
   data,
   loading,
+  className,
   total = 0,
   page = 1,
   limit = 20,
@@ -24,6 +25,7 @@ export function DataTable<T extends { id: string }>({
   columns: Column<T>[];
   data: T[];
   loading?: boolean;
+  className?: string;
   total?: number;
   page?: number;
   limit?: number;
@@ -40,7 +42,7 @@ export function DataTable<T extends { id: string }>({
   }
 
   return (
-    <div className="data-table-wrap">
+    <div className={["data-table-wrap", className].filter(Boolean).join(" ")}>
       <table className="data-table">
         <thead>
           <tr>
