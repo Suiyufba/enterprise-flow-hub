@@ -103,6 +103,17 @@ export default function InvoicesPage() {
     finally { setSaving(false); }
   }
 
+  async function handleDelete(inv: Invoice) {
+    if (!confirm(`确认删除发票 ${inv.id.slice(0, 12)}？此操作不可撤销。`)) return;
+    try {
+      await fetchJson(`/invoices/${inv.id}`, { method: "DELETE", adminUserId: user?.id });
+      showToast("发票已删除", "success");
+      await load();
+    } catch {
+      showToast("删除失败", "error");
+    }
+  }
+
   const columns = [
     {
       key: "id",
@@ -143,6 +154,19 @@ export default function InvoicesPage() {
         ) : <span style={{ color: "var(--c-8c8c8c)", fontSize: 12 }}>-</span>,
     },
     { key: "createdAt", label: "创建时间", render: (inv: Invoice) => inv.createdAt?.slice(0, 10) },
+    {
+      key: "actions",
+      label: "操作",
+      render: (inv: Invoice) => (
+        <button
+          type="button"
+          onClick={() => handleDelete(inv)}
+          style={{ color: "red", fontSize: "12px", cursor: "pointer", background: "none", border: "none", padding: 0 }}
+        >
+          删除
+        </button>
+      ),
+    },
   ];
 
   return (

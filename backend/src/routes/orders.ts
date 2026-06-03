@@ -9,7 +9,7 @@ import { getUser } from "../store.js";
 import {
   listOrders, getOrder, createOrder, updateOrder, deleteOrder,
   listPayments, createPayment,
-  listInvoices, createInvoice,
+  listInvoices, createInvoice, updateInvoice, deleteInvoice,
 } from "../store/orders.js";
 
 function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
@@ -117,5 +117,19 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     if (parsed.data.enterpriseId !== actorEid) return reply.status(403).send({ error: "不能为其他企业创建发票" });
     const invoice = createInvoice(parsed.data);
     return reply.status(201).send(invoice);
+  });
+
+  app.patch("/invoices/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const invoice = updateInvoice(id, request.body as Record<string, unknown>);
+    if (!invoice) return reply.status(404).send({ error: "发票不存在" });
+    return reply.send(invoice);
+  });
+
+  app.delete("/invoices/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const ok = deleteInvoice(id);
+    if (!ok) return reply.status(404).send({ error: "发票不存在" });
+    return reply.status(204).send();
   });
 }

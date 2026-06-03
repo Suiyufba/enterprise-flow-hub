@@ -253,3 +253,46 @@ export function createInvoice(input: CreateInvoiceRequest): Invoice {
     .run(invoice.id, invoice.enterpriseId, invoice.orderId, invoice.customerId, invoice.amount, invoice.status, invoice.dueDate, invoice.issuedAt, invoice.createdAt, invoice.invoiceNumber, invoice.invoiceCode, invoice.invoiceType, invoice.taxRate, invoice.taxAmount, invoice.totalAmount, invoice.buyerName, invoice.buyerTaxId, invoice.sellerName, invoice.sellerTaxId, invoice.remark, invoice.issuer);
   return invoice;
 }
+
+export function updateInvoice(id: string, input: Partial<CreateInvoiceRequest>): Invoice | null {
+  const existing = db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!existing) return null;
+
+  const taxRate = input.taxRate ?? (existing.tax_rate as number | null) ?? null;
+  const amount = input.amount ?? (existing.amount as number);
+  const taxAmount = input.taxAmount ?? (taxRate != null ? Math.round(amount * taxRate * 100) / 100 : (existing.tax_amount as number | null) ?? 0);
+  const totalAmount = input.totalAmount ?? Math.round((amount + taxAmount) * 100) / 100;
+  const now = new Date().toISOString();
+
+  db().prepare(`UPDATE invoices SET
+    order_id = ?, customer_id = ?, amount = ?, status = ?, due_date = ?,
+    invoice_number = ?, invoice_code = ?, invoice_type = ?, tax_rate = ?,
+    tax_amount = ?, total_amount = ?, buyer_name = ?, buyer_tax_id = ?,
+    seller_name = ?, seller_tax_id = ?, remark = ?, issuer = ?
+    WHERE id = ?`).run(
+    input.orderId ?? existing.order_id ?? null,
+    input.customerId ?? existing.customer_id ?? null,
+    amount,
+    (input as Record<string, unknown>).status ?? existing.status ?? "draft",
+    input.dueDate ?? existing.due_date ?? null,
+    input.invoiceNumber ?? existing.invoice_number ?? null,
+    input.invoiceCode ?? existing.invoice_code ?? null,
+    input.invoiceType ?? existing.invoice_type ?? null,
+    taxRate,
+    taxAmount,
+    totalAmount,
+    input.buyerName ?? existing.buyer_name ?? null,
+    input.buyerTaxId ?? existing.buyer_tax_id ?? null,
+    input.sellerName ?? existing.seller_name ?? null,
+    input.sellerTaxId ?? existing.seller_tax_id ?? null,
+    input.remark ?? existing.remark ?? null,
+    input.issuer ?? existing.issuer ?? null,
+    id,
+  );
+  return rowToInvoice(db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function deleteInvoice(id: string): boolean {
+  const result = db().prepare("DELETE FROM invoices WHERE id = ?").run(id);
+  return result.changes > 0;
+}
