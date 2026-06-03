@@ -101,7 +101,11 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
 
   // Reset counter on mount to avoid stale IDs across page navigations
   useEffect(() => {
-    nodeIdCounter = 0;
+    const maxId = Math.max(0, ...initialNodes.map((n) => {
+      const match = n.id.match(/\d+$/);
+      return match ? parseInt(match[0], 10) : 0;
+    }));
+    nodeIdCounter = maxId;
   }, []);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);

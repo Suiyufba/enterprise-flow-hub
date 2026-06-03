@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
@@ -8,6 +8,7 @@ import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
+import { ErrorState } from "../../components/ErrorState";
 import type { Invoice, PaginatedList } from "shared";
 
 export default function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,18 +20,38 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!enterpriseId) return;
+  const fetchInvoice = useCallback(() => {
+    if (!enterpriseId) { setError("未选择企业"); setLoading(false); return; }
+    setError(null);
+    setLoading(true);
     fetchJson<PaginatedList<Invoice>>(`/invoices?enterpriseId=${enterpriseId}&limit=1000`, { adminUserId: user?.id })
       .then((res) => {
         const found = res.items.find((i) => i.id === id);
-        if (!found) throw new Error("not found");
+        if (!found) { setInvoice(null); return; }
         setInvoice(found);
       })
-      .catch(() => showToast("加载发票信息失败", "error"))
+      .catch(() => {
+        setError("加载发票详情失败");
+        showToast("加载发票信息失败", "error");
+      })
       .finally(() => setLoading(false));
   }, [id, enterpriseId, user?.id, showToast]);
+
+  useEffect(() => {
+    fetchInvoice();
+  }, [fetchInvoice]);
+
+  if (error) {
+    return (
+      <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
+        <div className="page-shell">
+          <ErrorState message={error} onRetry={() => { setError(null); fetchInvoice(); }} />
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -58,7 +79,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/invoices")} type="button">←</button>
+            <button className="chat-back" onClick={() => router.push("/invoices")} type="button" aria-label="返回发票列表">←</button>
             <h1>发票详情</h1>
           </div>
         </div>

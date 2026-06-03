@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Screenshot-first AI workflow analyst",
 };
 
+export const viewport = { width: "device-width", initialScale: 1 };
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>

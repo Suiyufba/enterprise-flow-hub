@@ -107,11 +107,16 @@ export default function SuppliersPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
-              <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="供应商名称 *" />
-              <input className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="联系人" />
-              <input className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="电话" />
-              <input className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" />
-              <input className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
+              <label htmlFor="new-supplier-name">名称 *</label>
+              <input id="new-supplier-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="供应商名称 *" />
+              <label htmlFor="new-supplier-contact">联系人</label>
+              <input id="new-supplier-contact" className="page-input" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="联系人" />
+              <label htmlFor="new-supplier-phone">电话</label>
+              <input id="new-supplier-phone" className="page-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="电话" />
+              <label htmlFor="new-supplier-email">邮箱</label>
+              <input id="new-supplier-email" className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" />
+              <label htmlFor="new-supplier-address">地址</label>
+              <input id="new-supplier-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
               <button className="page-primary-button" onClick={createSupplier} disabled={saving || !name.trim()} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>

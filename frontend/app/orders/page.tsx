@@ -60,7 +60,13 @@ export default function OrdersPage() {
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
       <div className="page-shell">
-        <PageHeader title="订单管理" description="管理所有订单、付款和发票" />
+        <PageHeader title="订单管理" description="管理所有订单、付款和发票"
+          actions={
+            <Link href="/orders/new" className="page-primary-button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)", textDecoration: "none", display: "inline-block" }}>
+              + 新建订单
+            </Link>
+          }
+        />
         <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索订单号..." />
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="search-enterprise-select">

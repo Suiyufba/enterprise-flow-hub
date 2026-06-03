@@ -14,7 +14,7 @@ export function ErrorState({
 }) {
   return (
     <div className="empty-state">
-      <span className="empty-state-icon" style={{ color: "var(--c-ff3b30)" }}>
+      <span className="empty-state-icon" style={{ color: "var(--c-ff3b30)" }} aria-hidden="true">
         <AppIcon name="folder" />
       </span>
       <h3 style={{ color: "var(--c-ff3b30)" }}>{message}</h3>

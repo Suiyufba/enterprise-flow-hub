@@ -7,6 +7,7 @@ import { fetchJson } from "../../lib/api";
 import { useToast } from "../../lib/toast-context";
 import MarkdownMessage from "../../components/MarkdownMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
+import { ErrorState } from "../../components/ErrorState";
 import { gsap, useGSAP } from "../../lib/gsap";
 import { animate } from "../../lib/anime";
 
@@ -80,6 +81,8 @@ export default function ChatPage() {
   }
 
   const refresh = useCallback(async () => {
+    setError(null);
+    setLoading(true);
     try {
       const [d, w] = await Promise.all([
         fetchJson<ConversationDetail>(`/conversations/${id}`),
@@ -95,7 +98,7 @@ export default function ChatPage() {
         setContextProjectIds(w.projects.filter((project) => project.enterpriseId === currentProject.enterpriseId).map((project) => project.id));
       }
     } catch {
-      setError("对话不存在");
+      setError("加载对话失败");
       showToast("加载对话失败", "error");
     } finally {
       setLoading(false);
@@ -176,7 +179,7 @@ export default function ChatPage() {
         }
       })();
     }
-  }, [loading, workspace, initialMsg]);
+  }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds]);
 
   useEffect(() => {
     if (!streamingMsgId) {
@@ -347,7 +350,11 @@ export default function ChatPage() {
   if (error || !detail) {
     return (
       <div className="chat-shell">
-        <div className="chat-empty">{error || "对话不存在"}</div>
+        <ErrorState
+          message={error || "对话不存在"}
+          description="请检查对话是否已被删除，或返回列表重新选择"
+          onRetry={refresh}
+        />
       </div>
     );
   }
@@ -360,7 +367,7 @@ export default function ChatPage() {
     <div className="chat-shell">
       {/* Header */}
       <header className="chat-header">
-        <button className="chat-back" onClick={() => router.push("/")} type="button">
+        <button className="chat-back" onClick={() => router.push("/")} type="button" aria-label="返回首页">
           ←
         </button>
         <div className="chat-header-main">

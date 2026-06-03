@@ -85,10 +85,9 @@ export default function Home() {
 
     try {
       // 1. Create a conversation so it persists in the sidebar
-      const project = workspace.projects.find((p) => p.id === projectId);
-      const enterpriseId = project?.enterpriseId ?? workspace.enterprises[0]?.id;
       if (!enterpriseId) {
         setLoading(false);
+        showToast("请先选择企业", "error");
         return;
       }
 

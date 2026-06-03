@@ -121,6 +121,7 @@ export function SearchPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索线索、订单、资料或规则"
+          aria-label="搜索线索、订单、资料或规则"
         />
         <button
           className="page-secondary-button"
@@ -336,6 +337,7 @@ export function LibraryPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="搜索资料名称或说明..."
+          aria-label="搜索资料名称或说明..."
         />
         <button
           className="page-primary-button"
@@ -960,6 +962,7 @@ export function AutomationPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="搜索工作流名称、触发条件或动作..."
+          aria-label="搜索工作流名称、触发条件或动作..."
         />
         <button
           className="page-primary-button"

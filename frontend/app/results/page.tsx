@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import type { AnalysisResult } from "shared";
 import { fetchJson } from "../lib/api";
 import { AppIcon } from "../components/AppIcon";
+import { ErrorState } from "../components/ErrorState";
 
 function ResultsContent() {
   const searchParams = useSearchParams();
@@ -12,6 +13,7 @@ function ResultsContent() {
   const id = searchParams.get("id");
   const [data, setData] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   useEffect(() => {
     if (!id) {
       setLoading(false);
@@ -30,7 +32,10 @@ function ResultsContent() {
         setData(d);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError("加载分析结果失败");
+        setLoading(false);
+      });
   }, [id]);
 
   async function exportResult(format: "markdown" | "json") {
@@ -69,6 +74,14 @@ function ResultsContent() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="results-inner">
+        <ErrorState message={error} onRetry={() => { setError(""); setLoading(true); if (id) fetchJson<AnalysisResult>(`/analysis/${id}`).then(setData).catch(() => setError("加载分析结果失败")).finally(() => setLoading(false)); }} />
+      </div>
+    );
+  }
+
   if (!data) {
     return (
       <div className="results-inner">
@@ -86,7 +99,7 @@ function ResultsContent() {
     <div className="results-inner">
       {/* Back + Title */}
       <div className="results-back">
-        <button onClick={() => router.push("/")}>←</button>
+        <button onClick={() => router.push("/")} aria-label="返回首页">←</button>
         <h1>分析结果</h1>
       </div>
 

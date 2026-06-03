@@ -112,14 +112,24 @@ export default function ProductsPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
-              <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="商品名称 *" />
-              <input className="page-input" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU" />
-              <input className="page-input" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="分类" />
+              <label htmlFor="new-product-name">名称 *</label>
+              <input id="new-product-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="商品名称 *" />
+              <label htmlFor="new-product-sku">SKU</label>
+              <input id="new-product-sku" className="page-input" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="SKU" />
+              <label htmlFor="new-product-category">分类</label>
+              <input id="new-product-category" className="page-input" value={cat} onChange={(e) => setCat(e.target.value)} placeholder="分类" />
               <div style={{ display: "flex", gap: 8 }}>
-                <input className="page-input" type="number" step="0.01" min="0" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder="单价" style={{ flex: 1 }} />
-                <input className="page-input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="单位（如：个/箱）" style={{ flex: 1 }} />
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="new-product-unit-price">单价</label>
+                  <input id="new-product-unit-price" className="page-input" type="number" step="0.01" min="0" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder="单价" style={{ width: "100%" }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="new-product-unit">单位</label>
+                  <input id="new-product-unit" className="page-input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="单位（如：个/箱）" style={{ width: "100%" }} />
+                </div>
               </div>
-              <input className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
+              <label htmlFor="new-product-description">描述</label>
+              <input id="new-product-description" className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
               <button className="page-primary-button" onClick={createProduct} disabled={saving || !name.trim() || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>

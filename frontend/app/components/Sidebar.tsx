@@ -250,6 +250,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           className="nav-group-header"
           onClick={() => toggleNavGroup("ai-tools")}
           type="button"
+          aria-expanded={navGroups.has("ai-tools")}
         >
           <span className={`tree-chevron ${navGroups.has("ai-tools") ? "open" : ""}`}>▸</span>
           AI 工具
@@ -281,6 +282,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           className="nav-group-header"
           onClick={() => toggleNavGroup("business")}
           type="button"
+          aria-expanded={navGroups.has("business")}
         >
           <span className={`tree-chevron ${navGroups.has("business") ? "open" : ""}`}>▸</span>
           业务
@@ -315,6 +317,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           className="nav-group-header"
           onClick={() => toggleNavGroup("system")}
           type="button"
+          aria-expanded={navGroups.has("system")}
         >
           <span className={`tree-chevron ${navGroups.has("system") ? "open" : ""}`}>▸</span>
           系统
