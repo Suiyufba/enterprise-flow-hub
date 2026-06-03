@@ -16,6 +16,75 @@ type AuditLogRow = {
   created_at: string;
 };
 
+// 对象类型中文名
+const objectLabels: Record<string, string> = {
+  users: "用户",
+  departments: "部门",
+  customers: "客户",
+  orders: "订单",
+  products: "商品",
+  suppliers: "供应商",
+  payments: "付款",
+  invoices: "发票",
+  conversations: "对话",
+  automations: "自动化",
+  skills: "技能",
+  personas: "角色",
+  auth: "认证",
+  library: "资料",
+  files: "文件",
+  rules: "规则",
+  settings: "设置",
+  enterprises: "企业",
+  projects: "项目",
+  providers: "模型",
+  workbench: "工作台",
+  messages: "消息",
+};
+
+// 操作动词
+const methodLabels: Record<string, string> = {
+  POST: "创建",
+  PUT: "更新",
+  PATCH: "修改",
+  DELETE: "删除",
+};
+
+function parseAction(action: string): string {
+  const [method, ...pathParts] = action.split(" ");
+  const path = pathParts.join(" ");
+  if (!method || !path) return action;
+
+  const verb = methodLabels[method] || method;
+  const segments = path.split("/").filter(Boolean);
+
+  // POST /automations/xxx/run → "运行自动化"
+  if (segments.length >= 3 && segments[0] === "automations" && segments[2] === "run") {
+    return "运行自动化";
+  }
+  // POST /conversations/xxx/messages → "发送消息"
+  if (segments.length >= 3 && segments[0] === "conversations" && segments[2] === "messages") {
+    return "发送消息";
+  }
+
+  const objType = objectLabels[segments[0]] || segments[0];
+  const hasId = segments.length >= 2 && segments[1].length > 0;
+
+  // POST /users → "创建用户"
+  if (!hasId) return `${verb}${objType}`;
+
+  // POST /auth/login → "用户登录"
+  if (segments[0] === "auth" && segments[1] === "login") return "用户登录";
+
+  // GET /xxx/yyy → "查看xxx详情" — skip GET anyway, but just in case
+  if (method === "GET") return `查看${objType}详情`;
+
+  // PATCH /users/xxx → "修改用户"
+  // DELETE /users/xxx → "删除用户"
+  // POST /xxx/yyy → "创建xxx" (nested)
+  return `${verb}${objType}`;
+}
+
 export default function AuditPage() {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
@@ -29,7 +98,6 @@ export default function AuditPage() {
     if (!enterpriseId) return;
     setLoading(true);
     try {
-      // Use the existing fetchJson approach — audit_logs query via a simple GET
       const res = await fetchJson<{ items: AuditLogRow[]; total: number }>(`/audit?enterpriseId=${enterpriseId}&page=${page}&limit=50`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
@@ -42,16 +110,35 @@ export default function AuditPage() {
   useEffect(() => { load(); }, [load]);
 
   const columns = [
-    { key: "action", label: "操作" },
-    { key: "object_type", label: "对象类型" },
-    { key: "object_id", label: "对象ID", render: (r: AuditLogRow) => <span style={{ fontFamily: "monospace", fontSize: "11px" }}>{r.object_id?.slice(0, 16)}</span> },
-    { key: "created_at", label: "时间", render: (r: AuditLogRow) => {
-      try {
-        return new Date(r.created_at).toLocaleString("zh-CN", { hour12: false });
-      } catch {
-        return r.created_at;
-      }
-    }},
+    {
+      key: "action",
+      label: "操作",
+      render: (r: AuditLogRow) => (
+        <span style={{ fontSize: 13, fontWeight: 500 }}>
+          {parseAction(r.action)}
+        </span>
+      ),
+    },
+    {
+      key: "object_type",
+      label: "对象",
+      render: (r: AuditLogRow) => (
+        <span style={{ fontSize: 12, color: "var(--c-8c8c8c)" }}>
+          {objectLabels[r.object_type] || r.object_type}
+        </span>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "时间",
+      render: (r: AuditLogRow) => {
+        try {
+          return new Date(r.created_at).toLocaleString("zh-CN", { hour12: false });
+        } catch {
+          return r.created_at;
+        }
+      },
+    },
   ];
 
   if (!user || user.role !== "admin") {
