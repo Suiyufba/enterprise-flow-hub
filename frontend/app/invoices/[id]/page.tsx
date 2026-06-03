@@ -299,7 +299,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     fontSize: 13,
     color: "var(--c-8c8c8c)",
     flexShrink: 0,
-    marginRight: 16,
+    marginRight: 12,
+    minWidth: 72,
   };
 
   const fieldValue: React.CSSProperties = {
@@ -307,6 +308,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     color: "var(--c-c0c0c0)",
     textAlign: "right",
     wordBreak: "break-all",
+  };
+
+  // Two-column grid for cards
+  const grid2: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "4px 24px",
   };
 
   // ---- Field render helper: view vs edit ----
@@ -379,261 +387,164 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
           {/* 1. 基本信息 */}
           <div className="settings-card">
             <div style={sectionTitle}>基本信息</div>
-            <div style={fieldRow}>
-              <span style={fieldLabel}>编号</span>
-              <span className="settings-meta" style={{ fontFamily: "monospace", fontSize: 12 }}>{invoice.id}</span>
-            </div>
+            <div style={grid2}>
+              <div style={fieldRow}>
+                <span style={fieldLabel}>编号</span>
+                <span className="settings-meta" style={{ fontFamily: "monospace", fontSize: 12 }}>{invoice.id}</span>
+              </div>
 
-            {renderField(
-              "发票号码",
-              <span style={fieldValue}>{invoice.invoiceNumber ?? "未设置"}</span>,
-              <input
-                style={editInput}
-                value={editForm.invoiceNumber}
-                onChange={(e) => updateField("invoiceNumber", e.target.value)}
-                placeholder="发票号码"
-              />,
-            )}
+              {renderField(
+                "发票号码",
+                <span style={fieldValue}>{invoice.invoiceNumber ?? "未设置"}</span>,
+                <input style={editInput} value={editForm.invoiceNumber} onChange={(e) => updateField("invoiceNumber", e.target.value)} placeholder="发票号码" />,
+              )}
 
-            {renderField(
-              "发票代码",
-              <span style={fieldValue}>{invoice.invoiceCode ?? "未设置"}</span>,
-              <input
-                style={editInput}
-                value={editForm.invoiceCode}
-                onChange={(e) => updateField("invoiceCode", e.target.value)}
-                placeholder="发票代码"
-              />,
-            )}
+              {renderField(
+                "发票代码",
+                <span style={fieldValue}>{invoice.invoiceCode ?? "未设置"}</span>,
+                <input style={editInput} value={editForm.invoiceCode} onChange={(e) => updateField("invoiceCode", e.target.value)} placeholder="发票代码" />,
+              )}
 
-            {renderField(
-              "发票类型",
-              <span style={fieldValue}>{invoice.invoiceType ? invoiceTypeLabels[invoice.invoiceType] : "未设置"}</span>,
-              <select
-                style={editSelect}
-                value={editForm.invoiceType}
-                onChange={(e) => updateField("invoiceType", e.target.value)}
-              >
-                <option value="">未设置</option>
-                {Object.entries(invoiceTypeLabels).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>,
-            )}
+              {renderField(
+                "发票类型",
+                <span style={fieldValue}>{invoice.invoiceType ? invoiceTypeLabels[invoice.invoiceType] : "未设置"}</span>,
+                <select style={editSelect} value={editForm.invoiceType} onChange={(e) => updateField("invoiceType", e.target.value)}>
+                  <option value="">未设置</option>
+                  {Object.entries(invoiceTypeLabels).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+                </select>,
+              )}
 
-            {renderField(
-              "状态",
-              <StatusBadge status={invoice.status} />,
-              <select
-                style={editSelect}
-                value={editForm.status}
-                onChange={(e) => updateField("status", e.target.value)}
-              >
-                {Object.entries(statusLabels).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>,
-            )}
+              {renderField(
+                "状态",
+                <StatusBadge status={invoice.status} />,
+                <select style={editSelect} value={editForm.status} onChange={(e) => updateField("status", e.target.value)}>
+                  {Object.entries(statusLabels).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+                </select>,
+              )}
 
-            <div style={fieldRow}>
-              <span style={fieldLabel}>创建时间</span>
-              <span style={fieldValue}>{invoice.createdAt}</span>
-            </div>
+              <div style={fieldRow}>
+                <span style={fieldLabel}>创建时间</span>
+                <span style={fieldValue}>{invoice.createdAt}</span>
+              </div>
 
-            {/* Editable dueDate / issuedAt (only shown in edit mode) */}
-            {isEditing && (
-              <>
+              {/* Editable dueDate / issuedAt (only shown in edit mode) */}
+              {isEditing && (<>
                 <div style={fieldRow}>
                   <span style={fieldLabel}>到期日</span>
-                  <input
-                    type="date"
-                    style={editInput}
-                    value={editForm.dueDate}
-                    onChange={(e) => updateField("dueDate", e.target.value)}
-                  />
+                  <input type="date" style={editInput} value={editForm.dueDate} onChange={(e) => updateField("dueDate", e.target.value)} />
                 </div>
                 <div style={fieldRow}>
                   <span style={fieldLabel}>开票日期</span>
-                  <input
-                    type="date"
-                    style={editInput}
-                    value={editForm.issuedAt}
-                    onChange={(e) => updateField("issuedAt", e.target.value)}
-                  />
+                  <input type="date" style={editInput} value={editForm.issuedAt} onChange={(e) => updateField("issuedAt", e.target.value)} />
                 </div>
-              </>
-            )}
+              </>)}
+            </div>
           </div>
 
           {/* 2. 金额信息 */}
           <div className="settings-card">
             <div style={sectionTitle}>金额信息</div>
+            <div style={grid2}>
+              {renderField(
+                "金额（不含税）",
+                <span className="settings-meta" style={{ fontSize: 14, fontWeight: 700 }}>¥{invoice.amount.toFixed(2)}</span>,
+                <input type="number" step="0.01" min="0" style={editInput} value={editForm.amount} onChange={(e) => updateField("amount", parseFloat(e.target.value) || 0)} />,
+              )}
 
-            {renderField(
-              "金额（不含税）",
-              <span className="settings-meta" style={{ fontSize: 14, fontWeight: 700 }}>¥{invoice.amount.toFixed(2)}</span>,
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                style={editInput}
-                value={editForm.amount}
-                onChange={(e) => updateField("amount", parseFloat(e.target.value) || 0)}
-              />,
-            )}
+              {renderField(
+                "税率",
+                <span style={fieldValue}>{invoice.taxRate != null ? `${(invoice.taxRate * 100).toFixed(0)}%` : "未设置"}</span>,
+                <select style={editSelect} value={editForm.taxRate != null ? editForm.taxRate : ""} onChange={(e) => { const val = e.target.value; updateField("taxRate", val === "" ? null : parseFloat(val)); }}>
+                  <option value="">未设置</option>
+                  {taxRateOptions.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                </select>,
+              )}
 
-            {renderField(
-              "税率",
-              <span style={fieldValue}>{invoice.taxRate != null ? `${(invoice.taxRate * 100).toFixed(0)}%` : "未设置"}</span>,
-              <select
-                style={editSelect}
-                value={editForm.taxRate != null ? editForm.taxRate : ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  updateField("taxRate", val === "" ? null : parseFloat(val));
-                }}
-              >
-                <option value="">未设置</option>
-                {taxRateOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>,
-            )}
+              {renderField(
+                "税额",
+                <span style={fieldValue}>{invoice.taxAmount != null ? `¥${invoice.taxAmount.toFixed(2)}` : "未设置"}</span>,
+                <input type="number" step="0.01" min="0" style={editInput} value={editForm.taxAmount ?? ""} onChange={(e) => { const val = e.target.value; updateField("taxAmount", val === "" ? null : parseFloat(val)); }} placeholder="未设置" />,
+              )}
 
-            {renderField(
-              "税额",
-              <span style={fieldValue}>{invoice.taxAmount != null ? `¥${invoice.taxAmount.toFixed(2)}` : "未设置"}</span>,
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                style={editInput}
-                value={editForm.taxAmount ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  updateField("taxAmount", val === "" ? null : parseFloat(val));
-                }}
-                placeholder="未设置"
-              />,
-            )}
+              {renderField(
+                "价税合计",
+                <span className="settings-meta" style={{ fontSize: 14, fontWeight: 700 }}>¥{invoice.totalAmount != null ? invoice.totalAmount.toFixed(2) : invoice.amount.toFixed(2)}</span>,
+                <input type="number" step="0.01" min="0" style={editInput} value={editForm.totalAmount ?? ""} onChange={(e) => { const val = e.target.value; updateField("totalAmount", val === "" ? null : parseFloat(val)); }} placeholder="未设置" />,
+              )}
 
-            {renderField(
-              "价税合计",
-              <span className="settings-meta" style={{ fontSize: 14, fontWeight: 700 }}>¥{invoice.totalAmount != null ? invoice.totalAmount.toFixed(2) : invoice.amount.toFixed(2)}</span>,
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                style={editInput}
-                value={editForm.totalAmount ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  updateField("totalAmount", val === "" ? null : parseFloat(val));
-                }}
-                placeholder="未设置"
-              />,
-            )}
-
-            {invoice.totalAmount != null && (
-              <div style={{ textAlign: "right", marginTop: 4 }}>
-                <span style={{ fontSize: 12, color: "var(--c-d20f39)", fontWeight: 600 }}>
-                  {toChineseUpper(invoice.totalAmount)}
-                </span>
-              </div>
-            )}
+              {invoice.totalAmount != null && (
+                <div style={{ textAlign: "right", marginTop: 4, gridColumn: "1 / -1" }}>
+                  <span style={{ fontSize: 12, color: "var(--c-d20f39)", fontWeight: 600 }}>{toChineseUpper(invoice.totalAmount)}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 3. 购买方信息 */}
           <div className="settings-card">
             <div style={sectionTitle}>购买方信息</div>
+            <div style={grid2}>
+              {renderField(
+                "名称",
+                <span style={fieldValue}>{invoice.buyerName ?? "未设置"}</span>,
+                <input style={editInput} value={editForm.buyerName} onChange={(e) => updateField("buyerName", e.target.value)} placeholder="购买方名称" />,
+              )}
 
-            {renderField(
-              "名称",
-              <span style={fieldValue}>{invoice.buyerName ?? "未设置"}</span>,
-              <input
-                style={editInput}
-                value={editForm.buyerName}
-                onChange={(e) => updateField("buyerName", e.target.value)}
-                placeholder="购买方名称"
-              />,
-            )}
-
-            {renderField(
-              "纳税人识别号",
-              <span style={{ ...fieldValue, fontFamily: "monospace", fontSize: 12 }}>
-                {invoice.buyerTaxId ?? "未设置"}
-              </span>,
-              <input
-                style={editInput}
-                value={editForm.buyerTaxId}
-                onChange={(e) => updateField("buyerTaxId", e.target.value)}
-                placeholder="纳税人识别号"
-              />,
-            )}
+              {renderField(
+                "纳税人识别号",
+                <span style={{ ...fieldValue, fontFamily: "monospace", fontSize: 12 }}>{invoice.buyerTaxId ?? "未设置"}</span>,
+                <input style={editInput} value={editForm.buyerTaxId} onChange={(e) => updateField("buyerTaxId", e.target.value)} placeholder="纳税人识别号" />,
+              )}
+            </div>
           </div>
 
           {/* 4. 销售方信息 */}
           <div className="settings-card">
             <div style={sectionTitle}>销售方信息</div>
+            <div style={grid2}>
+              {renderField(
+                "名称",
+                <span style={fieldValue}>{invoice.sellerName ?? "未设置"}</span>,
+                <input style={editInput} value={editForm.sellerName} onChange={(e) => updateField("sellerName", e.target.value)} placeholder="销售方名称" />,
+              )}
 
-            {renderField(
-              "名称",
-              <span style={fieldValue}>{invoice.sellerName ?? "未设置"}</span>,
-              <input
-                style={editInput}
-                value={editForm.sellerName}
-                onChange={(e) => updateField("sellerName", e.target.value)}
-                placeholder="销售方名称"
-              />,
-            )}
-
-            {renderField(
-              "纳税人识别号",
-              <span style={{ ...fieldValue, fontFamily: "monospace", fontSize: 12 }}>
-                {invoice.sellerTaxId ?? "未设置"}
-              </span>,
-              <input
-                style={editInput}
-                value={editForm.sellerTaxId}
-                onChange={(e) => updateField("sellerTaxId", e.target.value)}
-                placeholder="纳税人识别号"
-              />,
-            )}
+              {renderField(
+                "纳税人识别号",
+                <span style={{ ...fieldValue, fontFamily: "monospace", fontSize: 12 }}>{invoice.sellerTaxId ?? "未设置"}</span>,
+                <input style={editInput} value={editForm.sellerTaxId} onChange={(e) => updateField("sellerTaxId", e.target.value)} placeholder="纳税人识别号" />,
+              )}
+            </div>
           </div>
 
           {/* 5. 其他信息 */}
           <div className="settings-card">
             <div style={sectionTitle}>其他信息</div>
-            {invoice.orderId ? (
-              <div style={fieldRow}>
-                <span style={fieldLabel}>关联订单</span>
-                <Link href={`/orders/${invoice.orderId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>
-                  查看订单 →
-                </Link>
-              </div>
-            ) : (
-              <div style={fieldRow}>
-                <span style={fieldLabel}>关联订单</span>
-                <span style={fieldValue}>无</span>
-              </div>
-            )}
-            {invoice.customerId ? (
-              <div style={fieldRow}>
-                <span style={fieldLabel}>关联客户</span>
-                <Link href={`/customers/${invoice.customerId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>
-                  查看客户 →
-                </Link>
-              </div>
-            ) : (
-              <div style={fieldRow}>
-                <span style={fieldLabel}>关联客户</span>
-                <span style={fieldValue}>无</span>
-              </div>
-            )}
+            <div style={grid2}>
+              {invoice.orderId ? (
+                <div style={fieldRow}>
+                  <span style={fieldLabel}>关联订单</span>
+                  <Link href={`/orders/${invoice.orderId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>查看订单 →</Link>
+                </div>
+              ) : (
+                <div style={fieldRow}>
+                  <span style={fieldLabel}>关联订单</span>
+                  <span style={fieldValue}>无</span>
+                </div>
+              )}
+              {invoice.customerId ? (
+                <div style={fieldRow}>
+                  <span style={fieldLabel}>关联客户</span>
+                  <Link href={`/customers/${invoice.customerId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>查看客户 →</Link>
+                </div>
+              ) : (
+                <div style={fieldRow}>
+                  <span style={fieldLabel}>关联客户</span>
+                  <span style={fieldValue}>无</span>
+                </div>
+              )}
 
-            {/* dueDate / issuedAt shown in view mode when not editing */}
-            {!isEditing && (
-              <>
+              {/* dueDate / issuedAt shown in view mode when not editing */}
+              {!isEditing && (<>
                 <div style={fieldRow}>
                   <span style={fieldLabel}>到期日</span>
                   <span style={fieldValue}>{invoice.dueDate?.slice(0, 10) ?? "无"}</span>
@@ -642,30 +553,20 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                   <span style={fieldLabel}>开票日期</span>
                   <span style={fieldValue}>{invoice.issuedAt?.slice(0, 10) ?? "未开具"}</span>
                 </div>
-              </>
-            )}
+              </>)}
 
-            {renderField(
-              "备注",
-              <span style={fieldValue}>{invoice.remark ?? "无"}</span>,
-              <input
-                style={editInput}
-                value={editForm.remark}
-                onChange={(e) => updateField("remark", e.target.value)}
-                placeholder="备注"
-              />,
-            )}
+              {renderField(
+                "备注",
+                <span style={fieldValue}>{invoice.remark ?? "无"}</span>,
+                <input style={editInput} value={editForm.remark} onChange={(e) => updateField("remark", e.target.value)} placeholder="备注" />,
+              )}
 
-            {renderField(
-              "开票人",
-              <span style={fieldValue}>{invoice.issuer ?? "未设置"}</span>,
-              <input
-                style={editInput}
-                value={editForm.issuer}
-                onChange={(e) => updateField("issuer", e.target.value)}
-                placeholder="开票人"
-              />,
-            )}
+              {renderField(
+                "开票人",
+                <span style={fieldValue}>{invoice.issuer ?? "未设置"}</span>,
+                <input style={editInput} value={editForm.issuer} onChange={(e) => updateField("issuer", e.target.value)} placeholder="开票人" />,
+              )}
+            </div>
           </div>
         </div>
       </div>
