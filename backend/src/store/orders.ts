@@ -189,6 +189,18 @@ function rowToInvoice(r: Record<string, unknown>): Invoice {
     dueDate: (r.due_date as string) || null,
     issuedAt: (r.issued_at as string) || null,
     createdAt: r.created_at as string,
+    invoiceNumber: (r.invoice_number as string) || null,
+    invoiceCode: (r.invoice_code as string) || null,
+    invoiceType: (r.invoice_type as Invoice["invoiceType"]) || null,
+    taxRate: (r.tax_rate as number) ?? null,
+    taxAmount: (r.tax_amount as number) ?? null,
+    totalAmount: (r.total_amount as number) ?? null,
+    buyerName: (r.buyer_name as string) || null,
+    buyerTaxId: (r.buyer_tax_id as string) || null,
+    sellerName: (r.seller_name as string) || null,
+    sellerTaxId: (r.seller_tax_id as string) || null,
+    remark: (r.remark as string) || null,
+    issuer: (r.issuer as string) || null,
   };
 }
 
@@ -211,6 +223,8 @@ export function listInvoices(
 
 export function createInvoice(input: CreateInvoiceRequest): Invoice {
   const now = new Date().toISOString();
+  const taxAmount = input.taxAmount ?? (input.taxRate != null ? Math.round(input.amount * input.taxRate * 100) / 100 : 0);
+  const totalAmount = input.totalAmount ?? Math.round((input.amount + taxAmount) * 100) / 100;
   const invoice: Invoice = {
     id: `inv-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
@@ -221,9 +235,21 @@ export function createInvoice(input: CreateInvoiceRequest): Invoice {
     dueDate: input.dueDate || null,
     issuedAt: null,
     createdAt: now,
+    invoiceNumber: input.invoiceNumber ?? null,
+    invoiceCode: input.invoiceCode ?? null,
+    invoiceType: input.invoiceType ?? null,
+    taxRate: input.taxRate ?? null,
+    taxAmount,
+    totalAmount,
+    buyerName: input.buyerName ?? null,
+    buyerTaxId: input.buyerTaxId ?? null,
+    sellerName: input.sellerName ?? null,
+    sellerTaxId: input.sellerTaxId ?? null,
+    remark: input.remark ?? null,
+    issuer: input.issuer ?? null,
   };
   db()
-    .prepare("INSERT INTO invoices (id, enterprise_id, order_id, customer_id, amount, status, due_date, issued_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)")
-    .run(invoice.id, invoice.enterpriseId, invoice.orderId, invoice.customerId, invoice.amount, invoice.status, invoice.dueDate, invoice.issuedAt, invoice.createdAt);
+    .prepare(`INSERT INTO invoices (id, enterprise_id, order_id, customer_id, amount, status, due_date, issued_at, created_at, invoice_number, invoice_code, invoice_type, tax_rate, tax_amount, total_amount, buyer_name, buyer_tax_id, seller_name, seller_tax_id, remark, issuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(invoice.id, invoice.enterpriseId, invoice.orderId, invoice.customerId, invoice.amount, invoice.status, invoice.dueDate, invoice.issuedAt, invoice.createdAt, invoice.invoiceNumber, invoice.invoiceCode, invoice.invoiceType, invoice.taxRate, invoice.taxAmount, invoice.totalAmount, invoice.buyerName, invoice.buyerTaxId, invoice.sellerName, invoice.sellerTaxId, invoice.remark, invoice.issuer);
   return invoice;
 }

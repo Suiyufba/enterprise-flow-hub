@@ -16,6 +16,12 @@ const statusLabels: Record<string, string> = {
   draft: "草稿", issued: "已开具", paid: "已付款", overdue: "已逾期", cancelled: "已取消",
 };
 
+const invoiceTypeLabels: Record<string, string> = {
+  vat_special: "增值税专用发票",
+  vat_normal: "增值税普通发票",
+  electronic: "电子发票",
+};
+
 export default function InvoicesPage() {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
@@ -48,6 +54,16 @@ export default function InvoicesPage() {
   const [orderId, setOrderId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceCode, setInvoiceCode] = useState("");
+  const [invoiceType, setInvoiceType] = useState("");
+  const [taxRate, setTaxRate] = useState("");
+  const [buyerName, setBuyerName] = useState("");
+  const [buyerTaxId, setBuyerTaxId] = useState("");
+  const [sellerName, setSellerName] = useState("");
+  const [sellerTaxId, setSellerTaxId] = useState("");
+  const [remark, setRemark] = useState("");
+  const [issuer, setIssuer] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function createInvoice() {
@@ -63,10 +79,23 @@ export default function InvoicesPage() {
           customerId: customerId.trim() || undefined,
           amount: parseFloat(amount),
           dueDate: dueDate || undefined,
+          invoiceNumber: invoiceNumber.trim() || undefined,
+          invoiceCode: invoiceCode.trim() || undefined,
+          invoiceType: invoiceType || undefined,
+          taxRate: taxRate ? parseFloat(taxRate) : undefined,
+          buyerName: buyerName.trim() || undefined,
+          buyerTaxId: buyerTaxId.trim() || undefined,
+          sellerName: sellerName.trim() || undefined,
+          sellerTaxId: sellerTaxId.trim() || undefined,
+          remark: remark.trim() || undefined,
+          issuer: issuer.trim() || undefined,
         }),
         adminUserId: user?.id,
       });
       setAmount(""); setOrderId(""); setCustomerId(""); setDueDate("");
+      setInvoiceNumber(""); setInvoiceCode(""); setInvoiceType("");
+      setTaxRate(""); setBuyerName(""); setBuyerTaxId("");
+      setSellerName(""); setSellerTaxId(""); setRemark(""); setIssuer("");
       setShowForm(false);
       showToast("发票已创建", "success");
       await load();
@@ -84,7 +113,23 @@ export default function InvoicesPage() {
         </Link>
       ),
     },
+    { key: "invoiceNumber", label: "发票号码", render: (inv: Invoice) => inv.invoiceNumber ?? "-" },
+    {
+      key: "invoiceType",
+      label: "发票类型",
+      render: (inv: Invoice) => (inv.invoiceType ? invoiceTypeLabels[inv.invoiceType] ?? inv.invoiceType : "-"),
+    },
+    {
+      key: "taxRate",
+      label: "税率",
+      render: (inv: Invoice) => (inv.taxRate != null ? `${(inv.taxRate * 100).toFixed(0)}%` : "-"),
+    },
     { key: "amount", label: "金额", render: (inv: Invoice) => `¥${inv.amount.toFixed(2)}` },
+    {
+      key: "totalAmount",
+      label: "价税合计",
+      render: (inv: Invoice) => (inv.totalAmount != null ? `¥${inv.totalAmount.toFixed(2)}` : "-"),
+    },
     { key: "status", label: "状态", render: (inv: Invoice) => <StatusBadge status={inv.status} /> },
     { key: "dueDate", label: "到期日", render: (inv: Invoice) => inv.dueDate?.slice(0, 10) ?? "-" },
     {
@@ -118,12 +163,59 @@ export default function InvoicesPage() {
             <div className="settings-edit-form">
               <label className="form-label" htmlFor="invoice-amount">金额 *</label>
               <input id="invoice-amount" className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
+
+              <label className="form-label" htmlFor="invoice-number">发票号码</label>
+              <input id="invoice-number" className="page-input" value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} placeholder="发票号码" />
+
+              <label className="form-label" htmlFor="invoice-code">发票代码</label>
+              <input id="invoice-code" className="page-input" value={invoiceCode} onChange={(e) => setInvoiceCode(e.target.value)} placeholder="发票代码" />
+
+              <label className="form-label" htmlFor="invoice-type">发票类型</label>
+              <select id="invoice-type" className="page-input" value={invoiceType} onChange={(e) => setInvoiceType(e.target.value)}>
+                <option value="">请选择</option>
+                <option value="vat_special">增值税专用发票</option>
+                <option value="vat_normal">增值税普通发票</option>
+                <option value="electronic">电子发票</option>
+              </select>
+
+              <label className="form-label" htmlFor="invoice-taxRate">税率（%）</label>
+              <select id="invoice-taxRate" className="page-input" value={taxRate} onChange={(e) => setTaxRate(e.target.value)}>
+                <option value="">请选择</option>
+                <option value="0">0%</option>
+                <option value="0.01">1%</option>
+                <option value="0.03">3%</option>
+                <option value="0.06">6%</option>
+                <option value="0.09">9%</option>
+                <option value="0.13">13%</option>
+              </select>
+
+              <label className="form-label" htmlFor="invoice-buyerName">购买方名称</label>
+              <input id="invoice-buyerName" className="page-input" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} placeholder="购买方名称" />
+
+              <label className="form-label" htmlFor="invoice-buyerTaxId">购买方税号</label>
+              <input id="invoice-buyerTaxId" className="page-input" value={buyerTaxId} onChange={(e) => setBuyerTaxId(e.target.value)} placeholder="购买方税号" />
+
+              <label className="form-label" htmlFor="invoice-sellerName">销售方名称</label>
+              <input id="invoice-sellerName" className="page-input" value={sellerName} onChange={(e) => setSellerName(e.target.value)} placeholder="销售方名称" />
+
+              <label className="form-label" htmlFor="invoice-sellerTaxId">销售方税号</label>
+              <input id="invoice-sellerTaxId" className="page-input" value={sellerTaxId} onChange={(e) => setSellerTaxId(e.target.value)} placeholder="销售方税号" />
+
               <label className="form-label" htmlFor="invoice-orderid">关联订单 ID（可选）</label>
               <input id="invoice-orderid" className="page-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="关联订单 ID（可选）" />
+
               <label className="form-label" htmlFor="invoice-customerid">关联客户 ID（可选）</label>
               <input id="invoice-customerid" className="page-input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="关联客户 ID（可选）" />
+
               <label className="form-label" htmlFor="invoice-duedate">到期日</label>
               <input id="invoice-duedate" className="page-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} placeholder="到期日" />
+
+              <label className="form-label" htmlFor="invoice-remark">备注</label>
+              <input id="invoice-remark" className="page-input" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="备注" />
+
+              <label className="form-label" htmlFor="invoice-issuer">开票人</label>
+              <input id="invoice-issuer" className="page-input" value={issuer} onChange={(e) => setIssuer(e.target.value)} placeholder="开票人" />
+
               <button className="page-primary-button" onClick={createInvoice} disabled={saving || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
                 {saving ? "创建中..." : "确认创建"}
               </button>

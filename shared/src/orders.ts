@@ -78,6 +78,18 @@ export const InvoiceSchema = z.object({
   dueDate: z.string().nullable(),
   issuedAt: z.string().nullable(),
   createdAt: z.string(),
+  invoiceNumber: z.string().nullable(),
+  invoiceCode: z.string().nullable(),
+  invoiceType: z.enum(["vat_special","vat_normal","electronic"]).nullable(),
+  taxRate: z.number().nullable(),
+  taxAmount: z.number().nullable(),
+  totalAmount: z.number().nullable(),
+  buyerName: z.string().nullable(),
+  buyerTaxId: z.string().nullable(),
+  sellerName: z.string().nullable(),
+  sellerTaxId: z.string().nullable(),
+  remark: z.string().nullable(),
+  issuer: z.string().nullable(),
 });
 
 export const CreateInvoiceRequestSchema = z.object({
@@ -86,6 +98,18 @@ export const CreateInvoiceRequestSchema = z.object({
   customerId: z.string().optional(),
   amount: z.number().positive(),
   dueDate: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  invoiceCode: z.string().optional(),
+  invoiceType: z.enum(["vat_special","vat_normal","electronic"]).optional(),
+  taxRate: z.number().optional(),
+  taxAmount: z.number().optional(),
+  totalAmount: z.number().optional(),
+  buyerName: z.string().optional(),
+  buyerTaxId: z.string().optional(),
+  sellerName: z.string().optional(),
+  sellerTaxId: z.string().optional(),
+  remark: z.string().optional(),
+  issuer: z.string().optional(),
 });
 
 export type Invoice = z.infer<typeof InvoiceSchema>;
