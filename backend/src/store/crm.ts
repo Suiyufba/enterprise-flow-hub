@@ -192,13 +192,15 @@ export function deleteSupplier(id: string): boolean {
 // ---- Product ----
 
 function rowToProduct(r: Record<string, unknown>): Product {
+  const unitPrice = (r.unit_price as number) || 0;
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
     name: r.name as string,
     sku: (r.sku as string) || "",
     category: (r.category as string) || "",
-    unitPrice: (r.unit_price as number) || 0,
+    unitPrice,
+    price: unitPrice,
     unit: (r.unit as string) || "个",
     description: (r.description as string) || "",
     createdAt: r.created_at as string,
@@ -238,6 +240,7 @@ export function createProduct(input: CreateProductRequest): Product {
     sku: input.sku ?? "",
     category: input.category ?? "",
     unitPrice: input.unitPrice ?? 0,
+    price: input.unitPrice ?? 0,
     unit: input.unit ?? "个",
     description: input.description ?? "",
     createdAt: now,

@@ -5,20 +5,12 @@ import {
   CreatePaymentRequestSchema,
   CreateInvoiceRequestSchema,
 } from "shared";
-import { getUser } from "../store.js";
 import {
   listOrders, getOrder, createOrder, updateOrder, deleteOrder,
   listPayments, createPayment,
   listInvoices, createInvoice, updateInvoice, deleteInvoice,
 } from "../store/orders.js";
-
-function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
-  const userId = request.headers["x-user-id"] as string | undefined;
-  if (!userId) { reply.status(401).send({ error: "未登录" }); return null; }
-  const user = getUser(userId);
-  if (!user) { reply.status(401).send({ error: "用户不存在" }); return null; }
-  return user.enterpriseId;
-}
+import { getCallerEnterprise } from "./auth-context.js";
 
 function requireScope(request: FastifyRequest, reply: FastifyReply, recordEid: string): boolean {
   const actorEid = getCallerEnterprise(request, reply);
@@ -95,6 +87,15 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     const actorEid = getCallerEnterprise(request, reply);
     if (!actorEid) return;
     if (parsed.data.enterpriseId !== actorEid) return reply.status(403).send({ error: "不能为其他企业创建付款" });
+    if (parsed.data.orderId) {
+      const order = getOrder(parsed.data.orderId);
+      if (!order) {
+        return reply.status(400).send({ error: "关联订单不存在", orderId: parsed.data.orderId });
+      }
+      if (order.enterpriseId !== actorEid) {
+        return reply.status(403).send({ error: "不能为其他企业订单创建付款" });
+      }
+    }
     const payment = createPayment(parsed.data);
     return reply.status(201).send(payment);
   });

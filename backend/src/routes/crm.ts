@@ -7,7 +7,6 @@ import {
   CreateProductRequestSchema,
   UpdateProductRequestSchema,
 } from "shared";
-import { getUser } from "../store.js";
 import {
   listCustomers,
   getCustomer,
@@ -25,20 +24,7 @@ import {
   updateProduct,
   deleteProduct,
 } from "../store/crm.js";
-
-function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
-  const userId = request.headers["x-user-id"] as string | undefined;
-  if (!userId) {
-    reply.status(401).send({ error: "未登录" });
-    return null;
-  }
-  const user = getUser(userId);
-  if (!user) {
-    reply.status(401).send({ error: "用户不存在" });
-    return null;
-  }
-  return user.enterpriseId;
-}
+import { getCallerEnterprise } from "./auth-context.js";
 
 function requireEnterpriseScope(
   request: FastifyRequest,

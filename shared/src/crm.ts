@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+function withUnitPriceAlias(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const input = raw as Record<string, unknown>;
+  if (input.unitPrice === undefined && input.price !== undefined) {
+    return { ...input, unitPrice: input.price };
+  }
+  return raw;
+}
+
 // ---- Customer ----
 export const CustomerSchema = z.object({
   id: z.string(),
@@ -82,13 +91,14 @@ export const ProductSchema = z.object({
   sku: z.string(),
   category: z.string(),
   unitPrice: z.number(),
+  price: z.number().optional(),
   unit: z.string(),
   description: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
-export const CreateProductRequestSchema = z.object({
+export const CreateProductRequestSchema = z.preprocess(withUnitPriceAlias, z.object({
   enterpriseId: z.string(),
   name: z.string().min(1).max(120),
   sku: z.string().max(60).optional(),
@@ -96,16 +106,16 @@ export const CreateProductRequestSchema = z.object({
   unitPrice: z.number().min(0).optional(),
   unit: z.string().max(20).optional(),
   description: z.string().max(500).optional(),
-});
+}));
 
-export const UpdateProductRequestSchema = z.object({
+export const UpdateProductRequestSchema = z.preprocess(withUnitPriceAlias, z.object({
   name: z.string().min(1).max(120).optional(),
   sku: z.string().max(60).optional(),
   category: z.string().max(60).optional(),
   unitPrice: z.number().min(0).optional(),
   unit: z.string().max(20).optional(),
   description: z.string().max(500).optional(),
-});
+}));
 
 export type Product = z.infer<typeof ProductSchema>;
 export type CreateProductRequest = z.infer<typeof CreateProductRequestSchema>;

@@ -1,14 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { getUser } from "../store.js";
 import { listAuditLogs } from "../auth/audit.js";
+import { requireAdminActor } from "./auth-context.js";
 
 function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
-  const userId = request.headers["x-user-id"] as string | undefined;
-  if (!userId) { reply.status(401).send({ error: "未登录" }); return null; }
-  const user = getUser(userId);
-  if (!user) { reply.status(401).send({ error: "用户不存在" }); return null; }
-  if (user.role !== "admin") { reply.status(403).send({ error: "仅管理员可查看审计日志" }); return null; }
-  return user.enterpriseId;
+  const user = requireAdminActor(request, reply);
+  return user?.enterpriseId ?? null;
 }
 
 export async function auditRoutes(app: FastifyInstance): Promise<void> {

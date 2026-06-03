@@ -2,17 +2,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { mkdirSync, createReadStream, existsSync } from "node:fs";
-import { getUser } from "../store.js";
 import { listFiles, getFile, getFileInternal, createFile, deleteFile } from "../store/files.js";
 import { analyzeImageFile } from "../ai/ocr.js";
-
-function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
-  const userId = request.headers["x-user-id"] as string | undefined;
-  if (!userId) { reply.status(401).send({ error: "未登录" }); return null; }
-  const user = getUser(userId);
-  if (!user) { reply.status(401).send({ error: "用户不存在" }); return null; }
-  return user.enterpriseId;
-}
+import { getCallerEnterprise, requireRequestActor } from "./auth-context.js";
 
 export async function fileRoutes(app: FastifyInstance): Promise<void> {
   await app.register(import("@fastify/multipart"), {
@@ -42,8 +34,9 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/files/upload", async (request, reply) => {
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
+    const actor = requireRequestActor(request, reply);
+    if (!actor) return;
+    const actorEid = actor.enterpriseId;
     const data = await request.file();
     if (!data) return reply.status(400).send({ error: "未选择文件" });
 
@@ -63,7 +56,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       mimeType: data.mimetype,
       size: buf.length,
       storagePath,
-      uploadedBy: request.headers["x-user-id"] as string,
+      uploadedBy: actor.id,
       relatedType,
       relatedId,
     });

@@ -1,14 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { getUser } from "../store.js";
 import { listRules, getRule, createRule, setRuleEnabled, deleteRule, evaluateRulesForObject } from "../store/rules.js";
-
-function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
-  const userId = request.headers["x-user-id"] as string | undefined;
-  if (!userId) { reply.status(401).send({ error: "未登录" }); return null; }
-  const user = getUser(userId);
-  if (!user) { reply.status(401).send({ error: "用户不存在" }); return null; }
-  return user.enterpriseId;
-}
+import { getCallerEnterprise } from "./auth-context.js";
 
 export async function rulesRoutes(app: FastifyInstance): Promise<void> {
   app.get("/rules", async (request, reply) => {

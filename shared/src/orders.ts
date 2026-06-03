@@ -1,5 +1,24 @@
 import { z } from "zod";
 
+function withUnitPriceAlias(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const item = raw as Record<string, unknown>;
+  if (item.unitPrice === undefined && item.price !== undefined) {
+    return { ...item, unitPrice: item.price };
+  }
+  return raw;
+}
+
+function normalizeNullableOrderId(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const input = raw as Record<string, unknown>;
+  if (input.orderId === null || input.orderId === "") {
+    const { orderId: _orderId, ...rest } = input;
+    return rest;
+  }
+  return raw;
+}
+
 // ---- Order ----
 export const OrderItemSchema = z.object({
   id: z.string(),
@@ -22,11 +41,11 @@ export const OrderSchema = z.object({
   updatedAt: z.string(),
 });
 
-export const OrderItemCreateSchema = z.object({
+export const OrderItemCreateSchema = z.preprocess(withUnitPriceAlias, z.object({
   productId: z.string(),
   quantity: z.number().positive(),
   unitPrice: z.number().min(0),
-});
+}));
 
 export const CreateOrderRequestSchema = z.object({
   enterpriseId: z.string(),
@@ -57,12 +76,12 @@ export const PaymentSchema = z.object({
   createdAt: z.string(),
 });
 
-export const CreatePaymentRequestSchema = z.object({
+export const CreatePaymentRequestSchema = z.preprocess(normalizeNullableOrderId, z.object({
   enterpriseId: z.string(),
   orderId: z.string().optional(),
   amount: z.number().positive(),
   method: z.enum(["cash","bank_transfer","alipay","wechat","credit_card","other"]).optional(),
-});
+}));
 
 export type Payment = z.infer<typeof PaymentSchema>;
 export type CreatePaymentRequest = z.infer<typeof CreatePaymentRequestSchema>;

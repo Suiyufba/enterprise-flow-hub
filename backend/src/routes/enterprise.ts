@@ -16,18 +16,14 @@ import {
   updateDepartment,
   updateUser,
 } from "../store.js";
+import { getRequestActor, requireAdminActor } from "./auth-context.js";
 
 async function requireAdmin(
   request: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const userId = request.headers["x-user-id"] as string | undefined;
-  if (!userId) return reply.status(401).send({ error: "未登录" });
-  const user = getUser(userId);
-  if (!user) return reply.status(401).send({ error: "用户不存在" });
-  if (user.role !== "admin") return reply.status(403).send({ error: "仅管理员可操作" });
-  // Attach authenticated user to request for downstream enterprise scoping
-  (request as unknown as Record<string, unknown>).actor = user;
+  const actor = requireAdminActor(request, reply);
+  if (!actor) return reply;
 }
 
 function ensureEnterpriseScope(request: FastifyRequest, targetEnterpriseId: string, reply: FastifyReply): boolean {
@@ -45,12 +41,9 @@ export function enterpriseRoutes(app: FastifyInstance): void {
   app.get("/departments", async (request, reply) => {
     const { enterpriseId } = request.query as { enterpriseId?: string };
     if (!enterpriseId) return [];
-    const userId = request.headers["x-user-id"] as string | undefined;
-    if (userId) {
-      const actor = getUser(userId);
-      if (actor && actor.enterpriseId !== enterpriseId) {
-        return reply.status(403).send({ error: "无权查看其他企业的数据" });
-      }
+    const actor = getRequestActor(request);
+    if (actor && actor.enterpriseId !== enterpriseId) {
+      return reply.status(403).send({ error: "无权查看其他企业的数据" });
     }
     return listDepartments(enterpriseId);
   });
