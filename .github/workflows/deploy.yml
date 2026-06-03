@@ -65,33 +65,81 @@ jobs:
           SSH_PRIVATE_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           if [ -n "${SSH_PRIVATE_KEY}" ]; then
-            printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+            printf '%s\n' "${SSH_PRIVATE_KEY}" | tr -d '\r' > ~/.ssh/deploy_key
+          elif [ -n "${SSH_PRIVATE_KEY_B64}" ]; then
+            printf '%s' "${SSH_PRIVATE_KEY_B64}" | base64 -d | tr -d '\r' > ~/.ssh/deploy_key
           else
-            printf '%s' "${SSH_PRIVATE_KEY_B64}" | base64 -d > ~/.ssh/deploy_key
+            echo "Either SSH_PRIVATE_KEY or SSH_PRIVATE_KEY_B64 must be set" >&2
+            exit 1
           fi
           chmod 600 ~/.ssh/deploy_key
+          ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
           ssh-keyscan -H "${SSH_HOST}" >> ~/.ssh/known_hosts
 
-      - name: Upload deployment files
+      - name: Verify SSH connection
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
-          SSH_OPTS="-i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-          ssh ${SSH_OPTS} "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "sudo mkdir -p /opt/enterprise-flow-hub && sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /opt/enterprise-flow-hub"
-          scp ${SSH_OPTS} deploy/docker-compose.yml deploy/nginx.conf deploy/backup-db.sh deploy/cleanup-docker-images.sh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/enterprise-flow-hub/"
+          set -euo pipefail
+          SSH_OPTS=(
+            -i "$HOME/.ssh/deploy_key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=20
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+          )
+          ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" "echo ssh-ready"
+
+      - name: Upload deployment files
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          set -euo pipefail
+          SSH_OPTS=(
+            -i "$HOME/.ssh/deploy_key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=20
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+          )
+          SSH_TARGET="${SSH_USER}@${SSH_HOST}"
+          ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "sudo mkdir -p /opt/enterprise-flow-hub && sudo chown ${SSH_USER}:${SSH_USER} /opt/enterprise-flow-hub"
+          tar -C deploy -czf - docker-compose.yml nginx.conf backup-db.sh cleanup-docker-images.sh \
+            | ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "tar -xzf - -C /opt/enterprise-flow-hub/"
 
       - name: Deploy on server
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+          set -euo pipefail
+          SSH_OPTS=(
+            -i "$HOME/.ssh/deploy_key"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=20
+            -o ServerAliveInterval=15
+            -o ServerAliveCountMax=3
+          )
+          ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
             BACKEND_IMAGE="${BACKEND_IMAGE}" \
             FRONTEND_IMAGE="${FRONTEND_IMAGE}" \
             GHCR_USER="${{ github.actor }}" \
             GHCR_TOKEN="${GHCR_TOKEN}" \
             DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
-            DEPLOY_HOST="${{ secrets.SSH_HOST }}" \
+            DEPLOY_HOST="${SSH_HOST}" \
             'bash -s' <<'EOF'
           set -euo pipefail
           cd /opt/enterprise-flow-hub
