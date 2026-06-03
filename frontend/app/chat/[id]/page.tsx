@@ -19,7 +19,7 @@ export default function ChatPage() {
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [editingTag, setEditingTag] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
