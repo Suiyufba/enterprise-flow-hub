@@ -76,7 +76,7 @@ jobs:
 
       - name: Upload deployment files
         run: |
-          SSH_OPTS="-i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o PubkeyAcceptedAlgorithms=+ssh-rsa -o HostkeyAlgorithms=+ssh-rsa"
+          SSH_OPTS="-i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
           ssh ${SSH_OPTS} "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "sudo mkdir -p /opt/enterprise-flow-hub && sudo chown ${{ secrets.SSH_USER }}:${{ secrets.SSH_USER }} /opt/enterprise-flow-hub"
           scp ${SSH_OPTS} deploy/docker-compose.yml deploy/nginx.conf deploy/backup-db.sh deploy/cleanup-docker-images.sh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/enterprise-flow-hub/"
 
@@ -85,7 +85,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o PubkeyAcceptedAlgorithms=+ssh-rsa -o HostkeyAlgorithms=+ssh-rsa "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
             BACKEND_IMAGE="${BACKEND_IMAGE}" \
             FRONTEND_IMAGE="${FRONTEND_IMAGE}" \
             GHCR_USER="${{ github.actor }}" \
