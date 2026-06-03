@@ -169,7 +169,15 @@ export default function RulesPage() {
           </div>
         )}
 
-        <DataTable columns={columns} data={data} loading={loading} emptyTitle="暂无规则" emptyDesc="还没有创建任何业务规则" />
+        <DataTable
+          className="erp-table-wrap"
+          columns={columns}
+          data={data}
+          loading={loading}
+          emptyTitle="暂无规则"
+          emptyDesc="还没有创建任何业务规则"
+          emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建规则</button>}
+        />
       </div>
     </div>
   );

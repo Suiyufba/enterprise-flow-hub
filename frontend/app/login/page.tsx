@@ -74,48 +74,61 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell">
-      {/* Background decoration */}
       <div className="login-bg" />
 
-      <div className="login-card">
-        <div className="login-header">
-          <span className="login-brand">Enterprise Flow Hub</span>
-          <p className="login-sub">企业流程自动化平台</p>
+      <div className="login-panel">
+        <section className="login-story" aria-label="Enterprise Flow Hub">
+          <div className="login-mark">EF</div>
+          <p className="login-kicker">Enterprise Flow Hub</p>
+          <h1>把客户、订单、发票和自动化放进同一个工作流。</h1>
+          <p className="login-story-copy">面向管理团队的企业流程中枢，统一跟踪业务数据、文件资料和 AI 协作记录。</p>
+          <div className="login-feature-grid">
+            <span>订单</span>
+            <span>发票</span>
+            <span>付款</span>
+            <span>审计</span>
+          </div>
+        </section>
+
+        <div className="login-card">
+          <div className="login-header">
+            <span className="login-brand">登录工作台</span>
+            <p className="login-sub">使用企业账号继续访问</p>
+          </div>
+
+          <form ref={formRef} onSubmit={handleSubmit} className="login-form">
+            <input
+              className="login-input"
+              type="text"
+              placeholder="用户名"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoFocus
+              required
+              autoComplete="username"
+            />
+
+            <input
+              className="login-input"
+              type="password"
+              placeholder="密码"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+
+            {error && <div className="login-error">{error}</div>}
+
+            <button
+              className="login-submit"
+              type="submit"
+              disabled={submitting || !username.trim() || !password}
+            >
+              {submitting ? "登录中..." : "登录"}
+            </button>
+          </form>
         </div>
-
-        <form ref={formRef} onSubmit={handleSubmit} className="login-form">
-          <input
-            className="login-input"
-            type="text"
-            placeholder="用户名"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
-            required
-            autoComplete="username"
-          />
-
-          <input
-            className="login-input"
-            type="password"
-            placeholder="密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-
-          {error && <div className="login-error">{error}</div>}
-
-          <button
-            className="login-submit"
-            type="submit"
-            disabled={submitting || !username.trim() || !password}
-          >
-            {submitting ? "登录中..." : "登录"}
-          </button>
-        </form>
-
       </div>
     </div>
   );

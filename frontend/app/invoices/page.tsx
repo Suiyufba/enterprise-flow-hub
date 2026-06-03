@@ -267,7 +267,18 @@ export default function InvoicesPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable className="invoice-table-wrap" columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无发票" emptyDesc="还没有任何发票记录" />
+          <DataTable
+            className="invoice-table-wrap erp-table-wrap"
+            columns={columns}
+            data={data}
+            loading={loading}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            emptyTitle="暂无发票"
+            emptyDesc="还没有任何发票记录"
+            emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建发票</button>}
+          />
         )}
       </div>
     </div>

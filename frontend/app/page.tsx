@@ -10,7 +10,14 @@ import { StatCard } from "./components/StatCard";
 import { StatusBadge } from "./components/StatusBadge";
 import { AppIcon } from "./components/AppIcon";
 import { gsap, useGSAP } from "./lib/gsap";
-import type { Order, Payment, PaginatedList } from "shared";
+import type { Customer, Invoice, Order, Payment, Product, Supplier, PaginatedList } from "shared";
+
+type BusinessTotals = {
+  customers: number;
+  suppliers: number;
+  products: number;
+  invoices: number;
+};
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -29,8 +36,15 @@ export default function DashboardPage() {
 
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
+  const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([]);
   const [revenueTotal, setRevenueTotal] = useState(0);
   const [orderTotal, setOrderTotal] = useState(0);
+  const [businessTotals, setBusinessTotals] = useState<BusinessTotals>({
+    customers: 0,
+    suppliers: 0,
+    products: 0,
+    invoices: 0,
+  });
   const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
@@ -39,12 +53,23 @@ export default function DashboardPage() {
     Promise.all([
       fetchJson<PaginatedList<Order>>(`/orders?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
       fetchJson<PaginatedList<Payment>>(`/payments?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+      fetchJson<PaginatedList<Invoice>>(`/invoices?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+      fetchJson<PaginatedList<Customer>>(`/customers?enterpriseId=${enterpriseId}&limit=1`, { adminUserId: user?.id }),
+      fetchJson<PaginatedList<Supplier>>(`/suppliers?enterpriseId=${enterpriseId}&limit=1`, { adminUserId: user?.id }),
+      fetchJson<PaginatedList<Product>>(`/products?enterpriseId=${enterpriseId}&limit=1`, { adminUserId: user?.id }),
     ])
-      .then(([ordersRes, paymentsRes]) => {
+      .then(([ordersRes, paymentsRes, invoicesRes, customersRes, suppliersRes, productsRes]) => {
         setRecentOrders(ordersRes.items);
         setOrderTotal(ordersRes.total);
         setRecentPayments(paymentsRes.items);
+        setRecentInvoices(invoicesRes.items);
         setRevenueTotal(paymentsRes.items.filter((p) => p.status === "completed").reduce((sum, p) => sum + p.amount, 0));
+        setBusinessTotals({
+          customers: customersRes.total,
+          suppliers: suppliersRes.total,
+          products: productsRes.total,
+          invoices: invoicesRes.total,
+        });
       })
       .catch(() => showToast("加载统计数据失败", "error"))
       .finally(() => setStatsLoading(false));
@@ -60,9 +85,27 @@ export default function DashboardPage() {
     ["shipped", "已发货"], ["delivered", "已交付"], ["cancelled", "已取消"],
   ];
 
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const monthRevenue = recentPayments
+    .filter((p) => p.status === "completed" && (p.receivedAt ?? p.createdAt)?.startsWith(currentMonth))
+    .reduce((sum, p) => sum + p.amount, 0);
+  const pendingOrderCount = recentOrders.filter((o) => ["confirmed", "processing"].includes(o.status)).length;
+  const deliveredOrderCount = recentOrders.filter((o) => o.status === "delivered").length;
+  const pendingInvoiceCount = recentInvoices.filter((inv) => ["draft", "issued"].includes(inv.status)).length;
+  const overdueInvoiceCount = recentInvoices.filter((inv) => {
+    if (inv.status === "overdue") return true;
+    if (!inv.dueDate || ["paid", "cancelled"].includes(inv.status)) return false;
+    return new Date(inv.dueDate) < now;
+  }).length;
+  const activeWorkflowCount = workspace.automations.filter((a) => {
+    const proj = workspace.projects.find((p) => p.id === a.projectId);
+    return proj?.enterpriseId === enterpriseId && a.enabled;
+  }).length;
+
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell" ref={pageRef}>
+      <div className="page-shell dashboard-page-shell" ref={pageRef}>
         <div className="page-header">
           <div className="page-header-left">
             <h1>仪表盘</h1>
@@ -76,28 +119,44 @@ export default function DashboardPage() {
         </div>
 
         <div className="dashboard-grid">
-          <StatCard label="项目" value={enterpriseProjects.length} icon="project" />
-          <StatCard label="对话" value={enterpriseConversations.length} icon="chat" />
-          <StatCard
-            label="资料库"
-            value={workspace.libraryItems.filter((l) => l.enterpriseId === enterpriseId).length}
-            icon="library"
-          />
-          <StatCard
-            label="自动化"
-            value={workspace.automations.filter((a) => {
-              const proj = workspace.projects.find((p) => p.id === a.projectId);
-              return proj?.enterpriseId === enterpriseId;
-            }).length}
-            icon="automation"
-          />
+          <StatCard label="收入总额" value={statsLoading ? "..." : `¥${revenueTotal.toLocaleString()}`} icon="payment" />
+          <StatCard label="本月收入" value={statsLoading ? "..." : `¥${monthRevenue.toLocaleString()}`} icon="chart" />
+          <StatCard label="订单总数" value={statsLoading ? "..." : orderTotal} icon="clipboard" />
+          <StatCard label="待处理订单" value={statsLoading ? "..." : pendingOrderCount} icon="sync" />
         </div>
 
         <div className="dashboard-grid" style={{ marginTop: 16 }}>
-          <StatCard label="收入总额" value={statsLoading ? "..." : `¥${revenueTotal.toLocaleString()}`} icon="payment" />
-          <StatCard label="订单总数" value={statsLoading ? "..." : orderTotal} icon="clipboard" />
-          <StatCard label="待处理订单" value={statsLoading ? "..." : recentOrders.filter((o) => ["confirmed", "processing"].includes(o.status)).length} icon="sync" />
-          <StatCard label="已交付订单" value={statsLoading ? "..." : recentOrders.filter((o) => o.status === "delivered").length} icon="check" />
+          <StatCard label="待处理发票" value={statsLoading ? "..." : pendingInvoiceCount} icon="invoice" />
+          <StatCard label="逾期发票" value={statsLoading ? "..." : overdueInvoiceCount} icon="alert" trend={overdueInvoiceCount > 0 ? { direction: "down", text: "需要处理" } : undefined} />
+          <StatCard label="客户" value={statsLoading ? "..." : businessTotals.customers} icon="user" />
+          <StatCard label="商品" value={statsLoading ? "..." : businessTotals.products} icon="table" />
+        </div>
+
+        <div className="dashboard-health-strip">
+          <Link href="/orders" className="dashboard-health-item">
+            <span>订单交付</span>
+            <strong>{statsLoading ? "..." : `${deliveredOrderCount}/${recentOrders.length || 0}`}</strong>
+          </Link>
+          <Link href="/invoices" className="dashboard-health-item">
+            <span>发票池</span>
+            <strong>{statsLoading ? "..." : businessTotals.invoices}</strong>
+          </Link>
+          <Link href="/suppliers" className="dashboard-health-item">
+            <span>供应商</span>
+            <strong>{statsLoading ? "..." : businessTotals.suppliers}</strong>
+          </Link>
+          <Link href="/automation" className="dashboard-health-item">
+            <span>运行中自动化</span>
+            <strong>{activeWorkflowCount}</strong>
+          </Link>
+          <Link href="/library" className="dashboard-health-item">
+            <span>资料库</span>
+            <strong>{workspace.libraryItems.filter((l) => l.enterpriseId === enterpriseId).length}</strong>
+          </Link>
+          <Link href="/projects/new" className="dashboard-health-item dashboard-health-action">
+            <span>项目</span>
+            <strong>{enterpriseProjects.length}</strong>
+          </Link>
         </div>
 
         <div className="dashboard-cards" style={{ marginTop: 20 }}>

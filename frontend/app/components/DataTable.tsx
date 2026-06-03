@@ -1,12 +1,13 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 import { EmptyState } from "./EmptyState";
 
 interface Column<T> {
   key: string;
   label: string;
-  render?: (row: T) => React.ReactNode;
+  render?: (row: T) => ReactNode;
   width?: string;
 }
 
@@ -21,6 +22,7 @@ export function DataTable<T extends { id: string }>({
   onPageChange,
   emptyTitle = "暂无数据",
   emptyDesc,
+  emptyAction,
 }: {
   columns: Column<T>[];
   data: T[];
@@ -32,13 +34,15 @@ export function DataTable<T extends { id: string }>({
   onPageChange?: (page: number) => void;
   emptyTitle?: string;
   emptyDesc?: string;
+  emptyAction?: ReactNode;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
+  const skeletonRows = Math.max(4, Math.min(limit, 8));
 
-  if (loading) return <LoadingSkeleton rows={5} />;
+  if (loading) return <LoadingSkeleton rows={skeletonRows} columns={columns.length} />;
 
   if (data.length === 0) {
-    return <EmptyState title={emptyTitle} description={emptyDesc} />;
+    return <EmptyState title={emptyTitle} description={emptyDesc} action={emptyAction} />;
   }
 
   return (

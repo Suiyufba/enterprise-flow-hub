@@ -2,27 +2,158 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { AgentSkill, Automation, LibraryItem, Plugin, PluginConfigResponse, Project, ToolDefinition } from "shared";
+import type {
+  AgentSkill,
+  Automation,
+  Customer,
+  Invoice,
+  LibraryItem,
+  Order,
+  PaginatedList,
+  Payment,
+  Plugin,
+  PluginConfigResponse,
+  Product,
+  Project,
+  Supplier,
+  ToolDefinition,
+} from "shared";
 import { fetchJson } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
 
 import { animate, stagger, spring } from "../lib/anime";
 
 import { AppIcon, type AppIconName } from "./AppIcon";
 
+const searchTypes = ["项目", "对话", "资料", "自动化", "客户", "供应商", "商品", "订单", "付款", "发票"] as const;
+
+type SearchType = typeof searchTypes[number];
+
+type SearchItem = {
+  id: string;
+  type: SearchType;
+  title: string;
+  enterpriseId: string;
+  enterpriseName: string;
+  subtitle: string;
+  href: string;
+  keywords?: string;
+};
+
 export function SearchPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const { workspace } = useWorkspace();
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("全部");
+  const [typeFilter, setTypeFilter] = useState<SearchType | "全部">("全部");
   const [enterpriseFilter, setEnterpriseFilter] = useState("全部");
+  const [businessItems, setBusinessItems] = useState<SearchItem[]>([]);
+  const [businessLoading, setBusinessLoading] = useState(false);
 
-  const types = ["项目", "对话", "资料", "自动化"] as const;
+  useEffect(() => {
+    let cancelled = false;
+    const currentEnterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+    const enterpriseIds = currentEnterpriseId ? [currentEnterpriseId] : [];
+    if (!user?.id || enterpriseIds.length === 0) {
+      setBusinessItems([]);
+      return;
+    }
 
-  const results = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    const items = [
-      ...workspace.projects.map((item) => {
+    async function loadEnterpriseIndex(enterpriseId: string): Promise<SearchItem[]> {
+      const enterpriseName = workspace.enterprises.find((enterprise) => enterprise.id === enterpriseId)?.name ?? "";
+      try {
+        const [customers, suppliers, products, orders, payments, invoices] = await Promise.all([
+          fetchJson<PaginatedList<Customer>>(`/customers?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+          fetchJson<PaginatedList<Supplier>>(`/suppliers?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+          fetchJson<PaginatedList<Product>>(`/products?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+          fetchJson<PaginatedList<Order>>(`/orders?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+          fetchJson<PaginatedList<Payment>>(`/payments?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+          fetchJson<PaginatedList<Invoice>>(`/invoices?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
+        ]);
+
+        return [
+          ...customers.items.map((item) => ({
+            id: item.id,
+            type: "客户" as const,
+            title: item.name,
+            enterpriseId,
+            enterpriseName,
+            subtitle: [item.contact, item.phone, item.email, item.status].filter(Boolean).join(" · "),
+            href: `/customers/${item.id}`,
+            keywords: item.tags.join(" "),
+          })),
+          ...suppliers.items.map((item) => ({
+            id: item.id,
+            type: "供应商" as const,
+            title: item.name,
+            enterpriseId,
+            enterpriseName,
+            subtitle: [item.contact, item.phone, item.email].filter(Boolean).join(" · "),
+            href: `/suppliers/${item.id}`,
+          })),
+          ...products.items.map((item) => ({
+            id: item.id,
+            type: "商品" as const,
+            title: item.name,
+            enterpriseId,
+            enterpriseName,
+            subtitle: [item.sku, item.category, item.unitPrice != null ? `¥${item.unitPrice.toFixed(2)}/${item.unit || "件"}` : ""].filter(Boolean).join(" · "),
+            href: `/products/${item.id}`,
+            keywords: item.description,
+          })),
+          ...orders.items.map((item) => ({
+            id: item.id,
+            type: "订单" as const,
+            title: `订单 ${item.id.slice(0, 12)}`,
+            enterpriseId,
+            enterpriseName,
+            subtitle: [`¥${item.totalAmount.toFixed(2)}`, item.status, item.createdAt?.slice(0, 10), item.notes].filter(Boolean).join(" · "),
+            href: `/orders/${item.id}`,
+            keywords: item.customerId ?? "",
+          })),
+          ...payments.items.map((item) => ({
+            id: item.id,
+            type: "付款" as const,
+            title: `付款 ¥${item.amount.toFixed(2)}`,
+            enterpriseId,
+            enterpriseName,
+            subtitle: [item.method, item.status, item.orderId ? `订单 ${item.orderId.slice(0, 12)}` : "", item.receivedAt?.slice(0, 10) ?? item.createdAt?.slice(0, 10)].filter(Boolean).join(" · "),
+            href: `/payments/${item.id}`,
+            keywords: item.orderId ?? "",
+          })),
+          ...invoices.items.map((item) => ({
+            id: item.id,
+            type: "发票" as const,
+            title: `发票 ${item.invoiceNumber || item.id.slice(0, 12)}`,
+            enterpriseId,
+            enterpriseName,
+            subtitle: [`¥${(item.totalAmount ?? item.amount).toFixed(2)}`, item.status, item.invoiceCode, item.dueDate?.slice(0, 10)].filter(Boolean).join(" · "),
+            href: `/invoices/${item.id}`,
+            keywords: [item.orderId, item.customerId, item.buyerName, item.sellerName, item.remark].filter(Boolean).join(" "),
+          })),
+        ];
+      } catch {
+        return [];
+      }
+    }
+
+    setBusinessLoading(true);
+    Promise.all(enterpriseIds.map((enterpriseId) => loadEnterpriseIndex(enterpriseId)))
+      .then((groups) => {
+        if (!cancelled) setBusinessItems(groups.flat());
+      })
+      .finally(() => {
+        if (!cancelled) setBusinessLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.enterpriseId, user?.id, workspace.enterprises]);
+
+  const workspaceItems = useMemo<SearchItem[]>(() => [
+    ...workspace.projects.map((item) => {
         const ent = workspace.enterprises.find((e) => e.id === item.enterpriseId);
         return {
           id: item.id,
@@ -34,7 +165,7 @@ export function SearchPage() {
           href: `/projects/${item.id}`,
         };
       }),
-      ...workspace.conversations.map((item) => {
+    ...workspace.conversations.map((item) => {
         const ent = workspace.enterprises.find((e) => e.id === item.enterpriseId);
         return {
           id: item.id,
@@ -46,7 +177,7 @@ export function SearchPage() {
           href: `/chat/${item.id}`,
         };
       }),
-      ...workspace.libraryItems.map((item) => {
+    ...workspace.libraryItems.map((item) => {
         const proj = workspace.projects.find((p) => p.id === item.projectId);
         const ent = proj ? workspace.enterprises.find((e) => e.id === proj.enterpriseId) : undefined;
         return {
@@ -59,7 +190,7 @@ export function SearchPage() {
           href: `/library`,
         };
       }),
-      ...workspace.automations.map((item) => {
+    ...workspace.automations.map((item) => {
         const proj = workspace.projects.find((p) => p.id === item.projectId);
         const ent = proj ? workspace.enterprises.find((e) => e.id === proj.enterpriseId) : undefined;
         return {
@@ -72,49 +203,38 @@ export function SearchPage() {
           href: `/automation`,
         };
       }),
-    ];
+  ], [workspace]);
 
-    let filtered = items;
+  const filteredBase = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    let filtered = [...workspaceItems, ...businessItems];
     if (keyword) {
       filtered = filtered.filter(
         (item) =>
           item.title.toLowerCase().includes(keyword) ||
-          item.subtitle.toLowerCase().includes(keyword),
+          item.subtitle.toLowerCase().includes(keyword) ||
+          (item.keywords ?? "").toLowerCase().includes(keyword),
       );
-    }
-    if (typeFilter !== "全部") {
-      filtered = filtered.filter((item) => item.type === typeFilter);
     }
     if (enterpriseFilter !== "全部") {
       filtered = filtered.filter((item) => item.enterpriseId === enterpriseFilter);
     }
     return filtered;
-  }, [query, typeFilter, enterpriseFilter, workspace]);
+  }, [businessItems, enterpriseFilter, query, workspaceItems]);
+
+  const results = useMemo(() => (
+    typeFilter === "全部" ? filteredBase : filteredBase.filter((item) => item.type === typeFilter)
+  ), [filteredBase, typeFilter]);
 
   const typeCounts = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-    const all = [
-      ...workspace.projects.map((item) => ({ type: "项目" as const, title: item.name, enterpriseId: item.enterpriseId })),
-      ...workspace.conversations.map((item) => ({ type: "对话" as const, title: item.title, enterpriseId: item.enterpriseId })),
-      ...workspace.libraryItems.map((item) => ({ type: "资料" as const, title: item.name, enterpriseId: item.enterpriseId })),
-      ...workspace.automations.map((item) => {
-        const proj = workspace.projects.find((p) => p.id === item.projectId);
-        return { type: "自动化" as const, title: item.name, enterpriseId: proj?.enterpriseId ?? "" };
-      }),
-    ];
-    let filtered = all;
-    if (keyword) filtered = filtered.filter((item) => item.title.toLowerCase().includes(keyword));
-    if (enterpriseFilter !== "全部") filtered = filtered.filter((item) => item.enterpriseId === enterpriseFilter);
-    return {
-      项目: filtered.filter((i) => i.type === "项目").length,
-      对话: filtered.filter((i) => i.type === "对话").length,
-      资料: filtered.filter((i) => i.type === "资料").length,
-      自动化: filtered.filter((i) => i.type === "自动化").length,
-    };
-  }, [query, enterpriseFilter, workspace]);
+    return searchTypes.reduce((acc, type) => {
+      acc[type] = filteredBase.filter((item) => item.type === type).length;
+      return acc;
+    }, {} as Record<SearchType, number>);
+  }, [filteredBase]);
 
   return (
-    <PageShell title="搜索" description="跨企业、项目、对话、资料和自动化查找。">
+    <PageShell title="搜索" description="跨项目、对话、资料、自动化和业务记录查找。">
       <div className="lib-top-bar">
         <input
           className="page-input lib-search-input"
@@ -146,7 +266,7 @@ export function SearchPage() {
               </option>
             ))}
           </select>
-          {types.map((t) => (
+          {searchTypes.map((t) => (
             <button
               key={t}
               className={`search-chip ${typeFilter === t ? "active" : ""}`}
@@ -162,7 +282,9 @@ export function SearchPage() {
 
       <div className="page-list">
         {results.length === 0 && (
-          <div className="search-empty">没有找到匹配的结果</div>
+          <div className="search-empty">
+            {businessLoading ? "正在扩展业务搜索索引..." : "没有找到匹配的结果"}
+          </div>
         )}
         {results.map((item) => (
           <div

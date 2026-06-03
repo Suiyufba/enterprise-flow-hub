@@ -140,7 +140,18 @@ export default function FilesPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无文件" emptyDesc="还没有上传任何文件" />
+          <DataTable
+            className="erp-table-wrap"
+            columns={columns}
+            data={data}
+            loading={loading}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            emptyTitle="暂无文件"
+            emptyDesc="还没有上传任何文件"
+            emptyAction={<button className="page-primary-button" onClick={() => fileInputRef.current?.click()} type="button">上传文件</button>}
+          />
         )}
       </div>
     </div>

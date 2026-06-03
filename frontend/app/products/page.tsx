@@ -149,7 +149,18 @@ export default function ProductsPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无商品" emptyDesc="还没有添加任何商品" />
+          <DataTable
+            className="erp-table-wrap"
+            columns={columns}
+            data={data}
+            loading={loading}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            emptyTitle="暂无商品"
+            emptyDesc="还没有添加任何商品"
+            emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建商品</button>}
+          />
         )}
       </div>
     </div>

@@ -82,7 +82,18 @@ export default function OrdersPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无订单" emptyDesc="还没有任何订单" />
+          <DataTable
+            className="erp-table-wrap"
+            columns={columns}
+            data={data}
+            loading={loading}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            emptyTitle="暂无订单"
+            emptyDesc="还没有任何订单"
+            emptyAction={<Link href="/orders/new" className="page-primary-button" style={{ textDecoration: "none" }}>新建订单</Link>}
+          />
         )}
       </div>
     </div>

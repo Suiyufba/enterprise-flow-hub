@@ -156,7 +156,7 @@ export default function AuditPage() {
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
       <div className="page-shell">
         <PageHeader title="操作日志" description="记录所有写入操作，满足审计合规要求" />
-        <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无日志" emptyDesc="尚未有操作记录" />
+        <DataTable className="erp-table-wrap" columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无日志" emptyDesc="尚未有操作记录" />
       </div>
     </div>
   );

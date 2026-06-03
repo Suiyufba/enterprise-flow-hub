@@ -82,7 +82,18 @@ export default function CustomersPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无客户" emptyDesc="还没有添加任何客户" />
+          <DataTable
+            className="erp-table-wrap"
+            columns={columns}
+            data={data}
+            loading={loading}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            emptyTitle="暂无客户"
+            emptyDesc="还没有添加任何客户"
+            emptyAction={<Link href="/customers/new" className="page-primary-button" style={{ textDecoration: "none" }}>新建客户</Link>}
+          />
         )}
       </div>
     </div>

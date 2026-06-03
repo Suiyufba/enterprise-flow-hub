@@ -130,7 +130,18 @@ export default function SuppliersPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无供应商" emptyDesc="还没有添加任何供应商" />
+          <DataTable
+            className="erp-table-wrap"
+            columns={columns}
+            data={data}
+            loading={loading}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            emptyTitle="暂无供应商"
+            emptyDesc="还没有添加任何供应商"
+            emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建供应商</button>}
+          />
         )}
       </div>
     </div>

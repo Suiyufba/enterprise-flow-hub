@@ -147,7 +147,18 @@ export default function PaymentsPage() {
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (
-          <DataTable columns={columns} data={data} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="暂无付款" emptyDesc="还没有任何付款记录" />
+          <DataTable
+            className="erp-table-wrap"
+            columns={columns}
+            data={data}
+            loading={loading}
+            total={total}
+            page={page}
+            onPageChange={setPage}
+            emptyTitle="暂无付款"
+            emptyDesc="还没有任何付款记录"
+            emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建付款</button>}
+          />
         )}
       </div>
     </div>
