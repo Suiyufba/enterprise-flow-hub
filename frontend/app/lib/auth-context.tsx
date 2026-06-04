@@ -35,8 +35,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
     }
 
-    fetchJson<User>("/auth/me")
-      .then((validatedUser) => {
+    fetchJson<{ user: User | null }>("/auth/me")
+      .then(({ user: validatedUser }) => {
+        if (!validatedUser) {
+          setStoredUser(null);
+          setUser(null);
+          return;
+        }
         setUser(validatedUser);
         setStoredUser({ ...validatedUser, token: storedToken });
       })
