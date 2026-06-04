@@ -166,7 +166,7 @@ jobs:
           HERMES_API_KEY=${HERMES_API_KEY}
           HERMES_MODEL=hermes-agent
           HERMES_INFERENCE_PROVIDER=deepseek
-          HERMES_INFERENCE_MODEL=deepseek-chat
+          HERMES_INFERENCE_MODEL=deepseek-v4-flash
           HERMES_ENABLED_USER_IDS=${HERMES_ENABLED_USER_IDS:-}
           INTERNAL_API_KEY=${INTERNAL_API_KEY}
           ENVEOF
@@ -174,6 +174,8 @@ jobs:
           echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
           docker compose pull
           docker compose up -d
+          docker compose exec -T hermes-agent python -c 'import yaml; p="/opt/data/config.yaml"; c=yaml.safe_load(open(p)) or {}; c.setdefault("model", {}).update({"default": "deepseek-v4-flash", "provider": "deepseek", "base_url": "https://api.deepseek.com/v1"}); open(p, "w").write(yaml.safe_dump(c, sort_keys=False))'
+          docker compose restart hermes-agent
 
           # Clean up old images to prevent disk fill
           docker image prune -af --filter "until=72h"
