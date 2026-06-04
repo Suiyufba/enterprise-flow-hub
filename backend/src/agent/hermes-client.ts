@@ -74,6 +74,7 @@ export type HermesSSEEvent =
   | { event: "message.delta"; data: { delta: string } }
   | { event: "tool.started"; data: { id: string; name: string; arguments: Record<string, unknown> } }
   | { event: "tool.completed"; data: { id: string; name: string; status: "success" | "error"; output: string } }
+  | { event: "reasoning.available"; data: { text: string } }
   | { event: "run.completed"; data: { output: string } }
   | { event: "run.failed"; data: { error: string } }
   | { event: "unknown"; data: Record<string, unknown> };
@@ -96,7 +97,17 @@ export class HermesClient {
     if (!res.ok) {
       return { ok: false };
     }
-    return (await res.json()) as HermesHealthResponse;
+    const data = (await res.json()) as {
+      ok?: boolean;
+      status?: string;
+      version?: string;
+      model?: string;
+    };
+    return {
+      ok: data.ok === true || data.status === "ok",
+      version: data.version,
+      model: data.model,
+    };
   }
 
   // ── Create & Run ──
@@ -167,23 +178,47 @@ export class HermesClient {
             try {
               const envelope = JSON.parse(raw) as HermesRawSSEEvent;
               const eventType = envelope.event ?? "unknown";
-              const innerData = envelope.data ?? {};
+              // Runs API events are flat objects. Keep nested-data support for
+              // older Hermes builds, but normalize both shapes here.
+              const payload = (
+                envelope.data && Object.keys(envelope.data).length > 0
+                  ? envelope.data
+                  : envelope
+              ) as Record<string, unknown>;
 
               switch (eventType) {
                 case "message.delta":
-                  yield { event: "message.delta", data: innerData as { delta: string } };
+                  yield { event: "message.delta", data: { delta: String(payload.delta ?? "") } };
                   break;
                 case "tool.started":
-                  yield { event: "tool.started", data: innerData as { id: string; name: string; arguments: Record<string, unknown> } };
+                  yield {
+                    event: "tool.started",
+                    data: {
+                      id: String(payload.id ?? payload.tool ?? "unknown"),
+                      name: String(payload.name ?? payload.tool ?? "unknown"),
+                      arguments: (payload.arguments ?? payload.args ?? {}) as Record<string, unknown>,
+                    },
+                  };
                   break;
                 case "tool.completed":
-                  yield { event: "tool.completed", data: innerData as { id: string; name: string; status: "success" | "error"; output: string } };
+                  yield {
+                    event: "tool.completed",
+                    data: {
+                      id: String(payload.id ?? payload.tool ?? "unknown"),
+                      name: String(payload.name ?? payload.tool ?? "unknown"),
+                      status: payload.error ? "error" : "success",
+                      output: String(payload.output ?? payload.preview ?? ""),
+                    },
+                  };
+                  break;
+                case "reasoning.available":
+                  yield { event: "reasoning.available", data: { text: String(payload.text ?? "") } };
                   break;
                 case "run.completed":
-                  yield { event: "run.completed", data: innerData as { output: string } };
+                  yield { event: "run.completed", data: { output: String(payload.output ?? "") } };
                   break;
                 case "run.failed":
-                  yield { event: "run.failed", data: innerData as { error: string } };
+                  yield { event: "run.failed", data: { error: String(payload.error ?? "Hermes run failed") } };
                   break;
                 default:
                   yield { event: "unknown", data: envelope as unknown as Record<string, unknown> };

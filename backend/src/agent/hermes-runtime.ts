@@ -170,6 +170,12 @@ export class HermesAgentRuntime implements AgentRuntime {
           delta: sse.data.delta ?? "",
         };
 
+      case "reasoning.available":
+        return {
+          type: "thinking",
+          message: sse.data.text || "Agent is analyzing...",
+        };
+
       case "tool.started": {
         const tr: ToolRun = {
           id: `tr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
