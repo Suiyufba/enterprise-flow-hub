@@ -18,6 +18,15 @@ export function authRoutes(app: FastifyInstance): void {
     return reply.send({ ...user, token: session.token });
   });
 
+  // Validate the current browser session
+  app.get("/auth/me", async (request, reply) => {
+    const actor = (request as unknown as Record<string, unknown>).actor;
+    if (!actor) {
+      return reply.status(401).send({ error: "Authentication required" });
+    }
+    return reply.send(actor);
+  });
+
   // List users (optionally by enterprise)
   app.get("/users", async (request) => {
     const { enterpriseId } = request.query as { enterpriseId?: string };

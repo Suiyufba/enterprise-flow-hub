@@ -7,6 +7,7 @@ export const API = API_URL;
 
 const AUTH_KEY = "efh_user";
 const TOKEN_KEY = "efh_token";
+export const AUTH_EXPIRED_EVENT = "efh-auth-expired";
 
 export function getStoredUser() {
   if (typeof window === "undefined") return null;
@@ -35,6 +36,13 @@ export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+function expireStoredSession() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+}
+
 // ---- HTTP ----
 
 export async function fetchJson<T>(path: string, init?: RequestInit & { adminUserId?: string }): Promise<T> {
@@ -59,6 +67,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit & { adminUse
   const response = await fetch(`${API_URL}${path}`, { ...fetchInit as RequestInit, headers });
 
   if (!response.ok) {
+    if (response.status === 401 && path !== "/auth/login") {
+      expireStoredSession();
+    }
     throw new Error(await response.text());
   }
 

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Workspace } from "shared";
 import { fetchJson } from "./api";
+import { useAuth } from "./auth-context";
 
 const defaultWorkspace: Workspace = {
   enterprises: [],
@@ -32,6 +33,7 @@ const WorkspaceContext = createContext<WorkspaceContextValue>({
 });
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [workspace, setWorkspace] = useState<Workspace>(defaultWorkspace);
   const [loading, setLoading] = useState(true);
 
@@ -45,8 +47,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setWorkspace(defaultWorkspace);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     refresh().finally(() => setLoading(false));
-  }, [refresh]);
+  }, [authLoading, refresh, user]);
 
   return (
     <WorkspaceContext.Provider value={{ workspace, loading, refresh }}>

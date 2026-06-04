@@ -25,13 +25,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <ToastProvider>
-          <WorkspaceProvider>
-            <AuthProvider>
+          <AuthProvider>
+            <WorkspaceProvider>
               <AuthGate>
                 {children}
               </AuthGate>
-            </AuthProvider>
-          </WorkspaceProvider>
+            </WorkspaceProvider>
+          </AuthProvider>
         </ToastProvider>
       </body>
     </html>

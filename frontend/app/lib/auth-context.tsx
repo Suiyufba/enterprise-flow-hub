@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User } from "shared";
-import { fetchJson, getStoredUser, setStoredUser } from "./api";
+import { AUTH_EXPIRED_EVENT, fetchJson, getStoredToken, getStoredUser, setStoredUser } from "./api";
 
 interface AuthContextValue {
   user: User | null;
@@ -23,8 +23,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setUser(getStoredUser());
-    setLoading(false);
+    const handleExpired = () => setUser(null);
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+
+    const storedUser = getStoredUser();
+    const storedToken = getStoredToken();
+    if (!storedUser || !storedToken) {
+      setStoredUser(null);
+      setUser(null);
+      setLoading(false);
+      return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
+    }
+
+    fetchJson<User>("/auth/me")
+      .then((validatedUser) => {
+        setUser(validatedUser);
+        setStoredUser({ ...validatedUser, token: storedToken });
+      })
+      .catch(() => {
+        setStoredUser(null);
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
+
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired);
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
