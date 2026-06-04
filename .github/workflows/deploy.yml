@@ -165,6 +165,8 @@ jobs:
           HERMES_API_URL=http://hermes-agent:8642
           HERMES_API_KEY=${HERMES_API_KEY}
           HERMES_MODEL=hermes-agent
+          HERMES_INFERENCE_PROVIDER=deepseek
+          HERMES_INFERENCE_MODEL=deepseek-chat
           HERMES_ENABLED_USER_IDS=${HERMES_ENABLED_USER_IDS:-}
           INTERNAL_API_KEY=${INTERNAL_API_KEY}
           ENVEOF
