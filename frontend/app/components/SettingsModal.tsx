@@ -7,7 +7,7 @@ import { useToast } from "../lib/toast-context";
 import { animate, spring } from "../lib/anime";
 import "./SettingsModal.css";
 
-type Tab = "providers" | "personas";
+type Tab = "providers" | "personas" | "agent";
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { showToast } = useToast();
@@ -77,6 +77,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [epThinkingProviderId, setEpThinkingProviderId] = useState("");
   const [epSaving, setEpSaving] = useState(false);
 
+  // Agent kernel status
+  const [agentStatus, setAgentStatus] = useState<{
+    runtime: string;
+    fallbackRuntime: string;
+    hermes: { connected: boolean; version?: string; model?: string; url: string };
+    enabledUserIds: string | null;
+  } | null>(null);
+
   async function refresh() {
     const [p, per] = await Promise.all([
       fetchJson<{ providers: ModelProvider[] }>("/settings/providers"),
@@ -84,6 +92,15 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     ]);
     setProviders(p.providers);
     setPersonas(per.personas);
+    // Fetch agent status (non-blocking)
+    try {
+      const agent = await fetchJson<{
+        runtime: string; fallbackRuntime: string;
+        hermes: { connected: boolean; version?: string; model?: string; url: string };
+        enabledUserIds: string | null;
+      }>("/api/agent/status");
+      setAgentStatus(agent);
+    } catch { /* agent status not available */ }
   }
 
   useEffect(() => {
@@ -268,9 +285,74 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         </div>
 
         <div className="settings-tabs">
-          <button className="settings-tab active">模型账号</button>
+          <button className={`settings-tab ${tab === "providers" ? "active" : ""}`} onClick={() => setTab("providers")} type="button">模型账号</button>
+          <button className={`settings-tab ${tab === "agent" ? "active" : ""}`} onClick={() => setTab("agent")} type="button">Agent 内核</button>
         </div>
 
+        {tab === "agent" && (
+          <div className="settings-body">
+            <div className="settings-form">
+              <h3 style={{ margin: "0 0 12px", fontSize: "1rem", fontWeight: 600 }}>Agent 运行时状态</h3>
+              {agentStatus ? (
+                <div className="settings-list">
+                  <div className="settings-card">
+                    <div>
+                      <strong>当前运行时</strong>
+                      <span className="settings-meta">
+                        {agentStatus.runtime === "hermes" ? "Hermes-Agent" : "Legacy（内置 Kernel）"}
+                      </span>
+                    </div>
+                    <span className={`settings-status ${agentStatus.runtime === "hermes" ? "on" : "off"}`}>
+                      {agentStatus.runtime === "hermes" ? "Hermes" : "Legacy"}
+                    </span>
+                  </div>
+                  <div className="settings-card">
+                    <div>
+                      <strong>回退运行时</strong>
+                      <span className="settings-meta">
+                        {agentStatus.fallbackRuntime === "hermes" ? "Hermes-Agent" : "Legacy（内置 Kernel）"}
+                      </span>
+                    </div>
+                    <span className="settings-meta">Hermes 不可用时自动切换</span>
+                  </div>
+                  <div className="settings-card">
+                    <div>
+                      <strong>Hermes 连接状态</strong>
+                      <span className="settings-meta">
+                        {agentStatus.hermes.connected ? "已连接" : "未连接"}
+                        {agentStatus.hermes.version ? ` · v${agentStatus.hermes.version}` : ""}
+                        {agentStatus.hermes.model ? ` · ${agentStatus.hermes.model}` : ""}
+                      </span>
+                    </div>
+                    <span className={`settings-status ${agentStatus.hermes.connected ? "on" : "off"}`}>
+                      {agentStatus.hermes.connected ? "● 在线" : "○ 离线"}
+                    </span>
+                  </div>
+                  <div className="settings-card">
+                    <div>
+                      <strong>Hermes 服务地址</strong>
+                      <span className="settings-meta">{agentStatus.hermes.url}</span>
+                    </div>
+                  </div>
+                  <div className="settings-card">
+                    <div>
+                      <strong>灰度用户</strong>
+                      <span className="settings-meta">
+                        {agentStatus.enabledUserIds
+                          ? agentStatus.enabledUserIds.split(",").join(", ")
+                          : "全量（所有用户使用当前运行时）"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="search-empty">正在加载 Agent 状态...</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === "providers" && (
           <div className="settings-body">
             <div className="settings-form">
               <input className="page-input" value={pName} onChange={(e) => setPName(e.target.value)} placeholder="自定义名称，如：我的 DeepSeek" />
@@ -375,6 +457,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               ))}
             </div>
           </div>
+        )}
 
 
       </div>

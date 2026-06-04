@@ -30,7 +30,7 @@ export function setStoredUser(user: { id: string; enterpriseId: string; username
   }
 }
 
-function getStoredToken(): string | null {
+export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
 }

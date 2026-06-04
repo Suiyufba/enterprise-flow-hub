@@ -2,7 +2,9 @@ import "./config/env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerAllRoutes } from "./routes/index.js";
+import { registerHermesToolRoutes } from "./routes/internal/hermes-tools.js";
 import { createAuditLog } from "./auth/audit.js";
+import { getRuntime, resetRuntimeCache } from "./agent/runtime.js";
 import { startIntegrationScheduler } from "./integration/queue.js";
 import { setupRulesExecutor } from "./rules/executor.js";
 import { getUser } from "./store.js";
@@ -95,12 +97,79 @@ app.addHook("onResponse", async (request, reply) => {
   });
 });
 
-app.get("/health", async () => ({
-  ok: true,
-  service: "enterprise-flow-hub-backend",
-}));
+app.get("/health", async () => {
+  const runtime = await getRuntime();
+  const runtimeHealth = await runtime.health();
+  const isHermes = runtimeHealth.version !== "legacy" && runtimeHealth.ok;
+  return {
+    ok: true,
+    service: "enterprise-flow-hub-backend",
+    agent: {
+      runtime: process.env.AGENT_RUNTIME ?? "legacy",
+      activeRuntime: runtimeHealth.ok && runtimeHealth.version === "legacy" ? "legacy" : (isHermes ? "hermes" : "unknown"),
+      hermes: {
+        connected: isHermes,
+        version: isHermes ? runtimeHealth.version : undefined,
+        model: isHermes ? runtimeHealth.model : undefined,
+      },
+    },
+  };
+});
+
+// Hermes status endpoint for frontend settings — requires auth
+app.get("/api/agent/status", async (request, reply) => {
+  const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
+  if (!actor) {
+    return reply.status(401).send({ error: "Authentication required" });
+  }
+
+  const runtime = await getRuntime(actor.id);
+  const runtimeHealth = await runtime.health();
+  const isHermes = runtimeHealth.version !== "legacy" && runtimeHealth.ok;
+  return {
+    runtime: process.env.AGENT_RUNTIME ?? "legacy",
+    fallbackRuntime: process.env.AGENT_FALLBACK_RUNTIME ?? "legacy",
+    activeRuntime: isHermes ? "hermes" : "legacy",
+    hermes: {
+      connected: isHermes,
+      version: isHermes ? runtimeHealth.version : undefined,
+      model: isHermes ? runtimeHealth.model : undefined,
+      url: process.env.HERMES_API_URL ? "[internal]" : undefined,
+    },
+    enabledUserIds: (process.env.HERMES_ENABLED_USER_IDS ?? "").trim() || null,
+  };
+});
+
+// Stop an active Hermes run
+app.post("/api/agent/runs/:runId/stop", async (request, reply) => {
+  const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
+  if (!actor?.id) {
+    return reply.status(401).send({ error: "Authentication required" });
+  }
+  const { runId } = request.params as { runId: string };
+  try {
+    const { HermesClient } = await import("./agent/hermes-client.js");
+    const client = new HermesClient();
+    await client.stopRun(runId);
+    return { ok: true, message: "Run stopped" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return reply.status(500).send({ ok: false, error: msg });
+  }
+});
+
+// Reset runtime cache — admin only
+app.post("/api/agent/reset-runtime", async (request, reply) => {
+  const actor = (request as unknown as Record<string, unknown>).actor as { id: string; role?: string } | undefined;
+  if (!actor?.id) {
+    return reply.status(401).send({ error: "Authentication required" });
+  }
+  resetRuntimeCache();
+  return { ok: true, message: "Runtime cache reset" };
+});
 
 await registerAllRoutes(app);
+await registerHermesToolRoutes(app);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

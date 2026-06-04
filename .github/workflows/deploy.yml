@@ -120,6 +120,9 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          HERMES_API_KEY: ${{ secrets.HERMES_API_KEY }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+          HERMES_IMAGE: ${{ vars.HERMES_IMAGE || 'nousresearch/hermes-agent:latest' }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
@@ -136,9 +139,12 @@ jobs:
           ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
             BACKEND_IMAGE="${BACKEND_IMAGE}" \
             FRONTEND_IMAGE="${FRONTEND_IMAGE}" \
+            HERMES_IMAGE="${HERMES_IMAGE}" \
             GHCR_USER="${{ github.actor }}" \
             GHCR_TOKEN="${GHCR_TOKEN}" \
             DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
+            HERMES_API_KEY="${HERMES_API_KEY}" \
+            INTERNAL_API_KEY="${INTERNAL_API_KEY}" \
             DEPLOY_HOST="${SSH_HOST}" \
             'bash -s' <<'EOF'
           set -euo pipefail
@@ -149,10 +155,18 @@ jobs:
           cat > .env <<ENVEOF
           BACKEND_IMAGE=${BACKEND_IMAGE}
           FRONTEND_IMAGE=${FRONTEND_IMAGE}
+          HERMES_IMAGE=${HERMES_IMAGE}
           CORS_ORIGIN=http://${DEPLOY_HOST}
           DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
           DEEPSEEK_BASE_URL=https://api.deepseek.com
           DEEPSEEK_MODEL=deepseek-chat
+          AGENT_RUNTIME=hermes
+          AGENT_FALLBACK_RUNTIME=legacy
+          HERMES_API_URL=http://hermes-agent:8642
+          HERMES_API_KEY=${HERMES_API_KEY}
+          HERMES_MODEL=hermes-agent
+          HERMES_ENABLED_USER_IDS=${HERMES_ENABLED_USER_IDS:-}
+          INTERNAL_API_KEY=${INTERNAL_API_KEY}
           ENVEOF
 
           echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
@@ -186,4 +200,21 @@ jobs:
             df -h
           fi
           docker compose ps
+
+          # Health check: wait for all three services
+          echo "::group::Health check"
+          for i in $(seq 1 30); do
+            STATUS=$(docker compose ps --format json 2>/dev/null | grep -c "running" || true)
+            if [ "${STATUS}" -ge 3 ]; then
+              echo "All services running after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          docker compose ps
+          # Verify backend health
+          curl -fsS http://127.0.0.1:4000/health && echo "Backend OK"
+          # Verify hermes-agent health (may fail gracefully if hermes is not enabled)
+          curl -fsS http://127.0.0.1:8642/health && echo "Hermes OK" || echo "Hermes health check skipped or failed"
+          echo "::endgroup::"
           EOF

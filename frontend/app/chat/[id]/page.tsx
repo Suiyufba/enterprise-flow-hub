@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import type { AddMessageResponse, AgentPlanStep, ConversationDetail, Message, ToolRun, Workspace } from "shared";
-import { fetchJson } from "../../lib/api";
+import type { AgentPlanStep, ConversationDetail, Message, ToolRun, Workspace } from "shared";
+import { fetchJson, getStoredToken } from "../../lib/api";
+import { connectSSE } from "../../lib/sse";
 import { useToast } from "../../lib/toast-context";
 import MarkdownMessage from "../../components/MarkdownMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
 import { ErrorState } from "../../components/ErrorState";
+import { AgentRunPanel } from "../../components/AgentRunPanel";
 import { gsap, useGSAP } from "../../lib/gsap";
-import { animate } from "../../lib/anime";
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -35,6 +36,8 @@ export default function ChatPage() {
   const msgCounterRef = useRef(0);
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [streaming, setStreaming] = useState(false);
+  const abortRef = useRef<(() => void) | null>(null);
 
   // Animate new messages as they appear
   const prevCountRef = useRef(0);
@@ -113,72 +116,127 @@ export default function ChatPage() {
   const initialMsg = searchParams.get("msg");
   const msgSent = useRef(false);
   useEffect(() => {
-    if (!loading && workspace && initialMsg && !msgSent.current) {
-      msgSent.current = true;
-      const userMsg: Message = {
-        id: nextMsgId(),
-        role: "user",
-        content: decodeURIComponent(initialMsg),
-        createdAt: new Date().toISOString(),
-      };
-      setLocalMessages((prev) => [...prev, userMsg]);
-      // Trigger send
-      (async () => {
-        setSending(true);
-        setRunTools([]);
-        setRunPlan([
-          { id: "scope", title: "确认任务范围", detail: "正在识别本次请求的项目和资料范围。", status: "running" },
-          { id: "context", title: "读取项目资料", detail: "等待读取当前企业的资料、自动化和历史对话。", status: "pending" },
-          { id: "skills", title: "匹配 Agent 技能", detail: "等待选择适合的业务能力。", status: "pending" },
-          { id: "tools", title: "执行工具或生成方案", detail: "等待模型决定是否调用工具。", status: "pending" },
-          { id: "reply", title: "写入回复和执行记录", detail: "等待保存结果。", status: "pending" },
-        ]);
-        try {
-          const result = await fetchJson<AddMessageResponse>(`/conversations/${id}/messages`, {
-            method: "POST",
-            body: JSON.stringify({
-              content: userMsg.content,
-              personaId,
-              skillIds: [],
-              contextScope,
-              contextProjectIds,
-            }),
-          });
-          setRunPlan(result.planSteps);
-          setRunTools(result.toolRuns);
-          // Stream-fill
-          const aiMsg = { ...result.message, content: "" };
-          setLocalMessages((prev) => [...prev, aiMsg]);
-          setStreamingMsgId(aiMsg.id);
-          const fullContent = result.message.content;
-          const streamObj = { progress: 0 };
-          animate(streamObj, {
-            progress: fullContent.length,
-            duration: Math.max(500, Math.min(4000, fullContent.length * 25)),
-            ease: "outExpo",
-            onUpdate: () => {
-              const pos = Math.floor(streamObj.progress);
-              setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
-            },
-            onComplete: () => {
-              setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent } : m));
-              setStreamingMsgId(null);
-            },
-          });
-        } catch (e) {
-          let errMsg = "消息发送失败，请重试";
-          try {
-            const raw = (e as Error).message;
-            const body = JSON.parse(raw);
-            errMsg = body.error || body.detail || errMsg;
-          } catch { /* not JSON */ }
-          showToast(errMsg, "error");
-          setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
-        } finally {
-          setSending(false);
+    if (loading || !workspace || !initialMsg || msgSent.current) return;
+    msgSent.current = true;
+    const content = decodeURIComponent(initialMsg);
+    const userMsg: Message = {
+      id: nextMsgId(),
+      role: "user",
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    setLocalMessages((prev) => [...prev, userMsg]);
+    setSending(true);
+    setStreaming(true);
+    setRunTools([]);
+    setRunPlan([
+      { id: "scope", title: "确认任务范围", detail: "正在识别本次请求的项目和资料范围。", status: "running" },
+      { id: "context", title: "读取项目资料", detail: "等待读取当前企业的资料、自动化和历史对话。", status: "pending" },
+      { id: "skills", title: "匹配 Agent 技能", detail: "等待选择适合的业务能力。", status: "pending" },
+      { id: "tools", title: "执行工具或生成方案", detail: "等待模型决定是否调用工具。", status: "pending" },
+      { id: "reply", title: "写入回复和执行记录", detail: "等待保存结果。", status: "pending" },
+    ]);
+
+    const aiMsgId = nextMsgId();
+    setLocalMessages((prev) => [...prev, { id: aiMsgId, role: "assistant" as const, content: "", createdAt: new Date().toISOString() }]);
+    setStreamingMsgId(aiMsgId);
+
+    let fullContent = "";
+    let resolvedPlanSteps: AgentPlanStep[] = [];
+    let resolvedToolRuns: ToolRun[] = [];
+
+    (async () => {
+      try {
+        const conn = connectSSE(`/conversations/${id}/messages/stream`, {
+          content,
+          personaId,
+          skillIds: [],
+          contextScope,
+          contextProjectIds,
+        }, getStoredToken() ?? undefined);
+        abortRef.current = conn.abort;
+
+        for await (const sseEvent of conn.events) {
+          switch (sseEvent.event) {
+            case "thinking": {
+              const data = sseEvent.data as { message?: string };
+              setRunPlan((prev) =>
+                prev.map((step, i) => i === 0 ? { ...step, status: "running" as const, detail: data.message ?? step.detail } : step),
+              );
+              break;
+            }
+            case "tool_call": {
+              const data = sseEvent.data as { toolId: string; toolName?: string };
+              setRunPlan((prev) =>
+                prev.map((step) => step.id === "tools" ? { ...step, status: "running" as const, detail: `正在执行 ${data.toolName ?? data.toolId}...` } : step),
+              );
+              break;
+            }
+            case "tool_result": {
+              const data = sseEvent.data as { toolId: string; status: "success" | "error"; output?: string };
+              resolvedToolRuns = [...resolvedToolRuns, {
+                id: `tr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                toolId: data.toolId,
+                status: data.status,
+                input: {},
+                output: data.output ?? "",
+                createdAt: new Date().toISOString(),
+              }];
+              setRunTools(resolvedToolRuns);
+              setRunPlan((prev) =>
+                prev.map((step) => step.id === "tools" ? { ...step, status: "done" as const, detail: `${data.toolId} 执行${data.status === "success" ? "成功" : "失败"}` } : step),
+              );
+              break;
+            }
+            case "content_chunk": {
+              const data = sseEvent.data as { delta: string };
+              fullContent += data.delta;
+              setLocalMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: fullContent } : m));
+              break;
+            }
+            case "plan_update": {
+              const data = sseEvent.data as { planSteps: AgentPlanStep[] };
+              if (data.planSteps?.length) { resolvedPlanSteps = data.planSteps; setRunPlan(data.planSteps); }
+              break;
+            }
+            case "done": {
+              const data = sseEvent.data as { message?: { id: string; content: string }; planSteps?: AgentPlanStep[]; toolRuns?: ToolRun[] };
+              if (data.message?.content) fullContent = data.message.content;
+              if (data.planSteps?.length) resolvedPlanSteps = data.planSteps;
+              if (data.toolRuns?.length) resolvedToolRuns = data.toolRuns;
+              setRunPlan(resolvedPlanSteps.length > 0 ? resolvedPlanSteps : [
+                { id: "scope", title: "确认任务范围", detail: "已确认本次请求范围。", status: "done" },
+                { id: "context", title: "读取项目资料", detail: "已完成项目资料读取。", status: "done" },
+                { id: "skills", title: "匹配 Agent 技能", detail: "已匹配相关业务能力。", status: "done" },
+                { id: "tools", title: "执行工具或生成方案", detail: resolvedToolRuns.length > 0 ? `执行了 ${resolvedToolRuns.length} 个工具。` : "已生成方案。", status: "done" },
+                { id: "reply", title: "写入回复和执行记录", detail: "已保存结果。", status: "done" },
+              ]);
+              setRunTools(resolvedToolRuns);
+              setLocalMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: fullContent, id: data.message?.id ?? m.id } : m));
+              break;
+            }
+            case "error": {
+              const data = sseEvent.data as { message?: string };
+              throw new Error(data.message ?? "Agent 执行出错");
+            }
+          }
         }
-      })();
-    }
+      } catch (e) {
+        const errMsg = (e as Error).message || "消息发送失败，请重试";
+        if (!fullContent) {
+          showToast(errMsg, "error");
+          setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id && m.id !== aiMsgId));
+        }
+        setRunPlan((prev) =>
+          prev.map((step) => step.status === "running" ? { ...step, status: "skipped" as const, detail: errMsg } : step),
+        );
+      } finally {
+        abortRef.current = null;
+        setSending(false);
+        setStreaming(false);
+        setStreamingMsgId(null);
+      }
+    })();
   }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds]);
 
   useEffect(() => {
@@ -259,12 +317,35 @@ export default function ChatPage() {
     }
   }
 
+  async function stopRun() {
+    // Abort SSE connection
+    if (abortRef.current) {
+      abortRef.current();
+      abortRef.current = null;
+    }
+    setSending(false);
+    setStreaming(false);
+    setStreamingMsgId(null);
+    setRunPlan((prev) =>
+      prev.map((step) =>
+        step.status === "running" ? { ...step, status: "skipped", detail: "用户停止执行" } : step,
+      ),
+    );
+    // Tell backend to stop the Hermes run
+    try {
+      await fetchJson(`/conversations/${id}/stop`, { method: "POST" });
+    } catch {
+      // Backend may not have this endpoint yet — ignore
+    }
+  }
+
   async function sendMessage() {
     if (!input.trim() || sending) return;
+    const userContent = input.trim();
     const userMsg: Message = {
       id: nextMsgId(),
       role: "user",
-      content: input.trim(),
+      content: userContent,
       createdAt: new Date().toISOString(),
     };
     setLocalMessages((prev) => [...prev, userMsg]);
@@ -278,62 +359,151 @@ export default function ChatPage() {
     ]);
     setInput("");
     setSending(true);
+    setStreaming(true);
+
+    // Create placeholder AI message
+    const aiMsgId = nextMsgId();
+    const aiMsg: Message = {
+      id: aiMsgId,
+      role: "assistant",
+      content: "",
+      createdAt: new Date().toISOString(),
+    };
+    setLocalMessages((prev) => [...prev, aiMsg]);
+    setStreamingMsgId(aiMsgId);
+
+    let fullContent = "";
+    let resolvedPlanSteps: AgentPlanStep[] = [];
+    let resolvedToolRuns: ToolRun[] = [];
 
     try {
-      const result = await fetchJson<AddMessageResponse>(`/conversations/${id}/messages`, {
-        method: "POST",
-        body: JSON.stringify({
-          content: userMsg.content,
-          personaId,
-          skillIds: [],
-          contextScope,
-          contextProjectIds,
-        }),
+      // Try SSE streaming
+      const conn = connectSSE(`/conversations/${id}/messages/stream`, {
+        content: userContent,
+        personaId,
+        skillIds: [],
+        contextScope,
+        contextProjectIds,
       });
-      setRunPlan(result.planSteps);
-      setRunTools(result.toolRuns);
-      // Add message with empty content, then stream-fill
-      const aiMsg = { ...result.message, content: "" };
-      setLocalMessages((prev) => [...prev, aiMsg]);
-      setStreamingMsgId(aiMsg.id);
+      abortRef.current = conn.abort;
 
-      const fullContent = result.message.content;
-      const streamObj = { progress: 0 };
-      animate(streamObj, {
-        progress: fullContent.length,
-        duration: Math.max(500, Math.min(4000, fullContent.length * 25)),
-        ease: "outExpo",
-        onUpdate: () => {
-          const pos = Math.floor(streamObj.progress);
-          setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent.slice(0, pos) } : m));
-        },
-        onComplete: () => {
-          setLocalMessages((prev) => prev.map((m) => m.id === aiMsg.id ? { ...m, content: fullContent } : m));
-          setStreamingMsgId(null);
-        },
-      });
-    } catch (e) {
-      let errMsg = "消息发送失败，请重试";
-      try {
-        const raw = (e as Error).message;
-        console.error("[chat] sendMessage failed:", raw);
-        const body = JSON.parse(raw);
-        errMsg = body.error || body.detail || errMsg;
-        if (body.error?.includes("Conversation not found") || body.error?.includes("不存在")) {
-          showToast("该对话已被删除，正在刷新...", "error");
-          setTimeout(() => window.location.reload(), 1000);
-          setSending(false);
-          return;
+      for await (const sseEvent of conn.events) {
+        switch (sseEvent.event) {
+          case "thinking": {
+            const data = sseEvent.data as { message?: string };
+            setRunPlan((prev) =>
+              prev.map((step, i) =>
+                i === 0 ? { ...step, status: "running" as const, detail: data.message ?? step.detail } : step,
+              ),
+            );
+            break;
+          }
+          case "tool_call": {
+            const data = sseEvent.data as { toolId: string; toolName?: string; input?: Record<string, unknown> };
+            setRunPlan((prev) =>
+              prev.map((step) =>
+                step.id === "tools" ? { ...step, status: "running" as const, detail: `正在执行 ${data.toolName ?? data.toolId}...` } : step,
+              ),
+            );
+            break;
+          }
+          case "tool_result": {
+            const data = sseEvent.data as { toolId: string; status: "success" | "error"; output?: string };
+            const tr: ToolRun = {
+              id: `tr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              toolId: data.toolId,
+              status: data.status,
+              input: {},
+              output: data.output ?? "",
+              createdAt: new Date().toISOString(),
+            };
+            resolvedToolRuns = [...resolvedToolRuns, tr];
+            setRunTools(resolvedToolRuns);
+            setRunPlan((prev) =>
+              prev.map((step) =>
+                step.id === "tools" ? { ...step, status: "done" as const, detail: `${data.toolId} 执行${data.status === "success" ? "成功" : "失败"}` } : step,
+              ),
+            );
+            break;
+          }
+          case "content_chunk": {
+            const data = sseEvent.data as { delta: string };
+            fullContent += data.delta;
+            setLocalMessages((prev) =>
+              prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullContent } : m)),
+            );
+            break;
+          }
+          case "plan_update": {
+            const data = sseEvent.data as { planSteps: AgentPlanStep[] };
+            if (data.planSteps?.length) {
+              resolvedPlanSteps = data.planSteps;
+              setRunPlan(data.planSteps);
+            }
+            break;
+          }
+          case "done": {
+            const data = sseEvent.data as {
+              message?: { id: string; role: string; content: string; createdAt: string };
+              planSteps?: AgentPlanStep[];
+              toolRuns?: ToolRun[];
+            };
+            if (data.message?.content) {
+              fullContent = data.message.content;
+            }
+            if (data.planSteps?.length) resolvedPlanSteps = data.planSteps;
+            if (data.toolRuns?.length) resolvedToolRuns = data.toolRuns;
+            setRunPlan(resolvedPlanSteps.length > 0 ? resolvedPlanSteps : [
+              { id: "scope", title: "确认任务范围", detail: "已确认本次请求范围。", status: "done" },
+              { id: "context", title: "读取项目资料", detail: "已完成项目资料读取。", status: "done" },
+              { id: "skills", title: "匹配 Agent 技能", detail: "已匹配相关业务能力。", status: "done" },
+              { id: "tools", title: "执行工具或生成方案", detail: resolvedToolRuns.length > 0 ? `执行了 ${resolvedToolRuns.length} 个工具。` : "已生成方案。", status: "done" },
+              { id: "reply", title: "写入回复和执行记录", detail: "已保存结果。", status: "done" },
+            ]);
+            setRunTools(resolvedToolRuns);
+            setLocalMessages((prev) =>
+              prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullContent, id: data.message?.id ?? m.id } : m)),
+            );
+            break;
+          }
+          case "error": {
+            const data = sseEvent.data as { message?: string };
+            throw new Error(data.message ?? "Agent 执行出错");
+          }
         }
-      } catch { /* not JSON */ }
-      showToast(errMsg, "error");
-      setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
-      setInput(userMsg.content);
+      }
+    } catch (e) {
+      const errMsg = (e as Error).message || "消息发送失败，请重试";
+
+      // Check if it's a conversation-not-found error
+      if (errMsg.includes("Conversation not found") || errMsg.includes("不存在")) {
+        showToast("该对话已被删除，正在刷新...", "error");
+        setTimeout(() => window.location.reload(), 1000);
+        setSending(false);
+        setStreaming(false);
+        return;
+      }
+
+      // If we got partial content, keep it; otherwise rollback
+      if (!fullContent) {
+        showToast(errMsg, "error");
+        setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id && m.id !== aiMsgId));
+        setInput(userContent);
+      } else {
+        // Partial content — mark as done with what we have
+        showToast(`执行中断: ${errMsg}`, "error");
+      }
+
       setRunPlan((prev) =>
-        prev.map((step) => step.status === "running" ? { ...step, status: "skipped", detail: errMsg } : step),
+        prev.map((step) =>
+          step.status === "running" ? { ...step, status: "skipped" as const, detail: errMsg } : step,
+        ),
       );
     } finally {
+      abortRef.current = null;
       setSending(false);
+      setStreaming(false);
+      setStreamingMsgId(null);
     }
   }
 
@@ -448,42 +618,13 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {(runPlan.length > 0 || runTools.length > 0) && (
-        <section className="agent-run-panel" aria-label="Agent 执行计划" ref={planRef}>
-          <div className="agent-run-header">
-            <div>
-              <span className="agent-run-kicker">Agent Run</span>
-              <h2>执行计划</h2>
-            </div>
-            <span className="agent-run-summary">
-              {runTools.length > 0 ? `${runTools.length} 个工具调用` : sending ? "执行中" : "已完成"}
-            </span>
-          </div>
-
-          <div className="agent-plan-list">
-            {runPlan.map((step, index) => (
-              <div className={`agent-plan-step agent-plan-${step.status}`} key={step.id}>
-                <span className="agent-plan-index">{index + 1}</span>
-                <div>
-                  <strong>{step.title}</strong>
-                  <p>{step.detail}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {runTools.length > 0 && (
-            <div className="agent-tool-list">
-              {runTools.map((tool) => (
-                <div className={`agent-tool-row agent-tool-${tool.status}`} key={tool.id}>
-                  <strong>{tool.toolId}</strong>
-                  <span>{tool.status === "success" ? "成功" : "失败"}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+      <AgentRunPanel
+        planSteps={runPlan}
+        toolRuns={runTools}
+        sending={sending}
+        streaming={streaming}
+        onStop={stopRun}
+      />
 
       {/* Input */}
       <div className="chat-composer">

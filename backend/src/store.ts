@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { runAgentKernel, type AgentRuntimeProvider } from "./agent/kernel.js";
+import { getRuntime } from "./agent/runtime.js";
 import { aiChat } from "./ai/client.js";
 import { getExecutor } from "./tools/registry.js";
 import type {
@@ -44,7 +45,7 @@ import type {
 } from "shared";
 import { getDb } from "./db/index.js";
 
-function db() {
+export function db() {
   return getDb();
 }
 
@@ -930,7 +931,7 @@ export function listProviders(): ModelProvider[] {
   return (db().prepare("SELECT * FROM model_providers ORDER BY id").all() as Record<string, unknown>[]).map(rowToProvider);
 }
 
-function getRuntimeProvider(id?: string): AgentRuntimeProvider | undefined {
+export function getRuntimeProvider(id?: string): AgentRuntimeProvider | undefined {
   const row = id
     ? db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(id)
     : db().prepare("SELECT * FROM model_providers WHERE enabled = 1 ORDER BY id LIMIT 1").get();
@@ -1229,7 +1230,7 @@ export function deleteConversation(id: string): boolean {
   return result.changes > 0;
 }
 
-function buildProjectContext(enterpriseId: string, projectIds: string[]): string {
+export function buildProjectContext(enterpriseId: string, projectIds: string[]): string {
   const placeholders = projectIds.map(() => "?").join(",");
   if (!placeholders) return "";
 
@@ -1313,7 +1314,7 @@ function buildAgentPlan(input: {
   ];
 }
 
-export async function addMessage(conversationId: string, input: AddMessageRequest): Promise<AddMessageResponse | undefined> {
+export async function addMessage(conversationId: string, input: AddMessageRequest, userId?: string): Promise<AddMessageResponse | undefined> {
   const conv = db().prepare("SELECT * FROM conversations WHERE id = ?").get(conversationId) as Record<string, unknown> | undefined;
   if (!conv) return undefined;
   const conversation = rowToConversation(conv);
@@ -1382,7 +1383,9 @@ export async function addMessage(conversationId: string, input: AddMessageReques
       ].join(" ");
     }
 
-    const result = await runAgentKernel({
+    const runtime = await getRuntime(userId);
+
+    const result = await runtime.run({
       userContent: input.content,
       history,
       persona,
@@ -1398,14 +1401,7 @@ export async function addMessage(conversationId: string, input: AddMessageReques
         projectId: conversation.projectId,
         historyNote,
       },
-      runTool: (toolId, toolInput, options) =>
-        runTool(toolId, {
-          input: {
-            ...toolInput,
-            _agentReason: options.reason,
-          },
-          dryRun: options.dryRun,
-        }),
+      sessionId: conversationId,
     });
 
     const aiReply: Message = {
@@ -1418,7 +1414,7 @@ export async function addMessage(conversationId: string, input: AddMessageReques
 
     return {
       message: aiReply,
-      planSteps,
+      planSteps: result.planSteps.length > 0 ? result.planSteps : planSteps,
       toolRuns: result.toolRuns,
     };
   } catch (e) {
