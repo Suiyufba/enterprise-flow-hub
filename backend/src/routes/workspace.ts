@@ -344,9 +344,17 @@ export async function workspaceRoutes(app: FastifyInstance) {
   // Stop an active agent run for this conversation
   app.post("/conversations/:id/stop", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
+    const actor = (request as unknown as Record<string, unknown>).actor as { id: string; enterpriseId: string } | undefined;
     if (!actor?.id) {
       return reply.status(401).send({ error: "Authentication required" });
+    }
+    // Verify conversation ownership
+    const conv = getConversation(id);
+    if (!conv) {
+      return reply.status(404).send({ error: "Conversation not found" });
+    }
+    if (conv.enterpriseId !== actor.enterpriseId) {
+      return reply.status(403).send({ error: "Access denied: enterprise mismatch" });
     }
     const entry = activeRuns.get(id);
     if (!entry) {

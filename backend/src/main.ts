@@ -140,29 +140,14 @@ app.get("/api/agent/status", async (request, reply) => {
   };
 });
 
-// Stop an active Hermes run
-app.post("/api/agent/runs/:runId/stop", async (request, reply) => {
-  const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
-  if (!actor?.id) {
-    return reply.status(401).send({ error: "Authentication required" });
-  }
-  const { runId } = request.params as { runId: string };
-  try {
-    const { HermesClient } = await import("./agent/hermes-client.js");
-    const client = new HermesClient();
-    await client.stopRun(runId);
-    return { ok: true, message: "Run stopped" };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return reply.status(500).send({ ok: false, error: msg });
-  }
-});
-
 // Reset runtime cache — admin only
 app.post("/api/agent/reset-runtime", async (request, reply) => {
   const actor = (request as unknown as Record<string, unknown>).actor as { id: string; role?: string } | undefined;
   if (!actor?.id) {
     return reply.status(401).send({ error: "Authentication required" });
+  }
+  if (actor.role !== "admin") {
+    return reply.status(403).send({ error: "Admin access required" });
   }
   resetRuntimeCache();
   return { ok: true, message: "Runtime cache reset" };

@@ -317,45 +317,99 @@ export async function registerHermesToolRoutes(app: FastifyInstance): Promise<vo
 }
 
 // ── Bash Command Whitelist ──
+// Since we use spawnSync with shell:false, arguments are passed as a real array
+// and shell metacharacters (;, |, $(), etc.) cannot inject commands.
+// Validation is per-argument, not string-prefix matching.
+
+interface CommandRule {
+  /** Allowed subcommand (first argument). If "*" or omitted, any/no subcommand ok. */
+  sub?: string | "*";
+  /** Forbidden argument flags (checked against each arg). */
+  bannedArgs?: string[];
+}
+
+const COMMAND_RULES: Record<string, CommandRule[]> = {
+  // Read-only file/OS inspection — no subcommand restrictions
+  ls: [{}],
+  cat: [{}],
+  head: [{}],
+  tail: [{}],
+  wc: [{}],
+  echo: [{}],
+  date: [{}],
+  whoami: [{}],
+  df: [{}],
+  du: [{}],
+  free: [{}],
+  ps: [{}],
+  uptime: [{}],
+  uname: [{}],
+
+  // Text search
+  grep: [{}],
+
+  // git — read-only subcommands only
+  git: [
+    { sub: "status" },
+    { sub: "log" },
+    { sub: "diff" },
+    { sub: "show" },
+    { sub: "rev-parse" },
+    { sub: "rev-list" },
+    { sub: "ls-files" },
+    { sub: "ls-tree" },
+    { sub: "describe" },
+  ],
+
+  // docker — read-only inspection only, no exec/run/build
+  docker: [
+    { sub: "ps" },
+    { sub: "logs" },
+    { sub: "inspect" },
+    { sub: "images" },
+    { sub: "info" },
+    { sub: "version" },
+    { sub: "stats" },
+  ],
+};
 
 function isBashCommandAllowed(command: string): boolean {
-  const trimmed = command.trim();
+  const parts = command.trim().split(/\s+/);
+  if (parts.length === 0) return false;
 
-  // Block dangerous patterns unconditionally
-  const blockedPatterns = [
-    /rm\s+-rf\s+\//,
-    /mkfs/,
-    /dd\s+if=/,
-    /:\s*\(\)\s*\{/,
-    />\s*\/dev\/sda/,
-    /chmod\s+777\s+\//,
-    /curl.*\|\s*(ba)?sh/,
-    /wget.*\|\s*(ba)?sh/,
-    /nc\s+-[lL]/,
-    /socat/,
-    /reboot/,
-    /shutdown/,
-    /halt/,
-    /poweroff/,
-  ];
+  const program = parts[0];
+  const args = parts.slice(1);
 
-  for (const pattern of blockedPatterns) {
-    if (pattern.test(trimmed)) {
-      return false;
+  // Check if program is in the rule set
+  const rules = COMMAND_RULES[program];
+  if (!rules) return false;
+
+  // If no rules or a rule with no subcommand restriction exists → allow
+  const hasOpenRule = rules.some((r) => !r.sub || r.sub === "*");
+  if (hasOpenRule) {
+    // Check banned args
+    for (const rule of rules) {
+      if (rule.bannedArgs) {
+        for (const arg of args) {
+          if (rule.bannedArgs.includes(arg)) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  // Subcommand-restricted: first arg must match an allowed subcommand
+  if (args.length === 0) return false;
+  const sub = args[0];
+  const matchingRule = rules.find((r) => r.sub === sub);
+  if (!matchingRule) return false;
+
+  // Check banned args on the matching rule
+  if (matchingRule.bannedArgs) {
+    for (const arg of args) {
+      if (matchingRule.bannedArgs.includes(arg)) return false;
     }
   }
 
-  // Whitelist of allowed command prefixes
-  const allowedPrefixes = [
-    "ls", "cat", "head", "tail",
-    "wc", "grep", "find",
-    "echo", "date", "whoami",
-    "df", "du", "free", "ps",
-    "node", "npm", "pnpm",
-    "git status", "git log", "git diff", "git branch",
-    "docker ps", "docker logs",
-    "uptime", "uname",
-  ];
-
-  return allowedPrefixes.some((prefix) => trimmed.startsWith(prefix));
+  return true;
 }
