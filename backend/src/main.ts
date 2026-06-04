@@ -116,14 +116,10 @@ app.get("/health", async () => {
   };
 });
 
-// Hermes status endpoint for frontend settings — requires auth
-app.get("/agent/status", async (request, reply) => {
-  const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
-  if (!actor) {
-    return reply.status(401).send({ error: "Authentication required" });
-  }
-
-  const runtime = await getRuntime(actor.id);
+// Read-only Hermes status endpoint. Keep the payload free of secrets so browser
+// extensions or health monitors can query it without a session token.
+app.get("/agent/status", async () => {
+  const runtime = await getRuntime();
   const runtimeHealth = await runtime.health();
   const isHermes = runtimeHealth.version !== "legacy" && runtimeHealth.ok;
   return {
@@ -136,7 +132,7 @@ app.get("/agent/status", async (request, reply) => {
       model: isHermes ? runtimeHealth.model : undefined,
       url: process.env.HERMES_API_URL ? "[internal]" : undefined,
     },
-    enabledUserIds: (process.env.HERMES_ENABLED_USER_IDS ?? "").trim() || null,
+    enabledUserIds: null,
   };
 });
 

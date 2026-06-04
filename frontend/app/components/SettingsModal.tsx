@@ -84,6 +84,26 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     hermes: { connected: boolean; version?: string; model?: string; url: string };
     enabledUserIds: string | null;
   } | null>(null);
+  const [agentStatusLoading, setAgentStatusLoading] = useState(false);
+  const [agentStatusError, setAgentStatusError] = useState("");
+
+  async function loadAgentStatus() {
+    setAgentStatusLoading(true);
+    setAgentStatusError("");
+    try {
+      const agent = await fetchJson<{
+        runtime: string; fallbackRuntime: string;
+        hermes: { connected: boolean; version?: string; model?: string; url: string };
+        enabledUserIds: string | null;
+      }>("/agent/status");
+      setAgentStatus(agent);
+    } catch {
+      setAgentStatus(null);
+      setAgentStatusError("Agent 状态加载失败，请重试");
+    } finally {
+      setAgentStatusLoading(false);
+    }
+  }
 
   async function refresh() {
     const [p, per] = await Promise.all([
@@ -92,20 +112,15 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     ]);
     setProviders(p.providers);
     setPersonas(per.personas);
-    // Fetch agent status (non-blocking)
-    try {
-      const agent = await fetchJson<{
-        runtime: string; fallbackRuntime: string;
-        hermes: { connected: boolean; version?: string; model?: string; url: string };
-        enabledUserIds: string | null;
-      }>("/agent/status");
-      setAgentStatus(agent);
-    } catch { /* agent status not available */ }
   }
 
   useEffect(() => {
     if (open) refresh();
   }, [open]);
+
+  useEffect(() => {
+    if (open && tab === "agent") void loadAgentStatus();
+  }, [open, tab]);
 
   // ---- Add provider ----
   async function addProvider() {
@@ -293,7 +308,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           <div className="settings-body">
             <div className="settings-form">
               <h3 style={{ margin: "0 0 12px", fontSize: "1rem", fontWeight: 600 }}>Agent 运行时状态</h3>
-              {agentStatus ? (
+              {agentStatusLoading ? (
+                <div className="search-empty">正在加载 Agent 状态...</div>
+              ) : agentStatus ? (
                 <div className="settings-list">
                   <div className="settings-card">
                     <div>
@@ -346,7 +363,12 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   </div>
                 </div>
               ) : (
-                <div className="search-empty">正在加载 Agent 状态...</div>
+                <div className="search-empty">
+                  <p>{agentStatusError || "暂无 Agent 状态"}</p>
+                  <button className="page-secondary-button" onClick={() => void loadAgentStatus()} type="button">
+                    重新加载
+                  </button>
+                </div>
               )}
             </div>
           </div>
