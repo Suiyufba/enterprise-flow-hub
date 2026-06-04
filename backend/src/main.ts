@@ -117,7 +117,7 @@ app.get("/health", async () => {
 });
 
 // Hermes status endpoint for frontend settings — requires auth
-app.get("/api/agent/status", async (request, reply) => {
+app.get("/agent/status", async (request, reply) => {
   const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
   if (!actor) {
     return reply.status(401).send({ error: "Authentication required" });
@@ -141,7 +141,7 @@ app.get("/api/agent/status", async (request, reply) => {
 });
 
 // Reset runtime cache — admin only
-app.post("/api/agent/reset-runtime", async (request, reply) => {
+app.post("/agent/reset-runtime", async (request, reply) => {
   const actor = (request as unknown as Record<string, unknown>).actor as { id: string; role?: string } | undefined;
   if (!actor?.id) {
     return reply.status(401).send({ error: "Authentication required" });

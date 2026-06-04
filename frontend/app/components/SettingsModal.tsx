@@ -98,7 +98,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         runtime: string; fallbackRuntime: string;
         hermes: { connected: boolean; version?: string; model?: string; url: string };
         enabledUserIds: string | null;
-      }>("/api/agent/status");
+      }>("/agent/status");
       setAgentStatus(agent);
     } catch { /* agent status not available */ }
   }
