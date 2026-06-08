@@ -160,18 +160,32 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 14px 8px;
+  gap: 5px;
+  padding: 12px 10px;
+  min-height: 68px;
+  justify-content: center;
 }
 
 .wf-node-icon {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
+}
+
+.wf-node-type {
+  color: #f4f4f4;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.72;
 }
 
 .wf-node-label {
+  max-width: 122px;
+  color: #f4f4f4;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 750;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 /* props panel */

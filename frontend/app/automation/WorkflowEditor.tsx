@@ -41,28 +41,34 @@ function newNodeId(type: NodeType) {
   return `${type}-${nodeIdCounter}`;
 }
 
-function createNode(type: NodeType, x: number, y: number): Node {
+function nodeDisplayLabel(type: NodeType, config: Record<string, string>) {
+  return config.title || config.desc || nodeTypes[type].label;
+}
+
+function createNode(type: NodeType, x: number, y: number, config: Record<string, string> = {}, id?: string): Node {
   const def = nodeTypes[type];
+  const displayLabel = nodeDisplayLabel(type, config);
   return {
-    id: newNodeId(type),
+    id: id ?? newNodeId(type),
     type: "default",
     position: { x, y },
     data: {
       label: (
         <div className="wf-node">
           <AppIcon name={def.icon as AppIconName} className="wf-node-icon" />
-          <span className="wf-node-label">{def.label}</span>
+          <span className="wf-node-type">{def.label}</span>
+          <span className="wf-node-label">{displayLabel}</span>
         </div>
       ),
       nodeType: type,
-      config: {} as Record<string, string>,
+      config,
     },
     style: {
       background: def.color,
       border: `2px solid ${def.border}`,
       borderRadius: 12,
       padding: 0,
-      width: 150,
+      width: 140,
       fontSize: 13,
       color: "#f4f4f4",
     },
@@ -93,6 +99,121 @@ const initialEdges: Edge[] = [
     style: { stroke: "#666" },
   },
 ];
+
+const edgeStyle = { stroke: "#666" };
+
+function createEdge(id: string, source: string, target: string, label?: string): Edge {
+  return {
+    id,
+    source,
+    target,
+    label,
+    animated: true,
+    markerEnd: { type: MarkerType.ArrowClosed },
+    style: edgeStyle,
+  };
+}
+
+function buildComplexScenarioGraph(providerId?: string): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = [
+    createNode("trigger", 20, 60, {
+      title: "Webhook/企微/邮件",
+      triggerType: "webhook",
+      desc: "官网表单、企微消息、邮件、CRM 新客、付款回调、投诉工单",
+    }, "trigger-intake"),
+    createNode("trigger", 20, 210, {
+      title: "文件上传",
+      triggerType: "file",
+      desc: "合同、报价单、聊天截图、客户 Excel、发票附件",
+    }, "trigger-file"),
+    createNode("trigger", 20, 360, {
+      title: "定时/人工扫描",
+      triggerType: "schedule",
+      desc: "每 30 分钟扫描 SLA，也支持人工触发巡检",
+    }, "trigger-schedule"),
+    createNode("agent", 190, 210, {
+      title: "轻量分类模型",
+      model: providerId ?? "",
+      prompt: "去重、分类、风险分级，输出事件类型、难度等级、下一节点和 SLA。",
+    }, "agent-router"),
+    createNode("condition", 360, 210, {
+      title: "风险/难度判断",
+      expression: "risk in P0/P1 OR taskDifficulty === 'complex'",
+      trueBranch: "进入深度推理和主管升级",
+      falseBranch: "进入资料补全或普通日报",
+    }, "condition-risk"),
+    createNode("agent", 530, 60, {
+      title: "OCR/表格模型",
+      model: providerId ?? "",
+      prompt: "从截图、合同、报价单、Excel 中提取客户、金额、付款、合同截止日和缺失字段。",
+    }, "agent-ocr"),
+    createNode("agent", 530, 210, {
+      title: "深度推理模型",
+      model: providerId ?? "",
+      prompt: "综合客户价值、投诉、退款、合同临期、付款异常和顾问负载，给出决策路径。",
+    }, "agent-reasoning"),
+    createNode("loop", 700, 210, {
+      title: "逐客户循环",
+      source: "P0/P1 客户、逾期报价、合同临期、付款异常清单",
+      body: "逐条生成责任人、下一步、截止时间、升级条件和写回字段。",
+    }, "loop-customers"),
+    createNode("condition", 700, 360, {
+      title: "是否需要后台核验",
+      expression: "missingEvidence OR noApiSystemRequired",
+      trueBranch: "浏览器巡检 CRM/付款/合同后台",
+      falseBranch: "直接通知闭环",
+    }, "condition-browser"),
+    createNode("action", 870, 210, {
+      title: "浏览器巡检",
+      actionType: "browser",
+      desc: "只读打开 CRM、付款、合同后台，核验未分配、逾期、付款失败和重复客户。",
+    }, "action-browser"),
+    createNode("action", 870, 360, {
+      title: "HTTP 推送/写回",
+      actionType: "api_call",
+      desc: "HTTP POST 推送飞书/企微/老板看板，并写回风险、责任人、截止时间。",
+    }, "action-push"),
+    createNode("condition", 870, 510, {
+      title: "去重与升级策略",
+      expression: "sameRiskWithin2h ? skipNotify : notifyNow",
+      trueBranch: "跳过重复通知，只更新看板",
+      falseBranch: "P0 立即推送，普通事件进日报",
+    }, "condition-dedupe"),
+  ];
+
+  const edges: Edge[] = [
+    createEdge("e-intake-router", "trigger-intake", "agent-router"),
+    createEdge("e-file-ocr", "trigger-file", "agent-ocr"),
+    createEdge("e-schedule-router", "trigger-schedule", "agent-router"),
+    createEdge("e-router-risk", "agent-router", "condition-risk"),
+    createEdge("e-risk-ocr", "condition-risk", "agent-ocr", "资料缺口"),
+    createEdge("e-risk-reasoning", "condition-risk", "agent-reasoning", "高风险/复杂"),
+    createEdge("e-ocr-reasoning", "agent-ocr", "agent-reasoning"),
+    createEdge("e-reasoning-loop", "agent-reasoning", "loop-customers"),
+    createEdge("e-loop-browser-check", "loop-customers", "condition-browser"),
+    createEdge("e-browser-action", "condition-browser", "action-browser", "需要核验"),
+    createEdge("e-browser-push", "action-browser", "action-push"),
+    createEdge("e-no-browser-push", "condition-browser", "action-push", "证据完整"),
+    createEdge("e-push-dedupe", "action-push", "condition-dedupe"),
+    createEdge("e-dedupe-loop", "condition-dedupe", "loop-customers", "继续下一客户"),
+  ];
+
+  return { nodes, edges };
+}
+
+function collectConfigsByType(nodes: Node[], type: NodeType) {
+  return nodes
+    .filter((node) => node.data?.nodeType === type)
+    .map((node) => (node.data.config ?? {}) as Record<string, string>);
+}
+
+function joinConfigDescriptions(configs: Record<string, string>[], fallback: string) {
+  const text = configs
+    .map((config) => config.desc || config.title || "")
+    .filter(Boolean)
+    .join("；");
+  return text || fallback;
+}
 
 /* ---- component ---- */
 
@@ -141,6 +262,47 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
     setWorkflowName(auto.name);
     setSelectedProjectId(auto.projectId);
 
+    if (auto.name.includes("复杂综合任务")) {
+      const { nodes: complexNodes, edges: complexEdges } = buildComplexScenarioGraph(auto.agentModel);
+      const triggerNode = complexNodes.find((node) => node.id === "trigger-intake");
+      const pushNode = complexNodes.find((node) => node.id === "action-push");
+      const reasoningNode = complexNodes.find((node) => node.id === "agent-reasoning");
+      if (triggerNode) {
+        triggerNode.data = {
+          ...triggerNode.data,
+          config: {
+            ...triggerNode.data.config as Record<string, string>,
+            triggerType: auto.triggerType,
+            desc: auto.trigger,
+          },
+        };
+      }
+      if (pushNode) {
+        pushNode.data = {
+          ...pushNode.data,
+          config: {
+            ...pushNode.data.config as Record<string, string>,
+            actionType: auto.actionType,
+            desc: auto.action,
+            pluginId: auto.actionPluginId ?? "",
+          },
+        };
+      }
+      if (reasoningNode) {
+        reasoningNode.data = {
+          ...reasoningNode.data,
+          config: {
+            ...reasoningNode.data.config as Record<string, string>,
+            model: auto.agentModel ?? "",
+            prompt: auto.systemPrompt ?? "",
+          },
+        };
+      }
+      setNodes(complexNodes);
+      setEdges(complexEdges);
+      return;
+    }
+
     const trigCfg: Record<string, string> = {
       triggerType: auto.triggerType,
       desc: auto.trigger,
@@ -155,11 +317,11 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
     if (auto.actionPluginId) actionCfg.pluginId = auto.actionPluginId;
 
     setNodes([
-      { ...createNode("trigger", 100, 80), id: "trigger-1", data: { ...createNode("trigger", 100, 80).data, config: trigCfg } },
-      { ...createNode("agent", 100, 240), id: "agent-2", data: { ...createNode("agent", 100, 240).data, config: agentCfg } },
-      { ...createNode("action", 100, 400), id: "action-3", data: { ...createNode("action", 100, 400).data, config: actionCfg } },
+      createNode("trigger", 100, 80, trigCfg, "trigger-1"),
+      createNode("agent", 100, 240, agentCfg, "agent-2"),
+      createNode("action", 100, 400, actionCfg, "action-3"),
     ]);
-  }, [existingId, workspace.automations, setNodes]);
+  }, [existingId, workspace.automations, setEdges, setNodes]);
 
   async function saveWorkflow() {
     if (!workflowName.trim()) return;
@@ -167,39 +329,59 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
     setSavedMessage("");
 
     try {
-      const triggerNode = nodes.find((n) => n.data?.nodeType === "trigger");
-      const agentNode = nodes.find((n) => n.data?.nodeType === "agent");
-      const actionNode = nodes.find((n) => n.data?.nodeType === "action");
+      const triggerConfigs = collectConfigsByType(nodes, "trigger");
+      const agentConfigs = collectConfigsByType(nodes, "agent");
+      const conditionConfigs = collectConfigsByType(nodes, "condition");
+      const loopConfigs = collectConfigsByType(nodes, "loop");
+      const actionConfigs = collectConfigsByType(nodes, "action");
 
-      const triggerCfg = (triggerNode?.data.config ?? {}) as Record<string, string>;
-      const agentCfg = (agentNode?.data.config ?? {}) as Record<string, string>;
-      const actionCfg = (actionNode?.data.config ?? {}) as Record<string, string>;
+      const primaryTrigger = triggerConfigs[0] ?? {};
+      const primaryAgent = agentConfigs.find((config) => config.model) ?? agentConfigs[0] ?? {};
+      const primaryAction = actionConfigs.find((config) => config.actionType) ?? actionConfigs[0] ?? {};
 
-      const selectedProvider = configuredProviders.find((provider) => provider.id === agentCfg.model);
-      if (agentNode && !selectedProvider) {
+      const selectedProvider = configuredProviders.find((provider) => provider.id === primaryAgent.model);
+      if (agentConfigs.length > 0 && !selectedProvider) {
         setSavedMessage(configuredProviders.length === 0 ? "请先在设置里配置可用模型账号" : "请选择已配置的模型账号");
         setSaving(false);
         return;
       }
 
-      const resolvedActionType = actionCfg.actionType || "notify";
-      const selectedNotificationPlugin = configuredNotificationPlugins.find((plugin) => plugin.id === actionCfg.pluginId);
+      const resolvedActionType = primaryAction.actionType || "notify";
+      const selectedNotificationPlugin = configuredNotificationPlugins.find((plugin) => plugin.id === primaryAction.pluginId);
       if (resolvedActionType === "notify" && !selectedNotificationPlugin) {
         setSavedMessage(configuredNotificationPlugins.length === 0 ? "请先在插件页绑定飞书/企业微信通知" : "请选择通知插件");
         setSaving(false);
         return;
       }
 
+      const triggerSummary = joinConfigDescriptions(triggerConfigs, "手动触发");
+      const actionSummary = joinConfigDescriptions(actionConfigs, "执行动作");
+      const agentSummary = agentConfigs
+        .map((config) => `${config.title || "AI Agent"}：${config.prompt || "处理任务"}`)
+        .join("；");
+      const conditionSummary = conditionConfigs
+        .map((config) => `${config.title || "条件判断"}：${config.expression || "按规则判断"}`)
+        .join("；");
+      const loopSummary = loopConfigs
+        .map((config) => `${config.title || "循环"}：遍历 ${config.source || "数据列表"}，${config.body || "逐项处理"}`)
+        .join("；");
+      const promptSummary = [
+        primaryAgent.prompt,
+        agentSummary && `多模型节点：${agentSummary}`,
+        conditionSummary && `条件节点：${conditionSummary}`,
+        loopSummary && `循环节点：${loopSummary}`,
+      ].filter(Boolean).join(" ");
+
       const body = {
         projectId: selectedProjectId,
         name: workflowName.trim(),
-        trigger: triggerCfg.desc || "手动触发",
-        triggerType: triggerCfg.triggerType || "manual",
-        action: actionCfg.desc || "执行动作",
+        trigger: triggerSummary.slice(0, 200),
+        triggerType: primaryTrigger.triggerType || "manual",
+        action: actionSummary.slice(0, 200),
         actionType: resolvedActionType,
-        agentModel: agentCfg.model || undefined,
-        actionPluginId: resolvedActionType === "notify" ? actionCfg.pluginId || undefined : undefined,
-        systemPrompt: agentCfg.prompt || undefined,
+        agentModel: primaryAgent.model || undefined,
+        actionPluginId: resolvedActionType === "notify" ? primaryAction.pluginId || undefined : undefined,
+        systemPrompt: promptSummary.slice(0, 500) || undefined,
       };
 
       if (existingId) {
@@ -371,6 +553,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
             fitView
             deleteKeyCode={["Backspace", "Delete"]}
             multiSelectionKeyCode="Shift"
+            fitViewOptions={{ padding: 0.12, maxZoom: workflowName.includes("复杂综合任务") ? 0.7 : 1.2 }}
           >
             <Controls />
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#303030" />
