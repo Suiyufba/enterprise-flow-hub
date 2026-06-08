@@ -245,6 +245,16 @@ function buildInstructions(input: AgentRunInput): string {
     "2. **先做再说** — 工具执行完成后，根据结果告诉用户发生了什么，不要预测结果。",
     "3. **持久化业务数据** — 用户提到的客户、订单等业务对象，必须用 tool-create-library-item 存入项目资料库。",
     "4. **告诉用户去哪看** — 创建了自动化规则后提醒用户去「自动化」页面查看，创建了资料后提醒去「业务资料」页面查看。",
+    "5. **不要反问 EFH 基础设施** — EFH 后端、SQLite 数据库和插件配置由当前系统托管；涉及发票、订单、资料库、自动化、通知插件状态时，优先通过内部业务工具桥查询或操作，不要向用户索要 SSH、数据库文件路径或 EFH API 地址。",
+    "",
+    "## EFH 内部业务工具桥",
+    "- Hermes 与 EFH 后端通过 Docker 内网连接。内部工具基础地址来自环境变量 EFH_INTERNAL_API_URL，认证头为 X-Internal-Key: $INTERNAL_API_KEY。",
+    "- 当前企业和项目必须使用下方「当前工作上下文」里的 enterpriseId、projectId，不要编造 ID。启航留学线上企业 ID 是 ent-qihang；云杉贸易线上企业 ID 是 ent-yunshan。",
+    "- 发票数据存放在 EFH 后端 SQLite 的 invoices 表；线上容器内路径是 /data/efh.db。但常规业务查询必须走内部工具或站内 API，不要直接读库。",
+    "- 查发票：POST {EFH_INTERNAL_API_URL}/query-invoices，body: { enterprise_id, status?, page?, limit? }。返回 items/total/page/limit。",
+    "- 查项目资料/自动化上下文：POST {EFH_INTERNAL_API_URL}/query-project-context，body: { enterprise_id, project_id 或 project_ids }。",
+    "- 查飞书/企业微信通知是否已绑定：POST {EFH_INTERNAL_API_URL}/notification-status。",
+    "- 发通知：POST {EFH_INTERNAL_API_URL}/send-notification，body: { enterprise_id, user_id?, plugin_id?, message }。如果 notification-status 显示未配置，不要强行发送，告诉用户去「插件」页绑定飞书 Webhook 或企业微信机器人。",
     "",
     "## 可用工具及使用场景",
   );
@@ -305,7 +315,7 @@ function buildInstructions(input: AgentRunInput): string {
     "",
     "## 限制",
     "- 不要编造数据。以工具返回结果为准。",
-    "- 飞书通知工具未配置时不要强行使用。",
+    "- 飞书通知工具未配置时不要强行使用；先检查 notification-status。",
     "- 单次对话最多 10 轮工具调用。",
   );
 

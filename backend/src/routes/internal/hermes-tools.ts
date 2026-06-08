@@ -17,6 +17,7 @@ import { randomUUID } from "node:crypto";
 import { createLibraryItem, createAutomation, buildProjectContext } from "../../store.js";
 import { createAuditLog } from "../../auth/audit.js";
 import { spawnSync } from "node:child_process";
+import { listInvoices } from "../../store/orders.js";
 
 const INTERNAL_KEY = process.env.INTERNAL_API_KEY;
 
@@ -167,6 +168,54 @@ export async function registerHermesToolRoutes(app: FastifyInstance): Promise<vo
       ok: true,
       context,
       projectIds,
+    });
+  });
+
+  // ── Query Invoices ──
+  app.post("/internal/hermes/tools/query-invoices", async (request, reply) => {
+    const body = request.body as Record<string, unknown> | undefined;
+    if (!body) return reply.status(400).send({ error: "Request body required" });
+
+    const enterpriseId = String(body.enterprise_id ?? body.enterpriseId ?? "");
+    const status = typeof body.status === "string" && body.status.trim() ? body.status.trim() : undefined;
+    const limitRaw = Number(body.limit ?? 20);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 100) : 20;
+    const pageRaw = Number(body.page ?? 1);
+    const page = Number.isFinite(pageRaw) ? Math.max(Math.trunc(pageRaw), 1) : 1;
+
+    if (!enterpriseId) {
+      return reply.status(400).send({
+        error: "Missing required fields",
+        required: ["enterprise_id"],
+      });
+    }
+
+    const result = listInvoices(enterpriseId, { status, page, limit });
+    return reply.send({
+      ok: true,
+      source: "sqlite:invoices",
+      enterpriseId,
+      status: status ?? null,
+      ...result,
+    });
+  });
+
+  // ── Notification Plugin Status ──
+  app.post("/internal/hermes/tools/notification-status", async (_request, reply) => {
+    const { listConfiguredNotificationPlugins } = await import("../../store.js");
+    const plugins = listConfiguredNotificationPlugins();
+    return reply.send({
+      ok: true,
+      configured: plugins.length > 0,
+      plugins: plugins.map((plugin) => ({
+        id: plugin.id,
+        name: plugin.name,
+        configured: plugin.configured,
+        enabled: plugin.enabled,
+      })),
+      hint: plugins.length > 0
+        ? "可以调用 send-notification 发送通知。"
+        : "飞书/企业微信通知未配置，请让用户先在「插件」页绑定飞书 Webhook 或企业微信机器人。",
     });
   });
 

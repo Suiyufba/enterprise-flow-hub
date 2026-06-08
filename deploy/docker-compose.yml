@@ -55,6 +55,8 @@ services:
       HERMES_MODEL: ${HERMES_INFERENCE_MODEL:-deepseek-v4-flash}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      EFH_INTERNAL_API_URL: http://backend:4000/internal/hermes/tools
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
     volumes:
       - hermes-data:/opt/data
     ports:

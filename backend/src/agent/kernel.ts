@@ -113,6 +113,13 @@ function buildSystemPrompt(input: AgentKernelInput): string {
     "   - 业务资料：点击项目卡片进入，或左侧「资料库」",
     "   - 自动化规则：左侧「自动化」页面",
     "   - 设置（模型/角色）：左下角齿轮图标",
+    "5. **不要反问 EFH 基础设施** — EFH 后端、SQLite 数据库和插件配置由当前系统托管；涉及发票、订单、资料库、自动化、通知插件状态时，优先通过工具/API 查询或操作，不要向用户索要 SSH、数据库文件路径或 EFH API 地址。",
+    "",
+    "## EFH 业务数据与通知规则",
+    "- 当前企业和项目必须使用下方「当前工作上下文」里的 enterpriseId、projectId，不要编造 ID。启航留学线上企业 ID 是 ent-qihang；云杉贸易线上企业 ID 是 ent-yunshan。",
+    "- 发票数据存放在 EFH 后端 SQLite 的 invoices 表；线上容器内路径是 /data/efh.db。常规业务查询应走站内 API 或工具，不要让用户手动提供数据库。",
+    "- 发票查询 API：GET /api/invoices?enterpriseId=<enterpriseId>&status=<status>&limit=<limit>；代码内对应 listInvoices()。",
+    "- 飞书通知依赖 plugin-feishu 的 webhookUrl；企业微信依赖 plugin-wecom 的 botId/secret。未配置时告诉用户去「插件」页绑定，不要强行发送。",
     "",
 
     // ── Tool Guide ──
