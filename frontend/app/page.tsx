@@ -153,7 +153,7 @@ export default function DashboardPage() {
             <span>资料库</span>
             <strong>{workspace.libraryItems.filter((l) => l.enterpriseId === enterpriseId).length}</strong>
           </Link>
-          <Link href="/projects/new" className="dashboard-health-item dashboard-health-action">
+          <Link href="/projects" className="dashboard-health-item dashboard-health-action">
             <span>项目</span>
             <strong>{enterpriseProjects.length}</strong>
           </Link>

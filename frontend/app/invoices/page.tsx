@@ -145,7 +145,7 @@ export default function InvoicesPage() {
       width: "124px",
       render: (inv: Invoice) => (inv.totalAmount != null ? `¥${inv.totalAmount.toFixed(2)}` : "-"),
     },
-    { key: "status", label: "状态", width: "90px", render: (inv: Invoice) => <StatusBadge status={inv.status} /> },
+    { key: "status", label: "状态", width: "90px", render: (inv: Invoice) => <StatusBadge status={inv.status} label={statusLabels[inv.status] ?? inv.status} /> },
     { key: "dueDate", label: "到期日", width: "118px", render: (inv: Invoice) => inv.dueDate?.slice(0, 10) ?? "-" },
     {
       key: "orderId",

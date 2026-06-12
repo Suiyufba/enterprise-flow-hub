@@ -23,6 +23,31 @@ const objectTypes = ["customer", "supplier", "product", "order", "file", "projec
 const triggerEvents = ["create", "update", "delete", "status_change"];
 const actionTypes = ["notify", "send_email", "call_ai", "api_call", "shell", "update_status"];
 
+const objectTypeLabels: Record<string, string> = {
+  customer: "客户",
+  supplier: "供应商",
+  product: "商品",
+  order: "订单",
+  file: "文件",
+  project: "项目",
+};
+
+const triggerEventLabels: Record<string, string> = {
+  create: "创建时",
+  update: "更新时",
+  delete: "删除时",
+  status_change: "状态变化时",
+};
+
+const actionTypeLabels: Record<string, string> = {
+  notify: "发送通知",
+  send_email: "发送邮件",
+  call_ai: "AI 分析",
+  api_call: "调用 API",
+  shell: "执行脚本",
+  update_status: "更新状态",
+};
+
 export default function RulesPage() {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
@@ -89,9 +114,9 @@ export default function RulesPage() {
 
   const columns = [
     { key: "name", label: "名称" },
-    { key: "objectType", label: "对象类型" },
-    { key: "triggerEvent", label: "触发事件" },
-    { key: "actionType", label: "动作" },
+    { key: "objectType", label: "对象类型", render: (r: RuleRow) => objectTypeLabels[r.objectType] ?? r.objectType },
+    { key: "triggerEvent", label: "触发事件", render: (r: RuleRow) => triggerEventLabels[r.triggerEvent] ?? r.triggerEvent },
+    { key: "actionType", label: "动作", render: (r: RuleRow) => actionTypeLabels[r.actionType] ?? r.actionType },
     {
       key: "enabled",
       label: "状态",
@@ -142,13 +167,13 @@ export default function RulesPage() {
                 <div>
                   <label className="form-label" style={{ fontSize: 12, color: "var(--c-8c8c8c)" }}>对象类型</label>
                   <select className="page-input" value={objectType} onChange={(e) => setObjectType(e.target.value)}>
-                    {objectTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {objectTypes.map((t) => <option key={t} value={t}>{objectTypeLabels[t] ?? t}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="form-label" style={{ fontSize: 12, color: "var(--c-8c8c8c)" }}>触发事件</label>
                   <select className="page-input" value={triggerEvent} onChange={(e) => setTriggerEvent(e.target.value)}>
-                    {triggerEvents.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {triggerEvents.map((t) => <option key={t} value={t}>{triggerEventLabels[t] ?? t}</option>)}
                   </select>
                 </div>
               </div>
@@ -156,7 +181,7 @@ export default function RulesPage() {
               <div>
                 <label className="form-label" style={{ fontSize: 12, color: "var(--c-8c8c8c)" }}>动作类型</label>
                 <select className="page-input" value={actionType} onChange={(e) => setActionType(e.target.value)}>
-                  {actionTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {actionTypes.map((t) => <option key={t} value={t}>{actionTypeLabels[t] ?? t}</option>)}
                 </select>
               </div>
 
@@ -175,7 +200,7 @@ export default function RulesPage() {
           data={data}
           loading={loading}
           emptyTitle="暂无规则"
-          emptyDesc="还没有创建任何业务规则"
+          emptyDesc="规则适合处理确定性的业务约束；复杂跨步骤流程建议放到「自动化」里。"
           emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建规则</button>}
         />
       </div>

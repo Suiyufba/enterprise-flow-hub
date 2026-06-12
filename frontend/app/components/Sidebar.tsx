@@ -65,11 +65,25 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const [navGroups, setNavGroups] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem("efh_nav_groups");
-      return saved ? new Set(JSON.parse(saved)) : new Set(["ai-tools"]);
+      return saved ? new Set(JSON.parse(saved)) : new Set(["ai-tools", "business", "system"]);
     } catch {
-      return new Set(["ai-tools"]);
+      return new Set(["ai-tools", "business", "system"]);
     }
   });
+
+  useEffect(() => {
+    const next = new Set(navGroups);
+    if (pathname?.match(/^\/(customers|suppliers|products|orders|files|payments|invoices)/)) {
+      next.add("business");
+    }
+    if (pathname?.match(/^\/(rules|enterprise|audit)/)) {
+      next.add("system");
+    }
+    if (next.size !== navGroups.size) {
+      setNavGroups(next);
+      localStorage.setItem("efh_nav_groups", JSON.stringify([...next]));
+    }
+  }, [navGroups, pathname]);
 
   useEffect(() => {
     const nav = navRef.current;

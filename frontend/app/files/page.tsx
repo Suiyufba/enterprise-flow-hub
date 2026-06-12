@@ -149,7 +149,7 @@ export default function FilesPage() {
             page={page}
             onPageChange={setPage}
             emptyTitle="暂无文件"
-            emptyDesc="还没有上传任何文件"
+            emptyDesc="上传合同、截图、表格或发票附件后，Agent 才能在对话和工作流里引用这些文件。"
             emptyAction={<button className="page-primary-button" onClick={() => fileInputRef.current?.click()} type="button">上传文件</button>}
           />
         )}

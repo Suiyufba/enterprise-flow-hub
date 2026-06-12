@@ -1602,6 +1602,20 @@ body {
   padding: 18px;
 }
 
+.library-card {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+}
+
+.library-card-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 10;
+  -webkit-box-orient: vertical;
+  line-height: 1.65;
+}
+
 .page-card span,
 .page-row span,
 .page-stat span {
@@ -2240,6 +2254,13 @@ body {
   font-size: 12px;
   line-height: 1.5;
   margin: 0;
+}
+
+.page-card .plugin-config-meta {
+  border-radius: 8px;
+  background: var(--c-2a2a2a);
+  color: var(--c-b8b8b8);
+  padding: 8px 10px;
 }
 
 .workflow-card-header {
@@ -4980,7 +5001,10 @@ body {
 /* EmptyState */
 .empty-state {
   text-align: center;
-  padding: 48px 20px;
+  border: 1px dashed var(--c-3a3a3a);
+  border-radius: 14px;
+  background: var(--c-202020);
+  padding: 64px 20px;
 }
 
 .empty-state-icon {

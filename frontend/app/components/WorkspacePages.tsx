@@ -245,10 +245,10 @@ export function SearchPage() {
         />
         <button
           className="page-secondary-button"
-          onClick={() => router.push("/projects/new")}
+          onClick={() => router.push("/chat/new")}
           type="button"
         >
-          + 新建项目
+          新建对话
         </button>
       </div>
 
@@ -571,7 +571,7 @@ export function LibraryPage() {
         {filtered.map((item) => {
           const ent = workspace.enterprises.find((e) => e.id === item.enterpriseId);
           return (
-            <article className="page-card" key={item.id}>
+            <article className="page-card library-card" key={item.id}>
               <div className="lib-card-header">
                 <span className={`lib-visibility-badge lib-visibility-${item.visibility}`}>
                   {item.visibility === "public" ? "公共" : "私有"}
@@ -596,7 +596,7 @@ export function LibraryPage() {
                 </button>
               </div>
               <h3>{item.name}</h3>
-              <p>{item.summary}</p>
+              <p className="library-card-summary">{item.summary}</p>
               {ent && <span className="lib-enterprise-tag">{ent.name}</span>}
             </article>
           );
@@ -919,7 +919,7 @@ export function PluginsPage() {
             <div className="settings-card-actions">
               {plugin.configRequired && (
                 <button className="page-secondary-button" onClick={() => openPluginConfig(plugin)} type="button">
-                  配置
+                  {plugin.configured ? "修改绑定" : "绑定"}
                 </button>
               )}
               <button className="page-secondary-button" onClick={() => togglePlugin(plugin)} type="button">
