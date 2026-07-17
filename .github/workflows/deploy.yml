@@ -211,19 +211,22 @@ jobs:
           fi
           docker compose ps
 
-          # Health check: wait for both services
+          # Health check: container "running" can precede the Node listener by a few seconds.
           echo "::group::Health check"
           for i in $(seq 1 30); do
             STATUS=$(docker compose ps --services --status running 2>/dev/null | wc -l | tr -d ' ')
-            if [ "${STATUS}" -ge 2 ]; then
-              echo "All services running after ${i}s"
+            if [ "${STATUS}" -ge 2 ] && HEALTH_PAYLOAD="$(curl -fsS http://127.0.0.1:4000/health 2>/dev/null)"; then
+              echo "All services healthy after ${i}s"
               break
+            fi
+            if [ "${i}" -eq 30 ]; then
+              echo "Backend health check timed out"
+              docker compose logs --tail=100 backend
+              exit 1
             fi
             sleep 1
           done
           docker compose ps
-          # Verify backend health
-          HEALTH_PAYLOAD="$(curl -fsS http://127.0.0.1:4000/health)"
           printf '%s\n' "${HEALTH_PAYLOAD}"
           printf '%s' "${HEALTH_PAYLOAD}" | grep -q '"activeRuntime":"claude-code"' && echo "Backend and Claude Code runtime OK"
           echo "::endgroup::"
