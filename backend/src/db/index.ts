@@ -188,6 +188,7 @@ export function getDb(): Database.Database {
       "011-agent-customer-value.sql",
       "012-entity-tags-and-gender.sql",
       "013-project-business-scope.sql",
+      "014-repair-legacy-project-attribution.sql",
     ]);
 
     // A fresh database needs CRM/order tables before seed.sql, while data and
