@@ -331,7 +331,7 @@ export default function ChatPage() {
         step.status === "running" ? { ...step, status: "skipped", detail: "用户停止执行" } : step,
       ),
     );
-    // Tell backend to stop the Hermes run
+    // Tell the backend to stop the active Agent run.
     try {
       await fetchJson(`/conversations/${id}/stop`, { method: "POST" });
     } catch {

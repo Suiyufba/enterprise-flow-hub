@@ -45,11 +45,9 @@ import {
 } from "../store.js";
 import { runAutomationNow, triggerProjectAutomations } from "../automation/scheduler.js";
 import { getRuntime } from "../agent/runtime.js";
-import { HermesClient } from "../agent/hermes-client.js";
 import { randomUUID } from "node:crypto";
 
-// Track active Hermes runs per conversation for stop support
-const activeRuns = new Map<string, { runId: string; abort: () => void }>();
+const activeRuns = new Map<string, { abort: () => void }>();
 
 export async function workspaceRoutes(app: FastifyInstance) {
   app.get("/workspace", async () => getWorkspace());
@@ -360,13 +358,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!entry) {
       return reply.status(404).send({ error: "No active run for this conversation" });
     }
-    try {
-      const client = new HermesClient();
-      await client.stopRun(entry.runId);
-    } catch {
-      // Hermes may already be stopped — that's fine
-    }
-    entry.abort(); // Also abort the SSE connection
+    entry.abort();
     activeRuns.delete(id);
     return { ok: true, message: "Run stopped" };
   });
@@ -481,8 +473,12 @@ export async function workspaceRoutes(app: FastifyInstance) {
     };
 
     // Register this SSE session so the stop endpoint can abort it
-    const abortSSE = () => { try { reply.raw.destroy(); } catch { /* already closed */ } };
-    activeRuns.set(id, { runId: "", abort: abortSSE });
+    const abortController = new AbortController();
+    const abortRun = () => {
+      abortController.abort();
+      try { reply.raw.destroy(); } catch { /* already closed */ }
+    };
+    activeRuns.set(id, { abort: abortRun });
 
     let aiContent = "";
     let aiMsgId = "";
@@ -506,6 +502,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
           projectId: before.projectId,
         },
         sessionId: id,
+        abortController,
       })) {
         switch (event.type) {
           case "thinking":

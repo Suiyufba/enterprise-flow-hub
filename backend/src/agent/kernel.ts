@@ -93,7 +93,7 @@ function buildFunctionDefs(tools: ToolDefinition[]): FunctionDef[] {
     });
 }
 
-function buildSystemPrompt(input: AgentKernelInput): string {
+export function buildSystemPrompt(input: AgentKernelInput): string {
   const skillPrompt = input.skills
     .filter((s) => s.enabled)
     .map((s) => `## Skill: ${s.name}\n${s.prompt}`)

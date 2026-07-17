@@ -81,8 +81,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [agentStatus, setAgentStatus] = useState<{
     runtime: string;
     fallbackRuntime: string;
-    hermes: { connected: boolean; version?: string; model?: string; url: string };
-    enabledUserIds: string | null;
+    activeRuntime: string;
+    claudeCode: { connected: boolean; version?: string; model?: string; executable: string };
   } | null>(null);
   const [agentStatusLoading, setAgentStatusLoading] = useState(false);
   const [agentStatusError, setAgentStatusError] = useState("");
@@ -92,9 +92,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setAgentStatusError("");
     try {
       const agent = await fetchJson<{
-        runtime: string; fallbackRuntime: string;
-        hermes: { connected: boolean; version?: string; model?: string; url: string };
-        enabledUserIds: string | null;
+        runtime: string; fallbackRuntime: string; activeRuntime: string;
+        claudeCode: { connected: boolean; version?: string; model?: string; executable: string };
       }>("/agent/status");
       setAgentStatus(agent);
     } catch {
@@ -316,48 +315,42 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     <div>
                       <strong>当前运行时</strong>
                       <span className="settings-meta">
-                        {agentStatus.runtime === "hermes" ? "Hermes-Agent" : "Legacy（内置 Kernel）"}
+                        {agentStatus.activeRuntime === "claude-code" ? "Claude Code" : "Legacy（内置 Kernel）"}
                       </span>
                     </div>
-                    <span className={`settings-status ${agentStatus.runtime === "hermes" ? "on" : "off"}`}>
-                      {agentStatus.runtime === "hermes" ? "Hermes" : "Legacy"}
+                    <span className={`settings-status ${agentStatus.activeRuntime === "claude-code" ? "on" : "off"}`}>
+                      {agentStatus.activeRuntime === "claude-code" ? "Claude Code" : "Legacy"}
                     </span>
                   </div>
                   <div className="settings-card">
                     <div>
                       <strong>回退运行时</strong>
                       <span className="settings-meta">
-                        {agentStatus.fallbackRuntime === "hermes" ? "Hermes-Agent" : "Legacy（内置 Kernel）"}
+                        {agentStatus.fallbackRuntime === "legacy" ? "Legacy（内置 Kernel）" : agentStatus.fallbackRuntime}
                       </span>
                     </div>
-                    <span className="settings-meta">Hermes 不可用时自动切换</span>
+                    <span className="settings-meta">仅在手动切换时使用</span>
                   </div>
                   <div className="settings-card">
                     <div>
-                      <strong>Hermes 连接状态</strong>
+                      <strong>Claude Code 状态</strong>
                       <span className="settings-meta">
-                        {agentStatus.hermes.connected ? "已连接" : "未连接"}
-                        {agentStatus.hermes.version ? ` · v${agentStatus.hermes.version}` : ""}
-                        {agentStatus.hermes.model ? ` · ${agentStatus.hermes.model}` : ""}
+                        {agentStatus.claudeCode.connected ? "运行时已加载" : "运行时不可用"}
+                        {agentStatus.claudeCode.version ? ` · v${agentStatus.claudeCode.version}` : ""}
+                        {agentStatus.claudeCode.model ? ` · ${agentStatus.claudeCode.model}` : ""}
                       </span>
                     </div>
-                    <span className={`settings-status ${agentStatus.hermes.connected ? "on" : "off"}`}>
-                      {agentStatus.hermes.connected ? "● 在线" : "○ 离线"}
+                    <span className={`settings-status ${agentStatus.claudeCode.connected ? "on" : "off"}`}>
+                      {agentStatus.claudeCode.connected ? "在线" : "离线"}
                     </span>
                   </div>
                   <div className="settings-card">
                     <div>
-                      <strong>Hermes 服务地址</strong>
-                      <span className="settings-meta">{agentStatus.hermes.url}</span>
-                    </div>
-                  </div>
-                  <div className="settings-card">
-                    <div>
-                      <strong>灰度用户</strong>
+                      <strong>执行引擎</strong>
                       <span className="settings-meta">
-                        {agentStatus.enabledUserIds
-                          ? agentStatus.enabledUserIds.split(",").join(", ")
-                          : "全量（所有用户使用当前运行时）"}
+                        {agentStatus.claudeCode.executable === "custom"
+                          ? "自定义 free-code 可执行文件"
+                          : "Claude Agent SDK 内置 Claude Code"}
                       </span>
                     </div>
                   </div>

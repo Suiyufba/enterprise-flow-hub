@@ -2,7 +2,6 @@ import "./config/env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerAllRoutes } from "./routes/index.js";
-import { registerHermesToolRoutes } from "./routes/internal/hermes-tools.js";
 import { createAuditLog } from "./auth/audit.js";
 import { getRuntime, resetRuntimeCache } from "./agent/runtime.js";
 import { startIntegrationScheduler } from "./integration/queue.js";
@@ -100,39 +99,38 @@ app.addHook("onResponse", async (request, reply) => {
 app.get("/health", async () => {
   const runtime = await getRuntime();
   const runtimeHealth = await runtime.health();
-  const isHermes = runtimeHealth.version !== "legacy" && runtimeHealth.ok;
+  const isClaudeCode = runtimeHealth.version !== "legacy" && runtimeHealth.ok;
   return {
     ok: true,
     service: "enterprise-flow-hub-backend",
     agent: {
-      runtime: process.env.AGENT_RUNTIME ?? "legacy",
-      activeRuntime: runtimeHealth.ok && runtimeHealth.version === "legacy" ? "legacy" : (isHermes ? "hermes" : "unknown"),
-      hermes: {
-        connected: isHermes,
-        version: isHermes ? runtimeHealth.version : undefined,
-        model: isHermes ? runtimeHealth.model : undefined,
+      runtime: process.env.AGENT_RUNTIME ?? "claude-code",
+      activeRuntime: isClaudeCode ? "claude-code" : "legacy",
+      claudeCode: {
+        connected: isClaudeCode,
+        version: isClaudeCode ? runtimeHealth.version : undefined,
+        model: isClaudeCode ? runtimeHealth.model : undefined,
       },
     },
   };
 });
 
-// Read-only Hermes status endpoint. Keep the payload free of secrets so browser
+// Keep the read-only status payload free of secrets for browser health probes.
 // extensions or health monitors can query it without a session token.
 app.get("/agent/status", async () => {
   const runtime = await getRuntime();
   const runtimeHealth = await runtime.health();
-  const isHermes = runtimeHealth.version !== "legacy" && runtimeHealth.ok;
+  const isClaudeCode = runtimeHealth.version !== "legacy" && runtimeHealth.ok;
   return {
-    runtime: process.env.AGENT_RUNTIME ?? "legacy",
+    runtime: process.env.AGENT_RUNTIME ?? "claude-code",
     fallbackRuntime: process.env.AGENT_FALLBACK_RUNTIME ?? "legacy",
-    activeRuntime: isHermes ? "hermes" : "legacy",
-    hermes: {
-      connected: isHermes,
-      version: isHermes ? runtimeHealth.version : undefined,
-      model: isHermes ? runtimeHealth.model : undefined,
-      url: process.env.HERMES_API_URL ? "[internal]" : undefined,
+    activeRuntime: isClaudeCode ? "claude-code" : "legacy",
+    claudeCode: {
+      connected: isClaudeCode,
+      version: isClaudeCode ? runtimeHealth.version : undefined,
+      model: isClaudeCode ? runtimeHealth.model : undefined,
+      executable: process.env.CLAUDE_CODE_EXECUTABLE ? "custom" : "sdk-bundled",
     },
-    enabledUserIds: null,
   };
 });
 
@@ -150,7 +148,6 @@ app.post("/agent/reset-runtime", async (request, reply) => {
 });
 
 await registerAllRoutes(app);
-await registerHermesToolRoutes(app);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

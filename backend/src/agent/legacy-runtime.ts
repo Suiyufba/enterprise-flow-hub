@@ -3,7 +3,7 @@ import { runAgentKernel } from "./kernel.js";
 
 /**
  * LegacyAgentRuntime wraps the existing in-process agent kernel.
- * Used as the default runtime and as fallback when Hermes is unavailable.
+ * Retained as the explicit fallback when Claude Code is disabled.
  */
 export class LegacyAgentRuntime implements AgentRuntime {
   async run(input: AgentRunInput): Promise<AgentRunResult> {
