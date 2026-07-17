@@ -184,6 +184,7 @@ export function getDb(): Database.Database {
       "003-business-demo-data.sql",
       "008-operational-agent.sql",
       "009-operational-defaults.sql",
+      "010-customer-duplicate-audit.sql",
     ]);
 
     // A fresh database needs CRM/order tables before seed.sql, while data and

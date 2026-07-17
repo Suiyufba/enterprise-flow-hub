@@ -1,0 +1,129 @@
+import { getDb } from "../db/index.js";
+
+type DuplicateKey = {
+  key: string;
+  count: number;
+};
+
+type CustomerDetail = {
+  id: string;
+  name: string;
+  contact: string;
+  phone: string;
+  email: string;
+  status: string;
+  created_at: string;
+};
+
+function compactPhone(column = "phone"): string {
+  return `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(${column}),' ',''),'-',''),'(',''),')',''),'+',''),'.','')`;
+}
+
+function normalizedPhone(column = "phone"): string {
+  const compact = compactPhone(column);
+  return `(CASE
+    WHEN LENGTH(${compact}) = 13 AND SUBSTR(${compact},1,2) = '86' THEN SUBSTR(${compact},3)
+    WHEN LENGTH(${compact}) = 15 AND SUBSTR(${compact},1,4) = '0086' THEN SUBSTR(${compact},5)
+    ELSE ${compact}
+  END)`;
+}
+
+function matchExpression(field: "phone" | "email" | "name"): string {
+  if (field === "phone") return normalizedPhone();
+  return `LOWER(TRIM(${field}))`;
+}
+
+function listDuplicateGroups(enterpriseId: string, field: "phone" | "email" | "name"): DuplicateKey[] {
+  const expression = matchExpression(field);
+  return getDb().prepare(
+    `WITH normalized AS (
+       SELECT ${expression} AS match_key
+       FROM customers
+       WHERE enterprise_id = ?
+     )
+     SELECT match_key AS key, COUNT(*) AS count
+     FROM normalized
+     WHERE match_key <> ''
+     GROUP BY match_key
+     HAVING COUNT(*) > 1
+     ORDER BY count DESC, match_key ASC`,
+  ).all(enterpriseId) as DuplicateKey[];
+}
+
+function customersForKey(enterpriseId: string, field: "phone" | "email" | "name", key: string): CustomerDetail[] {
+  return getDb().prepare(
+    `SELECT id,name,contact,phone,email,status,created_at
+     FROM customers
+     WHERE enterprise_id = ? AND ${matchExpression(field)} = ?
+     ORDER BY created_at ASC, id ASC`,
+  ).all(enterpriseId, key) as CustomerDetail[];
+}
+
+function aggregate(groups: DuplicateKey[]) {
+  return {
+    groups: groups.length,
+    customerRecords: groups.reduce((sum, group) => sum + group.count, 0),
+    redundantRecords: groups.reduce((sum, group) => sum + group.count - 1, 0),
+  };
+}
+
+function details(enterpriseId: string, field: "phone" | "email" | "name", groups: DuplicateKey[], limit: number) {
+  return groups.slice(0, limit).map((group) => ({
+    normalizedValue: group.key,
+    count: group.count,
+    customers: customersForKey(enterpriseId, field, group.key),
+  }));
+}
+
+export function listDuplicatePhoneGroups(enterpriseId: string): DuplicateKey[] {
+  return listDuplicateGroups(enterpriseId, "phone");
+}
+
+export function listCustomersByNormalizedPhone(enterpriseId: string, normalizedValue: string): CustomerDetail[] {
+  return customersForKey(enterpriseId, "phone", normalizedValue);
+}
+
+export function customerDuplicateReport(enterpriseId: string, requestedDetailLimit = 20) {
+  const detailLimit = Math.max(0, Math.min(50, Math.trunc(requestedDetailLimit)));
+  const db = getDb();
+  const scannedCustomers = (db.prepare(
+    "SELECT COUNT(*) AS count FROM customers WHERE enterprise_id = ?",
+  ).get(enterpriseId) as { count: number }).count;
+  const phoneGroups = listDuplicateGroups(enterpriseId, "phone");
+  const emailGroups = listDuplicateGroups(enterpriseId, "email");
+  const nameGroups = listDuplicateGroups(enterpriseId, "name");
+  const phone = aggregate(phoneGroups);
+  const email = aggregate(emailGroups);
+  const name = aggregate(nameGroups);
+
+  return {
+    summary: {
+      scope: "all_enterprise_customers",
+      completeScan: true,
+      scannedCustomers,
+      hasStrongDuplicates: phone.groups > 0 || email.groups > 0,
+      hasPotentialNameDuplicates: name.groups > 0,
+      duplicatePhoneGroups: phone.groups,
+      duplicatePhoneCustomerRecords: phone.customerRecords,
+      redundantPhoneRecords: phone.redundantRecords,
+      duplicateEmailGroups: email.groups,
+      duplicateEmailCustomerRecords: email.customerRecords,
+      redundantEmailRecords: email.redundantRecords,
+      sameNameCandidateGroups: name.groups,
+      sameNameCandidateCustomerRecords: name.customerRecords,
+    },
+    detailLimit,
+    detailsTruncated: {
+      phone: phone.groups > detailLimit,
+      email: email.groups > detailLimit,
+      name: name.groups > detailLimit,
+    },
+    phoneGroups: details(enterpriseId, "phone", phoneGroups, detailLimit),
+    emailGroups: details(enterpriseId, "email", emailGroups, detailLimit),
+    sameNameCandidateGroups: details(enterpriseId, "name", nameGroups, detailLimit),
+    notes: [
+      "电话和邮箱重复属于强重复证据；同名仅作为待人工确认候选。",
+      "summary 基于企业全部客户聚合，detailLimit 只限制返回的重复组明细，不影响总数。",
+    ],
+  };
+}

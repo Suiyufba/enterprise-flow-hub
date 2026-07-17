@@ -33,7 +33,7 @@ after(() => dbModule.closeDb());
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 11);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 12);
   assert.deepEqual(
     db.prepare("SELECT status,risk FROM ai_tools WHERE id='tool-business-action'").get(),
     { status: "enabled", risk: "write" },
@@ -111,6 +111,49 @@ test("business MCP queries are enterprise scoped and writes are persisted", asyn
   }));
   assert.equal(task.ok, true);
   assert.equal((db.prepare("SELECT status FROM tasks WHERE id=?").get(task.task.id) as { status: string }).status, "pending");
+});
+
+test("customer duplicate audit scans the full enterprise beyond the returned page", async () => {
+  const now = new Date().toISOString();
+  const insert = db.prepare(
+    `INSERT INTO customers (id,enterprise_id,name,contact,phone,email,address,tags,status,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+  );
+  insert.run("cust-duplicate-a", "ent-qihang", "同名候选", "A", "+86 139-8888-7777", "Duplicate@Example.com", "", "[]", "lead", now, now);
+  insert.run("cust-duplicate-b", "ent-qihang", "同名候选", "B", "13988887777", "duplicate@example.com", "", "[]", "lead", now, now);
+
+  try {
+    const total = (db.prepare("SELECT COUNT(*) AS n FROM customers WHERE enterprise_id='ent-qihang'").get() as { n: number }).n;
+    const page = JSON.parse(await businessQueryExecute({ _enterpriseId: "ent-qihang", resource: "customers", limit: 1 }));
+    assert.equal(page.returned, 1);
+    assert.equal(page.total, total);
+    assert.equal(page.duplicateAnalysis.scannedCustomers, total);
+    assert.equal(page.duplicateAnalysis.completeScan, true);
+    assert.ok(page.duplicateAnalysis.duplicatePhoneGroups >= 1);
+
+    const audit = JSON.parse(await businessQueryExecute({
+      _enterpriseId: "ent-qihang",
+      resource: "customer_duplicates",
+      limit: 50,
+    }));
+    assert.equal(audit.summary.scannedCustomers, total);
+    assert.equal(audit.summary.completeScan, true);
+    assert.equal(audit.summary.hasStrongDuplicates, true);
+    assert.deepEqual(
+      audit.phoneGroups.find((group: { normalizedValue: string }) => group.normalizedValue === "13988887777")?.customers.map((customer: { id: string }) => customer.id),
+      ["cust-duplicate-a", "cust-duplicate-b"],
+    );
+    assert.equal(
+      audit.emailGroups.find((group: { normalizedValue: string }) => group.normalizedValue === "duplicate@example.com")?.count,
+      2,
+    );
+    assert.equal(
+      audit.sameNameCandidateGroups.find((group: { normalizedValue: string }) => group.normalizedValue === "同名候选")?.count,
+      2,
+    );
+  } finally {
+    db.prepare("DELETE FROM customers WHERE id IN ('cust-duplicate-a','cust-duplicate-b')").run();
+  }
 });
 
 test("table MCP reads a project upload and parses quoted CSV cells", async () => {

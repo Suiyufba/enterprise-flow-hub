@@ -1,4 +1,5 @@
 import { getDb } from "../../db/index.js";
+import { customerDuplicateReport } from "../customer-duplicates.js";
 
 type ResourceConfig = {
   table: string;
@@ -48,6 +49,14 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
     return JSON.stringify({ ok: true, resource, summary: dashboard(enterpriseId) });
   }
 
+  if (resource === "customer_duplicates") {
+    return JSON.stringify({
+      ok: true,
+      resource,
+      ...customerDuplicateReport(enterpriseId, boundedLimit(input.limit)),
+    });
+  }
+
   if (resource === "automations") {
     const total = (getDb().prepare(
       "SELECT COUNT(*) AS value FROM automations a JOIN projects p ON p.id=a.project_id WHERE p.enterprise_id=?",
@@ -93,5 +102,9 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
   const rows = getDb().prepare(
     `SELECT ${config.columns} FROM ${config.table} WHERE ${where.join(" AND ")} ORDER BY ${config.orderBy} LIMIT ?`,
   ).all(...params, limit);
-  return JSON.stringify({ ok: true, resource, total, returned: rows.length, items: rows });
+  const result: Record<string, unknown> = { ok: true, resource, total, returned: rows.length, items: rows };
+  if (resource === "customers") {
+    result.duplicateAnalysis = customerDuplicateReport(enterpriseId, 0).summary;
+  }
+  return JSON.stringify(result);
 }

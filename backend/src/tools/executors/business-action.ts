@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/index.js";
+import { listCustomersByNormalizedPhone, listDuplicatePhoneGroups } from "../customer-duplicates.js";
 
 const INVOICE_STATUSES = new Set(["draft", "issued", "paid", "overdue", "cancelled"]);
 const ORDER_STATUSES = new Set(["draft", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"]);
@@ -26,24 +27,14 @@ function updateStatus(table: string, id: string, enterpriseId: string, status: s
 
 function deduplicateCustomers(enterpriseId: string) {
   const db = getDb();
-  const duplicatePhones = db.prepare(
-    `SELECT REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'(',''),')','') AS normalized_phone,
-            COUNT(*) AS count
-     FROM customers
-     WHERE enterprise_id=? AND TRIM(phone)<>''
-     GROUP BY normalized_phone HAVING COUNT(*)>1`,
-  ).all(enterpriseId) as Array<{ normalized_phone: string; count: number }>;
+  const duplicatePhones = listDuplicatePhoneGroups(enterpriseId);
 
   let merged = 0;
   let ordersMoved = 0;
   let invoicesMoved = 0;
   const merge = db.transaction(() => {
     for (const duplicate of duplicatePhones) {
-      const customers = db.prepare(
-        `SELECT * FROM customers WHERE enterprise_id=?
-         AND REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'(',''),')','')=?
-         ORDER BY created_at ASC`,
-      ).all(enterpriseId, duplicate.normalized_phone) as Array<Record<string, unknown>>;
+      const customers = listCustomersByNormalizedPhone(enterpriseId, duplicate.key);
       const keeper = customers[0];
       if (!keeper) continue;
       for (const duplicateCustomer of customers.slice(1)) {
