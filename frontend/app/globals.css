@@ -6623,6 +6623,14 @@ a {
   flex-direction: column;
   justify-content: center;
   padding-bottom: 72px;
+  transition: margin-left 0.25s ease;
+}
+
+@media (min-width: 801px) {
+  /* Keep the new-chat workspace anchored while the navigation rail closes. */
+  .app-main.sidebar-collapsed .new-chat-page {
+    margin-left: 252px;
+  }
 }
 
 .new-chat-page .main-title {
