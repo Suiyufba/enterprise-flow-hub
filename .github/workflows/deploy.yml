@@ -117,6 +117,10 @@ jobs:
           FRONTEND_PULL_PID=$!
           wait "${BACKEND_PULL_PID}"
           wait "${FRONTEND_PULL_PID}"
+          # Reclaim layers from superseded releases before streaming the next
+          # images. Images used by the running containers are kept by Docker.
+          ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
+            "docker container prune -f >/dev/null && docker image prune -af >/dev/null && docker builder prune -af >/dev/null"
           docker save "${BACKEND_IMAGE}" "${FRONTEND_IMAGE}" \
             | gzip -1 \
             | ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" "gzip -d | docker load"
@@ -181,11 +185,24 @@ jobs:
 
           docker image inspect "${BACKEND_IMAGE}" >/dev/null
           docker image inspect "${FRONTEND_IMAGE}" >/dev/null
+
+          # Stop the previous release without touching the named data volume,
+          # then remove its large images before extracting the new containers.
+          docker compose down --remove-orphans || true
+          while IFS= read -r IMAGE; do
+            case "${IMAGE}" in
+              "${BACKEND_IMAGE}"|"${FRONTEND_IMAGE}") ;;
+              ghcr.io/*/enterprise-flow-hub-backend:*|ghcr.io/*/enterprise-flow-hub-frontend:*)
+                docker image rm -f "${IMAGE}" >/dev/null || true
+                ;;
+            esac
+          done < <(docker images --format '{{.Repository}}:{{.Tag}}')
+          docker container prune -f >/dev/null
+          docker builder prune -af >/dev/null
           docker compose up -d --remove-orphans
 
-          # Clean up old images to prevent disk fill
-          docker image prune -af --filter "until=72h"
-          docker container prune -f
+          # Remove any remaining unreferenced layers after the new release is up.
+          docker image prune -af
 
           sudo cp /opt/enterprise-flow-hub/nginx.conf /etc/nginx/sites-available/enterprise-flow-hub
           sudo ln -sf /etc/nginx/sites-available/enterprise-flow-hub /etc/nginx/sites-enabled/enterprise-flow-hub
