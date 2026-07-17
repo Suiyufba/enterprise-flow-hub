@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import type { AgentPlanStep, ToolRun } from "shared";
 import { gsap, useGSAP } from "../lib/gsap";
+import { AppIcon } from "./AppIcon";
 
 interface AgentRunPanelProps {
   planSteps: AgentPlanStep[];
@@ -10,10 +11,13 @@ interface AgentRunPanelProps {
   sending: boolean;
   onStop?: () => void;
   streaming?: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
-export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming }: AgentRunPanelProps) {
+export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming, collapsed, onToggle }: AgentRunPanelProps) {
   const planRef = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
 
   useGSAP(() => {
     if (!planRef.current) return;
@@ -35,7 +39,7 @@ export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming 
   const doneCount = planSteps.filter((s) => s.status === "done").length;
 
   return (
-    <section className="agent-run-panel" aria-label="Agent 执行计划" ref={planRef}>
+    <section className={`agent-run-panel${collapsed ? " agent-run-collapsed" : ""}`} aria-label="Agent 执行计划" ref={planRef}>
       <div className="agent-run-header">
         <div>
           <span className="agent-run-kicker">Agent Run</span>
@@ -62,41 +66,54 @@ export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming 
               停止
             </button>
           )}
+          <button
+            className="agent-run-toggle-btn"
+            onClick={onToggle}
+            type="button"
+            aria-expanded={!collapsed}
+            aria-controls={bodyId}
+            aria-label={collapsed ? "展开执行计划" : "收起执行计划"}
+          >
+            <span>{collapsed ? "展开" : "收起"}</span>
+            <AppIcon name="chevron" className={`agent-run-toggle-icon${collapsed ? "" : " is-open"}`} />
+          </button>
         </div>
       </div>
 
-      <div className="agent-plan-list">
-        {planSteps.map((step, index) => (
-          <div className={`agent-plan-step agent-plan-${step.status}`} key={step.id}>
-            <span className="agent-plan-index">
-              {step.status === "running" ? (
-                <span className="agent-plan-spinner" />
-              ) : step.status === "done" ? (
-                <span className="agent-plan-done-mark">OK</span>
-              ) : step.status === "skipped" ? (
-                <span className="agent-plan-skip-mark">—</span>
-              ) : (
-                index + 1
-              )}
-            </span>
-            <div>
-              <strong>{step.title}</strong>
-              <p>{step.detail}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {toolRuns.length > 0 && (
-        <div className="agent-tool-list">
-          {toolRuns.map((tool) => (
-            <div className={`agent-tool-row agent-tool-${tool.status}`} key={tool.id}>
-              <strong>{tool.toolId}</strong>
-              <span>{tool.status === "success" ? "成功" : "失败"}</span>
+      <div className="agent-run-body" id={bodyId} hidden={collapsed}>
+        <div className="agent-plan-list">
+          {planSteps.map((step, index) => (
+            <div className={`agent-plan-step agent-plan-${step.status}`} key={step.id}>
+              <span className="agent-plan-index">
+                {step.status === "running" ? (
+                  <span className="agent-plan-spinner" />
+                ) : step.status === "done" ? (
+                  <span className="agent-plan-done-mark">OK</span>
+                ) : step.status === "skipped" ? (
+                  <span className="agent-plan-skip-mark">—</span>
+                ) : (
+                  index + 1
+                )}
+              </span>
+              <div>
+                <strong>{step.title}</strong>
+                <p>{step.detail}</p>
+              </div>
             </div>
           ))}
         </div>
-      )}
+
+        {toolRuns.length > 0 && (
+          <div className="agent-tool-list">
+            {toolRuns.map((tool) => (
+              <div className={`agent-tool-row agent-tool-${tool.status}`} key={tool.id}>
+                <strong>{tool.toolId}</strong>
+                <span>{tool.status === "success" ? "成功" : "失败"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

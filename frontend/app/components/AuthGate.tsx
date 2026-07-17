@@ -9,6 +9,35 @@ import { useAuth } from "../lib/auth-context";
 
 const SIDEBAR_KEY = "efh_sidebar_collapsed";
 
+const PAGE_TITLES: Record<string, string> = {
+  "/": "工作台",
+  "/chat/new": "新对话",
+  "/search": "全局搜索",
+  "/library": "资料库",
+  "/plugins": "插件",
+  "/automation": "自动化",
+  "/personas": "角色人格",
+  "/customers": "客户",
+  "/suppliers": "供应商",
+  "/products": "商品",
+  "/orders": "订单",
+  "/files": "文件",
+  "/payments": "付款",
+  "/invoices": "发票",
+  "/tasks": "待办",
+  "/rules": "规则引擎",
+  "/enterprise": "企业管理",
+  "/audit": "操作日志",
+};
+
+function getPageTitle(pathname: string) {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname];
+  if (pathname.startsWith("/chat/")) return "业务对话";
+  if (pathname.startsWith("/projects/")) return "项目详情";
+  const base = `/${pathname.split("/").filter(Boolean)[0] ?? ""}`;
+  return PAGE_TITLES[base] ?? "FlowHub";
+}
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -68,7 +97,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return (
     <>
       <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-      <main className="main" style={{ paddingLeft: sidebarCollapsed ? 0 : 252 }}>
+      <div className="mobile-app-bar" aria-hidden="true">
+        <span className="mobile-app-mark">F</span>
+        <span className="mobile-app-title">{getPageTitle(pathname)}</span>
+      </div>
+      <main className={`app-main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <ThemeToggle />
         {isWorkflowEditorPage ? children : <PageTransition>{children}</PageTransition>}
       </main>

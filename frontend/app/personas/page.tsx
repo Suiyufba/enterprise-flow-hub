@@ -5,6 +5,7 @@ import type { AgentPersona, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
 import { AppIcon } from "../components/AppIcon";
+import { PageHeader } from "../components/PageHeader";
 export default function PersonasPage() {
   const { showToast } = useToast();
   const [providers, setProviders] = useState<ModelProvider[]>([]);
@@ -102,13 +103,16 @@ export default function PersonasPage() {
   }
 
   return (
-        <div className="main-inner" style={{ maxWidth: 700, paddingTop: 40 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <h1 style={{ fontSize: 20, color: "var(--c-f0f0f0)", margin: 0 }}>角色人格</h1>
-            <button className="page-primary-button" onClick={() => setShowAddForm(!showAddForm)} type="button">
-              {showAddForm ? "取消" : "+ 添加角色"}
-            </button>
-          </div>
+        <div className="page-shell personas-page-shell">
+          <PageHeader
+            title="角色人格"
+            description="为不同业务场景配置回复模型、思考模型和执行规则。"
+            actions={(
+              <button className={showAddForm ? "page-secondary-button" : "page-primary-button"} onClick={() => setShowAddForm(!showAddForm)} type="button">
+                {showAddForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 添加角色</>}
+              </button>
+            )}
+          />
 
           {showAddForm && (
             <div className="settings-card" style={{ marginBottom: 16, borderColor: "var(--c-4a90e6)" }}>

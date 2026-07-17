@@ -7,6 +7,7 @@ import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
+import { AppIcon } from "../../components/AppIcon";
 import type { Order } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -101,7 +102,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/orders")} type="button" aria-label="返回列表">←</button>
+            <button className="chat-back" onClick={() => router.push("/orders")} type="button" aria-label="返回列表"><AppIcon name="arrow-left" /></button>
             <h1>订单 {order.id.slice(0, 12)}</h1>
           </div>
         </div>
@@ -119,7 +120,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <div className="settings-card">
               <div><strong>客户</strong></div>
               <Link href={`/customers/${order.customerId}`} style={{ color: "var(--c-4a90e6)", fontSize: "13px" }}>
-                查看客户 →
+                查看客户 <AppIcon name="chevron" className="inline-flow-arrow" />
               </Link>
             </div>
           )}
@@ -160,7 +161,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 disabled={updating}
                 type="button"
               >
-                {updating ? "更新中..." : `→ ${statusLabels[ns] ?? ns}`}
+                {updating ? "更新中..." : <><AppIcon name="chevron" className="status-next-icon" /> {statusLabels[ns] ?? ns}</>}
               </button>
             ))}
           </div>

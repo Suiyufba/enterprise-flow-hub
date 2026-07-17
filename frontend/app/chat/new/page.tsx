@@ -9,6 +9,13 @@ import { useToast } from "../../lib/toast-context";
 import { gsap, useGSAP } from "../../lib/gsap";
 import { AppIcon } from "../../components/AppIcon";
 
+const QUICK_STARTS = [
+  { icon: "users" as const, label: "检查重复客户", prompt: "检查当前项目中的全部客户，按电话号码和姓名找出重复记录，并给出处理建议。" },
+  { icon: "invoice" as const, label: "分析逾期发票", prompt: "分析当前项目的全部发票，找出已逾期和即将逾期的记录，并按风险排序。" },
+  { icon: "orders" as const, label: "梳理订单风险", prompt: "检查当前项目的全部订单，汇总异常状态、未付款和需要跟进的订单。" },
+  { icon: "automation" as const, label: "设计自动化", prompt: "根据当前项目资料，找出最适合自动化的重复工作，并设计可执行的工作流。" },
+];
+
 export default function Home() {
   const router = useRouter();
   const [need, setNeed] = useState("");
@@ -102,7 +109,8 @@ export default function Home() {
 
       // Immediately navigate to chat page with initial message
       const msg = encodeURIComponent(need.trim());
-      router.push(`/chat/${conversation.id}?msg=${msg}`);
+      const persona = personaId ? `&personaId=${encodeURIComponent(personaId)}` : "";
+      router.push(`/chat/${conversation.id}?msg=${msg}${persona}`);
     } catch (e) {
       let errMsg = "创建对话失败，请重试";
       try {
@@ -115,8 +123,17 @@ export default function Home() {
   }
 
   return (
-    <div className="main-inner" style={{ maxWidth: 800, display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
+    <div className="main-inner new-chat-page">
       <h1 className="main-title">今天想做什么？</h1>
+
+      <div className="chat-quick-starts" aria-label="常用任务">
+        {QUICK_STARTS.map((item) => (
+          <button key={item.label} className="chat-quick-start" onClick={() => setNeed(item.prompt)} type="button">
+            <AppIcon name={item.icon} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
 
       <div className="chat-composer" ref={composerRef}>
         <textarea
@@ -187,7 +204,6 @@ export default function Home() {
             value={personaId}
             onChange={(e) => setPersonaId(e.target.value)}
             aria-label="选择角色"
-            style={{ border: 0, borderRadius: 10, background: "var(--c-303030)", color: "var(--c-d4d4d4)", fontSize: 13, fontWeight: 700, padding: "9px 12px" }}
           >
             {workspace?.personas.map((p) => (
               <option key={p.id} value={p.id}>

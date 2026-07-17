@@ -410,7 +410,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       {/* Top bar */}
       <header className="wf-topbar">
         <button className="chat-back" onClick={() => router.push("/automation")} type="button">
-          ←
+          <AppIcon name="arrow-left" />
         </button>
         <select
           className="page-input wf-project-select"
@@ -495,7 +495,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                 {nodeTypes[selectedNode.data?.nodeType as NodeType]?.label}
               </span>
               <button className="wf-props-delete" onClick={deleteSelected} type="button" title="删除节点">
-                ×
+                <AppIcon name="trash" />
               </button>
             </div>
             <div className="wf-props-body">

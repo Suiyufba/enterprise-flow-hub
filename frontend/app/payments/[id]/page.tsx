@@ -9,6 +9,7 @@ import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ErrorState } from "../../components/ErrorState";
+import { AppIcon } from "../../components/AppIcon";
 import type { Payment, PaginatedList } from "shared";
 
 const methodLabels: Record<string, string> = {
@@ -84,7 +85,7 @@ export default function PaymentDetailPage({ params }: { params: Promise<{ id: st
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/payments")} type="button" aria-label="返回付款列表">←</button>
+            <button className="chat-back" onClick={() => router.push("/payments")} type="button" aria-label="返回付款列表"><AppIcon name="arrow-left" /></button>
             <h1>付款详情</h1>
           </div>
         </div>
@@ -110,7 +111,7 @@ export default function PaymentDetailPage({ params }: { params: Promise<{ id: st
             <div className="settings-card">
               <div><strong>关联订单</strong></div>
               <Link href={`/orders/${payment.orderId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>
-                查看订单 →
+                查看订单 <AppIcon name="chevron" className="inline-flow-arrow" />
               </Link>
             </div>
           )}

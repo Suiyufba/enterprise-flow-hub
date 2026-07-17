@@ -224,7 +224,7 @@ export default function DashboardPage() {
               )}
             </div>
             <Link href="/orders" style={{ display: "block", marginTop: 10, fontSize: 12, color: "var(--c-4a90e6)", textDecoration: "none" }}>
-              查看全部订单 →
+              查看全部订单 <AppIcon name="chevron" className="inline-flow-arrow" />
             </Link>
           </div>
 
@@ -249,7 +249,7 @@ export default function DashboardPage() {
               )}
             </div>
             <Link href="/payments" style={{ display: "block", marginTop: 10, fontSize: 12, color: "var(--c-4a90e6)", textDecoration: "none" }}>
-              查看全部付款 →
+              查看全部付款 <AppIcon name="chevron" className="inline-flow-arrow" />
             </Link>
           </div>
         </div>

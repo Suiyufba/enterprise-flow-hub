@@ -6,6 +6,7 @@ import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
+import { AppIcon } from "../../components/AppIcon";
 import type { Customer, Product, PaginatedList } from "shared";
 
 interface LineItem {
@@ -157,12 +158,12 @@ export default function NewOrderPage() {
                   ¥{(item.quantity * item.unitPrice).toFixed(2)}
                 </span>
                 <button className="sidebar-mini-action danger" onClick={() => removeItem(index)} type="button" title="删除" style={{ flexShrink: 0 }} aria-label="删除项目">
-                  ×
+                  <AppIcon name="trash" />
                 </button>
               </div>
             ))}
             <button className="page-secondary-button" onClick={addItem} type="button" style={{ justifySelf: "start", fontSize: 13 }}>
-              + 添加项目
+              <AppIcon name="plus" /> 添加项目
             </button>
           </div>
 

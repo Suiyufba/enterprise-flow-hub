@@ -26,6 +26,7 @@ import { useToast } from "../lib/toast-context";
 import { animate, stagger, spring } from "../lib/anime";
 
 import { AppIcon, type AppIconName } from "./AppIcon";
+import { PageHeader } from "./PageHeader";
 
 const searchTypes = ["项目", "对话", "资料", "自动化", "客户", "供应商", "商品", "订单", "付款", "发票"] as const;
 
@@ -473,7 +474,7 @@ export function LibraryPage() {
           }}
           type="button"
         >
-          {showForm ? "取消" : "+ 添加资料"}
+          {showForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 添加资料</>}
         </button>
       </div>
 
@@ -592,8 +593,9 @@ export function LibraryPage() {
                   onClick={() => deleteItem(item.id)}
                   type="button"
                   title="删除资料"
+                  aria-label={`删除资料 ${item.name}`}
                 >
-                  ×
+                  <AppIcon name="trash" />
                 </button>
               </div>
               <h3>{item.name}</h3>
@@ -947,7 +949,7 @@ export function PluginsPage() {
           <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
             <div className="settings-header">
               <h2>配置 {configPlugin.name}</h2>
-              <button className="settings-close" onClick={() => setConfigPlugin(null)} type="button">×</button>
+              <button className="settings-close" onClick={() => setConfigPlugin(null)} type="button" aria-label="关闭插件配置"><AppIcon name="x" /></button>
             </div>
             <div className="settings-body">
               <p className="plugin-config-meta">{pluginConfig.hint}</p>
@@ -1108,7 +1110,7 @@ export function AutomationPage() {
           onClick={() => router.push("/automation/workflow")}
           type="button"
         >
-          + 新建工作流
+          <AppIcon name="plus" /> 新建工作流
         </button>
       </div>
 
@@ -1169,14 +1171,14 @@ export function AutomationPage() {
                   <span className="workflow-node-label">{triggerLabel[automation.triggerType]}</span>
                   <span className="workflow-node-text">{automation.trigger}</span>
                 </div>
-                <span className="workflow-arrow">→</span>
+                <AppIcon name="chevron" className="workflow-arrow" />
                 {automation.agentModel && (
                   <>
                     <div className="workflow-node workflow-agent">
                       <AppIcon name="spark" className="workflow-node-icon" />
                       <span className="workflow-node-label">{modelLabel(automation.agentModel)}</span>
                     </div>
-                    <span className="workflow-arrow">→</span>
+                    <AppIcon name="chevron" className="workflow-arrow" />
                   </>
                 )}
                 <div className="workflow-node workflow-action">
@@ -1337,14 +1339,14 @@ export function ProjectDetailPage({ id }: { id: string }) {
             onClick={() => router.push("/automation")}
             type="button"
           >
-            + 新建自动化
+            <AppIcon name="plus" /> 新建自动化
           </button>
           <button
             className="project-hero-btn secondary"
             onClick={() => router.push("/library")}
             type="button"
           >
-            + 添加资料
+            <AppIcon name="plus" /> 添加资料
           </button>
         </div>
       </div>
@@ -1389,7 +1391,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
           <div className="project-section-header">
             <span className="project-section-title">最近对话</span>
             {conversations.length > 4 && (
-              <span className="project-section-link">查看全部 →</span>
+              <span className="project-section-link">查看全部 <AppIcon name="chevron" className="inline-flow-arrow" /></span>
             )}
           </div>
           {recentConversations.length === 0 ? (
@@ -1432,7 +1434,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
                 onClick={() => router.push("/library")}
                 type="button"
               >
-                资料库 →
+                资料库 <AppIcon name="chevron" className="inline-flow-arrow" />
               </button>
             </div>
             {recentLibrary.length === 0 ? (
@@ -1472,7 +1474,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
                 onClick={() => router.push("/automation")}
                 type="button"
               >
-                管理 →
+                管理 <AppIcon name="chevron" className="inline-flow-arrow" />
               </button>
             </div>
             {recentAutomations.length === 0 ? (
@@ -1557,10 +1559,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
 function PageShell({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
   return (
     <div className="page-shell">
-      <header className="page-header">
-        <h1>{title}</h1>
-        <p>{description}</p>
-      </header>
+      <PageHeader title={title} description={description} />
       {children}
     </div>
   );

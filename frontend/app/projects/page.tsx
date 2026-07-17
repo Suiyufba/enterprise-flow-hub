@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useWorkspace } from "../lib/workspace-context";
 import { SearchInput } from "../components/SearchInput";
+import { PageHeader } from "../components/PageHeader";
+import { AppIcon } from "../components/AppIcon";
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -27,15 +29,12 @@ export default function ProjectsPage() {
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
       <div className="page-shell">
-        <div className="page-header">
-          <h1>项目管理</h1>
-          <p>查看和管理所有项目，按企业分组浏览</p>
-        </div>
+        <PageHeader title="项目管理" description="查看和管理所有项目，按企业分组浏览" />
 
         <div className="lib-top-bar">
           <SearchInput value={search} onChange={setSearch} placeholder="搜索项目名称..." />
-          <Link href="/projects/new" className="page-primary-button" style={{ textDecoration: "none", padding: "10px 18px", fontSize: "14px" }}>
-            + 新建项目
+          <Link href="/projects/new" className="page-primary-button">
+            <AppIcon name="plus" /> 新建项目
           </Link>
         </div>
 

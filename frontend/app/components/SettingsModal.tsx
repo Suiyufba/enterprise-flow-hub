@@ -5,6 +5,7 @@ import type { ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
 import { animate, spring } from "../lib/anime";
+import { AppIcon } from "./AppIcon";
 import "./SettingsModal.css";
 
 type Tab = "providers" | "agent";
@@ -202,7 +203,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       <div className="settings-modal" onClick={(e) => e.stopPropagation()} ref={contentRef}>
         <div className="settings-header">
           <h2>设置</h2>
-          <button className="settings-close" onClick={onClose} type="button">×</button>
+          <button className="settings-close" onClick={onClose} type="button" aria-label="关闭设置"><AppIcon name="x" /></button>
         </div>
 
         <div className="settings-tabs">

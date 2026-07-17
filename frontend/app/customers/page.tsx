@@ -11,6 +11,7 @@ import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
+import { AppIcon } from "../components/AppIcon";
 import type { Customer, PaginatedList } from "shared";
 
 export default function CustomersPage() {
@@ -67,7 +68,7 @@ export default function CustomersPage() {
         <PageHeader
           title="客户管理"
           description="管理所有客户和潜在客户信息"
-          actions={<Link href="/customers/new" className="page-primary-button" style={{ textDecoration: "none", padding: "10px 18px", fontSize: "14px" }}>+ 新建客户</Link>}
+          actions={<Link href="/customers/new" className="page-primary-button"><AppIcon name="plus" /> 新建客户</Link>}
         />
         <div className="page-toolbar" style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索客户名称..." />

@@ -10,48 +10,8 @@ import { useToast } from "../lib/toast-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SettingsModal } from "./SettingsModal";
 import { AnimateHeight } from "./AnimateHeight";
+import { AppIcon } from "./AppIcon";
 import { animate } from "../lib/anime";
-
-type SidebarIconName =
-  | "dashboard" | "chat" | "search" | "library" | "plugins" | "automation" | "personas" | "check" | "x"
-  | "customers" | "suppliers" | "products" | "orders" | "files" | "payments" | "invoices"
-  | "rules" | "enterprise" | "audit" | "project" | "edit" | "delete" | "settings" | "user" | "logout";
-
-const iconPaths: Record<SidebarIconName, string[]> = {
-  dashboard: ["M4 5h7v7H4z", "M13 5h7v4h-7z", "M13 11h7v8h-7z", "M4 14h7v5H4z"],
-  chat: ["M5 6h14v10H8l-3 3z", "M8 9h8", "M8 12h5"],
-  search: ["M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13Z", "M15.5 15.5 20 20"],
-  library: ["M5 4h11a3 3 0 0 1 3 3v13H7a2 2 0 0 1-2-2z", "M7 16h12", "M8 8h7"],
-  plugins: ["M9 4v4", "M15 4v4", "M7 8h10v5a5 5 0 0 1-10 0z", "M12 18v3"],
-  automation: ["M13 3 5 14h6l-1 7 8-11h-6z"],
-  check: ["M5 12.5 10 17 19 7"],
-  personas: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", "M4 20a8 8 0 0 1 16 0"],
-  customers: ["M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z", "M17 12a3 3 0 1 0 0-6", "M3 20a6 6 0 0 1 12 0", "M14 20a5 5 0 0 1 7-4.6"],
-  suppliers: ["M4 20V8l6-4v16", "M10 10l6-4v14", "M4 20h16", "M7 13h1", "M13 13h1", "M17 13h1"],
-  products: ["M4 8 12 4l8 4-8 4z", "M4 8v8l8 4 8-4V8", "M12 12v8"],
-  orders: ["M7 4h10l2 2v14H5V6z", "M8 9h8", "M8 13h8", "M8 17h5"],
-  files: ["M7 3h7l5 5v13H7z", "M14 3v6h5", "M9 14h6", "M9 17h4"],
-  payments: ["M4 7h16v10H4z", "M4 10h16", "M8 15h3"],
-  invoices: ["M7 3h10v18l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2z", "M9 8h6", "M9 12h6", "M9 16h4"],
-  rules: ["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z", "M12 4v2", "M12 18v2", "M4 12h2", "M18 12h2", "M6.6 6.6 8 8", "M16 16l1.4 1.4", "M17.4 6.6 16 8", "M8 16l-1.4 1.4"],
-  enterprise: ["M4 20V5h9v15", "M13 10h7v10", "M7 8h2", "M7 12h2", "M7 16h2", "M16 13h1", "M16 17h1"],
-  audit: ["M6 4h12v16H6z", "M9 8h6", "M9 12h6", "M9 16h4"],
-  project: ["M5 7h5l2 3h7v9H5z"],
-  edit: ["M5 19l4-.8L18.5 8.7a2.1 2.1 0 0 0-3-3L6 15.2z", "M14 7l3 3"],
-  delete: ["M6 7h12", "M9 7V5h6v2", "M8 10l1 9h6l1-9"],
-  settings: ["M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z", "M19 12h2", "M3 12h2", "M12 3v2", "M12 19v2", "M17 5.6l-1.4 1.4", "M8.4 17 7 18.4", "M7 5.6 8.4 7", "M15.6 17l1.4 1.4"],
-  user: ["M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z", "M5 20a7 7 0 0 1 14 0"],
-  logout: ["M9 5H5v14h4", "M14 8l4 4-4 4", "M18 12H9"],
-  x: ["M6 6l12 12", "M18 6 6 18"],
-};
-
-function SidebarIcon({ name, className = "" }: { name: SidebarIconName; className?: string }) {
-  return (
-    <svg className={`sidebar-svg-icon ${className}`} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      {iconPaths[name].map((path) => <path key={path} d={path} />)}
-    </svg>
-  );
-}
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const router = useRouter();
@@ -65,10 +25,10 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
   const [navGroups, setNavGroups] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem("efh_nav_groups");
-      return saved ? new Set(JSON.parse(saved)) : new Set(["ai-tools", "business", "system"]);
+      const saved = localStorage.getItem("efh_nav_groups_v2");
+      return saved ? new Set(JSON.parse(saved)) : new Set(["ai-tools"]);
     } catch {
-      return new Set(["ai-tools", "business", "system"]);
+      return new Set(["ai-tools"]);
     }
   });
 
@@ -86,7 +46,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
     }
     if (next.size !== navGroups.size) {
       setNavGroups(next);
-      localStorage.setItem("efh_nav_groups", JSON.stringify([...next]));
+      localStorage.setItem("efh_nav_groups_v2", JSON.stringify([...next]));
     }
   }, [navGroups, pathname]);
 
@@ -114,7 +74,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      localStorage.setItem("efh_nav_groups", JSON.stringify([...next]));
+      localStorage.setItem("efh_nav_groups_v2", JSON.stringify([...next]));
       return next;
     });
   }
@@ -249,13 +209,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         aria-label={collapsed ? "展开侧栏" : "收起侧栏"}
         title={collapsed ? "展开侧栏" : "收起侧栏"}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          {collapsed ? (
-            <path d="M9 18l6-6-6-6" />
-          ) : (
-            <path d="M15 18l-6-6 6-6" />
-          )}
-        </svg>
+        <AppIcon name="chevron" className={`sidebar-collapse-icon ${collapsed ? "right" : "left"}`} />
       </button>
       <button
         className="mobile-menu-toggle"
@@ -264,9 +218,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         aria-label={mobileMenuOpen ? "关闭导航菜单" : "打开导航菜单"}
         aria-expanded={mobileMenuOpen}
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          {mobileMenuOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
-        </svg>
+        <AppIcon name={mobileMenuOpen ? "x" : "menu"} />
       </button>
       {mobileMenuOpen && (
         <button
@@ -277,11 +229,15 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         />
       )}
       <aside className={`sidebar ${collapsed ? "collapsed" : ""} ${mobileMenuOpen ? "mobile-open" : ""}`}>
+        <Link className="sidebar-brand" href="/" aria-label="FlowHub 工作台">
+          <span className="sidebar-brand-mark"><AppIcon name="spark" /></span>
+          <span className="sidebar-brand-copy"><strong>FlowHub</strong><small>智能业务工作台</small></span>
+        </Link>
         <div className="sidebar-scroll">
       <nav className="primary-nav" ref={navRef} aria-label="主导航">
           <div className="nav-indicator" />
         <Link href="/" className={`nav-item ${pathname === "/" ? "active" : ""}`}>
-          <SidebarIcon name="dashboard" /> 仪表盘
+          <AppIcon name="dashboard" /> 仪表盘
         </Link>
 
         <button
@@ -290,28 +246,28 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           type="button"
           aria-expanded={navGroups.has("ai-tools")}
         >
-          <span className={`tree-chevron ${navGroups.has("ai-tools") ? "open" : ""}`}>▸</span>
+          <AppIcon name="chevron" className={`tree-chevron ${navGroups.has("ai-tools") ? "open" : ""}`} />
           AI 工具
         </button>
         {navGroups.has("ai-tools") && (
           <div className="nav-group-items">
             <Link href="/chat/new" className={`nav-item ${pathname === "/chat/new" ? "active" : ""}`}>
-              <SidebarIcon name="chat" /> 新对话
+              <AppIcon name="chat" /> 新对话
             </Link>
             <Link href="/search" className={`nav-item ${pathname === "/search" ? "active" : ""}`}>
-              <SidebarIcon name="search" /> 搜索
+              <AppIcon name="search" /> 搜索
             </Link>
             <Link href="/library" className={`nav-item ${pathname === "/library" ? "active" : ""}`}>
-              <SidebarIcon name="library" /> 资料库
+              <AppIcon name="library" /> 资料库
             </Link>
             <Link href="/plugins" className={`nav-item ${pathname === "/plugins" ? "active" : ""}`}>
-              <SidebarIcon name="plugins" /> 插件
+              <AppIcon name="plug" /> 插件
             </Link>
             <Link href="/automation" className={`nav-item ${pathname === "/automation" ? "active" : ""}`}>
-              <SidebarIcon name="automation" /> 自动化
+              <AppIcon name="automation" /> 自动化
             </Link>
             <Link href="/personas" className={`nav-item ${pathname === "/personas" ? "active" : ""}`}>
-              <SidebarIcon name="personas" /> 人格
+              <AppIcon name="user" /> 人格
             </Link>
           </div>
         )}
@@ -322,34 +278,34 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           type="button"
           aria-expanded={navGroups.has("business")}
         >
-          <span className={`tree-chevron ${navGroups.has("business") ? "open" : ""}`}>▸</span>
+          <AppIcon name="chevron" className={`tree-chevron ${navGroups.has("business") ? "open" : ""}`} />
           业务
         </button>
         {navGroups.has("business") && (
           <div className="nav-group-items">
             <Link href="/customers" className={`nav-item ${pathname === "/customers" ? "active" : ""}`}>
-              <SidebarIcon name="customers" /> 客户
+              <AppIcon name="users" /> 客户
             </Link>
             <Link href="/suppliers" className={`nav-item ${pathname === "/suppliers" ? "active" : ""}`}>
-              <SidebarIcon name="suppliers" /> 供应商
+              <AppIcon name="supplier" /> 供应商
             </Link>
             <Link href="/products" className={`nav-item ${pathname === "/products" ? "active" : ""}`}>
-              <SidebarIcon name="products" /> 商品
+              <AppIcon name="package" /> 商品
             </Link>
             <Link href="/orders" className={`nav-item ${pathname?.startsWith("/orders") ? "active" : ""}`}>
-              <SidebarIcon name="orders" /> 订单
+              <AppIcon name="orders" /> 订单
             </Link>
             <Link href="/files" className={`nav-item ${pathname?.startsWith("/files") ? "active" : ""}`}>
-              <SidebarIcon name="files" /> 文件
+              <AppIcon name="document" /> 文件
             </Link>
             <Link href="/payments" className={`nav-item ${pathname?.startsWith("/payments") ? "active" : ""}`}>
-              <SidebarIcon name="payments" /> 付款
+              <AppIcon name="payment" /> 付款
             </Link>
             <Link href="/invoices" className={`nav-item ${pathname?.startsWith("/invoices") ? "active" : ""}`}>
-              <SidebarIcon name="invoices" /> 发票
+              <AppIcon name="invoice" /> 发票
             </Link>
             <Link href="/tasks" className={`nav-item ${pathname?.startsWith("/tasks") ? "active" : ""}`}>
-              <SidebarIcon name="check" /> 待办
+              <AppIcon name="check" /> 待办
             </Link>
           </div>
         )}
@@ -360,21 +316,21 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           type="button"
           aria-expanded={navGroups.has("system")}
         >
-          <span className={`tree-chevron ${navGroups.has("system") ? "open" : ""}`}>▸</span>
+          <AppIcon name="chevron" className={`tree-chevron ${navGroups.has("system") ? "open" : ""}`} />
           系统
         </button>
         {navGroups.has("system") && (
           <div className="nav-group-items">
             <Link href="/rules" className={`nav-item ${pathname === "/rules" ? "active" : ""}`}>
-              <SidebarIcon name="rules" /> 规则引擎
+              <AppIcon name="settings" /> 规则引擎
             </Link>
             {user?.role === "admin" && (
               <>
                 <Link href="/enterprise" className={`nav-item ${pathname === "/enterprise" ? "active" : ""}`}>
-                  <SidebarIcon name="enterprise" /> 企业管理
+                  <AppIcon name="supplier" /> 企业管理
                 </Link>
                 <Link href="/audit" className={`nav-item ${pathname === "/audit" ? "active" : ""}`}>
-                  <SidebarIcon name="audit" /> 操作日志
+                  <AppIcon name="document" /> 操作日志
                 </Link>
               </>
             )}
@@ -405,7 +361,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                 onClick={() => toggle(enterprise.id)}
                 type="button"
               >
-                <span className={`tree-chevron ${isOpen ? "open" : ""}`}>▸</span>
+                <AppIcon name="chevron" className={`tree-chevron ${isOpen ? "open" : ""}`} />
                 <span className="enterprise-name">{enterprise.name}</span>
               </button>
 
@@ -424,8 +380,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                             if (e.key === "Escape") cancelRename();
                           }}
                         />
-                        <button className="inline-confirm" onClick={() => submitProjectRename(project.id)} type="button"><SidebarIcon name="check" /></button>
-                        <button className="inline-cancel" onClick={cancelRename} type="button"><SidebarIcon name="x" /></button>
+                        <button className="inline-confirm" onClick={() => submitProjectRename(project.id)} type="button"><AppIcon name="check" /></button>
+                        <button className="inline-cancel" onClick={cancelRename} type="button"><AppIcon name="x" /></button>
                       </div>
                     ) : (
                       <Link
@@ -433,11 +389,11 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                         href={`/projects/${project.id}`}
                         key={project.id}
                       >
-                        <SidebarIcon name="project" className="sub-item-icon" />
+                        <AppIcon name="project" className="sub-item-icon" />
                         <span className="sidebar-row-title">{project.name}</span>
                         <span className="sidebar-row-actions">
-                          <button className="sidebar-mini-action" onClick={(e) => startRenameProject(project.id, project.name, e)} title="重命名项目" type="button"><SidebarIcon name="edit" /></button>
-                          <button className="sidebar-mini-action danger" onClick={(e) => removeProject(project.id, e)} title="删除项目" type="button"><SidebarIcon name="delete" /></button>
+                          <button className="sidebar-mini-action" onClick={(e) => startRenameProject(project.id, project.name, e)} title="重命名项目" type="button"><AppIcon name="edit" /></button>
+                          <button className="sidebar-mini-action danger" onClick={(e) => removeProject(project.id, e)} title="删除项目" type="button"><AppIcon name="trash" /></button>
                         </span>
                       </Link>
                     )
@@ -464,7 +420,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                         onClick={() => addProject(enterprise.id)}
                         type="button"
                       >
-                        <SidebarIcon name="check" />
+                        <AppIcon name="check" />
                       </button>
                       <button
                         className="inline-cancel"
@@ -474,7 +430,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                         }}
                         type="button"
                       >
-                        <SidebarIcon name="x" />
+                        <AppIcon name="x" />
                       </button>
                     </div>
                   ) : (
@@ -483,7 +439,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                       onClick={() => setAddingTo(enterprise.id)}
                       type="button"
                     >
-                      + 新增子类
+                      <AppIcon name="plus" /> 新增子类
                     </button>
                   )}
                 </div>
@@ -512,7 +468,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                 type="button"
                 onClick={() => toggleChatGroup(enterprise.id)}
               >
-                <span className={`tree-chevron ${isOpen ? "open" : ""}`}>▸</span>
+                <AppIcon name="chevron" className={`tree-chevron ${isOpen ? "open" : ""}`} />
                 {enterprise.name}
               </button>
               <AnimateHeight open={isOpen}>
@@ -529,8 +485,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                           if (e.key === "Escape") cancelRename();
                         }}
                       />
-                      <button className="inline-confirm" onClick={() => submitConversationRename(conversation.id)} type="button"><SidebarIcon name="check" /></button>
-                      <button className="inline-cancel" onClick={cancelRename} type="button"><SidebarIcon name="x" /></button>
+                      <button className="inline-confirm" onClick={() => submitConversationRename(conversation.id)} type="button"><AppIcon name="check" /></button>
+                      <button className="inline-cancel" onClick={cancelRename} type="button"><AppIcon name="x" /></button>
                     </div>
                   ) : (
                     <button
@@ -543,8 +499,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                         {conversation.title.length > 8 ? conversation.title.slice(0, 8) + "…" : conversation.title}
                       </span>
                       <span className="sidebar-row-actions">
-                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话"><SidebarIcon name="edit" /></span>
-                        <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话"><SidebarIcon name="delete" /></span>
+                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话"><AppIcon name="edit" /></span>
+                        <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话"><AppIcon name="trash" /></span>
                       </span>
                     </button>
                   )
@@ -563,20 +519,20 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         {user ? (
           <div className="sidebar-user-info">
             <div className="sidebar-user-top">
-              <div className="sidebar-avatar"><SidebarIcon name="user" /></div>
+              <div className="sidebar-avatar"><AppIcon name="user" /></div>
               <div className="sidebar-user-detail">
                 <span className="sidebar-username">{user.displayName}</span>
                 <span className="sidebar-user-role">{user.role === "admin" ? "管理员" : "成员"}</span>
               </div>
-              <button className="sidebar-settings-btn" onClick={() => setSettingsOpen(true)} title="设置" type="button"><SidebarIcon name="settings" /></button>
+              <button className="sidebar-settings-btn" onClick={() => setSettingsOpen(true)} title="设置" type="button"><AppIcon name="settings" /></button>
             </div>
             <button className="sidebar-logout-btn" onClick={() => { logout(); router.push("/login"); }} type="button">
-              <SidebarIcon name="logout" /> 退出登录
+              <AppIcon name="logout" /> 退出登录
             </button>
           </div>
         ) : (
           <button className="sidebar-login-link" onClick={() => router.push("/login")} type="button">
-            <SidebarIcon name="user" /> 登录
+            <AppIcon name="user" /> 登录
           </button>
         )}
       </div>

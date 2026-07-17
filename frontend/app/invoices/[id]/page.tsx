@@ -9,6 +9,7 @@ import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ErrorState } from "../../components/ErrorState";
+import { AppIcon } from "../../components/AppIcon";
 import type { Invoice, PaginatedList } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -337,7 +338,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         {/* ---- Header with actions ---- */}
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/invoices")} type="button" aria-label="返回发票列表">←</button>
+            <button className="chat-back" onClick={() => router.push("/invoices")} type="button" aria-label="返回发票列表"><AppIcon name="arrow-left" /></button>
             <h1>发票详情</h1>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -523,7 +524,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               {invoice.orderId ? (
                 <div style={fieldRow}>
                   <span style={fieldLabel}>关联订单</span>
-                  <Link href={`/orders/${invoice.orderId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>查看订单 →</Link>
+                  <Link href={`/orders/${invoice.orderId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>查看订单 <AppIcon name="chevron" className="inline-flow-arrow" /></Link>
                 </div>
               ) : (
                 <div style={fieldRow}>
@@ -534,7 +535,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               {invoice.customerId ? (
                 <div style={fieldRow}>
                   <span style={fieldLabel}>关联客户</span>
-                  <Link href={`/customers/${invoice.customerId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>查看客户 →</Link>
+                  <Link href={`/customers/${invoice.customerId}`} style={{ color: "var(--c-4a90e6)", fontSize: 13 }}>查看客户 <AppIcon name="chevron" className="inline-flow-arrow" /></Link>
                 </div>
               ) : (
                 <div style={fieldRow}>

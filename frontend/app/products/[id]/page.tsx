@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
+import { AppIcon } from "../../components/AppIcon";
 import type { Product } from "shared";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -122,7 +123,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       <div className="page-shell">
         <div className="page-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="chat-back" onClick={() => router.push("/products")} type="button" aria-label="返回列表">←</button>
+            <button className="chat-back" onClick={() => router.push("/products")} type="button" aria-label="返回列表"><AppIcon name="arrow-left" /></button>
             <h1>{editing ? "编辑商品" : product.name}</h1>
           </div>
           {!editing && (
@@ -199,7 +200,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
               <div className="settings-header">
                 <h2>确认删除</h2>
-                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button" aria-label="关闭">×</button>
+                <button className="settings-close" onClick={() => setDeleteConfirm(false)} type="button" aria-label="关闭"><AppIcon name="x" /></button>
               </div>
               <div className="settings-body">
                 <p>确定要删除商品「{product.name}」吗？此操作不可撤销。</p>

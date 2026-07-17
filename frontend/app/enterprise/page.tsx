@@ -92,7 +92,7 @@ function DepartmentTreeNode({
                 type="button"
                 aria-label={collapsed ? "展开下级" : "收起下级"}
               >
-                <span className={`tree-chevron ${!collapsed ? "open" : ""}`}>▸</span>
+                <AppIcon name="chevron" className={`tree-chevron ${!collapsed ? "open" : ""}`} />
               </button>
             )}
             <span className="org-dept-icon">部门</span>
@@ -103,10 +103,10 @@ function DepartmentTreeNode({
           </div>
           {isAdmin && (
             <div className="org-dept-actions">
-              <button onClick={() => onAddDept(dept.id)} title="添加子部门" type="button">+部门</button>
-              <button onClick={() => onAddUser(dept.id)} title="添加成员" type="button">+成员</button>
-              <button onClick={() => onEditDept(dept)} title="编辑" type="button">编辑</button>
-              <button onClick={() => onDeleteDept(dept)} className="danger" title="删除" type="button">×</button>
+              <button onClick={() => onAddDept(dept.id)} title="添加子部门" type="button"><AppIcon name="plus" /> 部门</button>
+              <button onClick={() => onAddUser(dept.id)} title="添加成员" type="button"><AppIcon name="plus" /> 成员</button>
+              <button onClick={() => onEditDept(dept)} title="编辑" type="button"><AppIcon name="edit" /> 编辑</button>
+              <button onClick={() => onDeleteDept(dept)} className="danger" title="删除" type="button"><AppIcon name="trash" /></button>
             </div>
           )}
         </div>
@@ -135,8 +135,8 @@ function DepartmentTreeNode({
                   </div>
                   {isAdmin && (
                     <div className="org-user-actions">
-                      <button onClick={() => onEditUser(user)} title="编辑" type="button">编辑</button>
-                      <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button">×</button>
+                      <button onClick={() => onEditUser(user)} title="编辑" type="button"><AppIcon name="edit" /> 编辑</button>
+                      <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button"><AppIcon name="trash" /></button>
                     </div>
                   )}
                 </div>
@@ -179,8 +179,8 @@ function DepartmentTreeNode({
               </div>
               {isAdmin && (
                 <div className="org-user-actions">
-                  <button onClick={() => onEditUser(user)} title="编辑" type="button">编辑</button>
-                  <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button">×</button>
+                  <button onClick={() => onEditUser(user)} title="编辑" type="button"><AppIcon name="edit" /> 编辑</button>
+                  <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button"><AppIcon name="trash" /></button>
                   </div>
                 )}
             </div>
@@ -506,7 +506,7 @@ export default function EnterprisePage() {
                 type="button"
                 disabled={processing}
               >
-                + 新建部门
+                <AppIcon name="plus" /> 新建部门
               </button>
             )}
           </div>
@@ -541,7 +541,7 @@ export default function EnterprisePage() {
                       {isAdmin && (
                         <div className="org-user-actions">
                           <button onClick={() => openEditUser(u)} title="编辑" type="button"><AppIcon name="edit" /></button>
-                          <button onClick={() => setDeleteConfirm({ open: true, type: "user", id: u.id, name: u.displayName })} className="danger" title="删除" type="button">×</button>
+                          <button onClick={() => setDeleteConfirm({ open: true, type: "user", id: u.id, name: u.displayName })} className="danger" title="删除" type="button"><AppIcon name="trash" /></button>
                         </div>
                       )}
                     </div>

@@ -21,7 +21,7 @@ export function PageTransition({ children }: { children: ReactNode }) {
     { scope: ref, dependencies: [pathname] }
   );
 
-  return <div ref={ref} style={{ width: "100%" }}>{children}</div>;
+  return <div ref={ref} className="page-transition">{children}</div>;
 }
 
 export function CardStagger({

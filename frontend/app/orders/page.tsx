@@ -11,6 +11,7 @@ import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
+import { AppIcon } from "../components/AppIcon";
 import type { Order, PaginatedList } from "shared";
 
 export default function OrdersPage() {
@@ -62,8 +63,8 @@ export default function OrdersPage() {
       <div className="page-shell">
         <PageHeader title="订单管理" description="管理所有订单、付款和发票"
           actions={
-            <Link href="/orders/new" className="page-primary-button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)", textDecoration: "none", display: "inline-block" }}>
-              + 新建订单
+            <Link href="/orders/new" className="page-primary-button">
+              <AppIcon name="plus" /> 新建订单
             </Link>
           }
         />

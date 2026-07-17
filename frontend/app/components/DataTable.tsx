@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 import { EmptyState } from "./EmptyState";
+import { AppIcon } from "./AppIcon";
 
 interface Column<T> {
   key: string;
@@ -83,7 +84,7 @@ export function DataTable<T extends { id: string }>({
               type="button"
               aria-label="上一页"
             >
-              ‹
+              <AppIcon name="chevron" className="pagination-chevron previous" />
             </button>
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
@@ -109,7 +110,7 @@ export function DataTable<T extends { id: string }>({
               type="button"
               aria-label="下一页"
             >
-              ›
+              <AppIcon name="chevron" className="pagination-chevron next" />
             </button>
           </div>
         </div>

@@ -88,7 +88,7 @@ function ResultsContent() {
         <p className="results-empty">未找到分析结果</p>
         <div style={{ textAlign: "center", marginTop: 16 }}>
           <button className="export-btn" onClick={() => router.push("/")}>
-            ← 新建分析
+            <AppIcon name="arrow-left" /> 新建分析
           </button>
         </div>
       </div>
@@ -99,7 +99,7 @@ function ResultsContent() {
     <div className="results-inner">
       {/* Back + Title */}
       <div className="results-back">
-        <button onClick={() => router.push("/")} aria-label="返回首页">←</button>
+        <button onClick={() => router.push("/")} aria-label="返回首页"><AppIcon name="arrow-left" /></button>
         <h1>分析结果</h1>
       </div>
 
@@ -142,7 +142,7 @@ function ResultsContent() {
           {data.fields.map((f) => (
             <div key={f.name}>
               <span className="key">&quot;{f.name}&quot;</span>:{" "}
-              <span className="str">&quot;{f.label}&quot;</span> → {f.type}
+              <span className="str">&quot;{f.label}&quot;</span> <AppIcon name="chevron" className="inline-flow-arrow" /> {f.type}
               {f.missing && <span className="warn"> <AppIcon name="alert" /> missing</span>}
             </div>
           ))}
@@ -155,7 +155,7 @@ function ResultsContent() {
         <div className="stage-flow">
           {data.workflowStages.map((s, i) => (
             <span key={s}>
-              {i > 0 && <span className="stage-arrow">→</span>}
+              {i > 0 && <AppIcon name="chevron" className="stage-arrow" />}
               <span className="stage-item">{s}</span>
             </span>
           ))}
@@ -177,7 +177,7 @@ function ResultsContent() {
         <h3><AppIcon name="bell" /> 自动化规则建议</h3>
         {data.automationRules.map((r, i) => (
           <div key={i} className="rule-item">
-            <AppIcon name="bell" /> IF {r.trigger} AND {r.condition} → {r.action}
+            <AppIcon name="bell" /> IF {r.trigger} AND {r.condition} <AppIcon name="chevron" className="inline-flow-arrow" /> {r.action}
           </div>
         ))}
       </div>

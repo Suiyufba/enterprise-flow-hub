@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { Fragment, useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import type { AgentPlanStep, ConversationDetail, Message, ToolRun, Workspace } from "shared";
 import { fetchJson, getStoredToken } from "../../lib/api";
@@ -10,12 +10,43 @@ import MarkdownMessage from "../../components/MarkdownMessage";
 import { TypingIndicator } from "../../components/TypingIndicator";
 import { ErrorState } from "../../components/ErrorState";
 import { AgentRunPanel } from "../../components/AgentRunPanel";
+import { AppIcon } from "../../components/AppIcon";
 import { gsap, useGSAP } from "../../lib/gsap";
+
+interface MessageRunState {
+  planSteps: AgentPlanStep[];
+  toolRuns: ToolRun[];
+  sending: boolean;
+  streaming: boolean;
+  collapsed: boolean;
+  hasContent: boolean;
+}
+
+function createInitialPlan(): AgentPlanStep[] {
+  return [
+    { id: "scope", title: "确认任务范围", detail: "正在识别本次请求的项目和资料范围。", status: "running" },
+    { id: "context", title: "读取项目资料", detail: "等待读取当前企业的资料、自动化和历史对话。", status: "pending" },
+    { id: "skills", title: "匹配 Agent 技能", detail: "等待选择适合的业务能力。", status: "pending" },
+    { id: "tools", title: "执行工具或生成方案", detail: "等待模型决定是否调用工具。", status: "pending" },
+    { id: "reply", title: "写入回复和执行记录", detail: "等待保存结果。", status: "pending" },
+  ];
+}
+
+function createCompletedPlan(toolRuns: ToolRun[]): AgentPlanStep[] {
+  return [
+    { id: "scope", title: "确认任务范围", detail: "已确认本次请求范围。", status: "done" },
+    { id: "context", title: "读取项目资料", detail: "已完成项目资料读取。", status: "done" },
+    { id: "skills", title: "匹配 Agent 技能", detail: "已匹配相关业务能力。", status: "done" },
+    { id: "tools", title: "执行工具或生成方案", detail: toolRuns.length > 0 ? `执行了 ${toolRuns.length} 个工具。` : "已生成方案。", status: "done" },
+    { id: "reply", title: "写入回复和执行记录", detail: "已保存结果。", status: "done" },
+  ];
+}
 
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const initialPersonaId = searchParams.get("personaId");
   const { showToast } = useToast();
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -30,13 +61,11 @@ export default function ChatPage() {
   const [contextScope, setContextScope] = useState<"current_project" | "selected_projects">("current_project");
   const [contextEnterpriseId, setContextEnterpriseId] = useState("");
   const [contextProjectIds, setContextProjectIds] = useState<string[]>([]);
-  const [runPlan, setRunPlan] = useState<AgentPlanStep[]>([]);
-  const [runTools, setRunTools] = useState<ToolRun[]>([]);
+  const [messageRuns, setMessageRuns] = useState<Record<string, MessageRunState>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const msgCounterRef = useRef(0);
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [streaming, setStreaming] = useState(false);
   const abortRef = useRef<(() => void) | null>(null);
 
   // Animate new messages as they appear
@@ -61,27 +90,44 @@ export default function ChatPage() {
     prevCountRef.current = msgElements.length;
   }, { dependencies: [localMessages], scope: messagesContainerRef });
 
-  // Animate agent plan steps
-  const planRef = useRef<HTMLDivElement>(null);
-  useGSAP(() => {
-    if (!planRef.current) return;
-    const steps = planRef.current.querySelectorAll(".agent-plan-step");
-    const runningStep = Array.from(steps).find((s) =>
-      s.classList.contains("agent-plan-running")
-    );
-    if (runningStep) {
-      gsap.from(runningStep, {
-        scale: 0.95,
-        duration: 0.3,
-        ease: "back.out(1.4)",
-      });
-    }
-  }, { dependencies: [runPlan], scope: planRef });
-
   function nextMsgId() {
     msgCounterRef.current += 1;
     return `local-msg-${msgCounterRef.current}`;
   }
+
+  const beginMessageRun = useCallback((messageId: string) => {
+    setMessageRuns((current) => ({
+      ...current,
+      [messageId]: {
+        planSteps: createInitialPlan(),
+        toolRuns: [],
+        sending: true,
+        streaming: true,
+        collapsed: false,
+        hasContent: false,
+      },
+    }));
+  }, []);
+
+  const updateMessageRun = useCallback((
+    messageId: string,
+    update: (current: MessageRunState) => MessageRunState,
+  ) => {
+    setMessageRuns((current) => {
+      const run = current[messageId];
+      if (!run) return current;
+      return { ...current, [messageId]: update(run) };
+    });
+  }, []);
+
+  const removeMessageRun = useCallback((messageId: string) => {
+    setMessageRuns((current) => {
+      if (!current[messageId]) return current;
+      const next = { ...current };
+      delete next[messageId];
+      return next;
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -94,7 +140,8 @@ export default function ChatPage() {
       setDetail(d);
       setWorkspace(w);
       setLocalMessages((current) => current.length > 0 ? current : d.messages);
-      if (w.personas[0]) setPersonaId(w.personas[0].id);
+      const requestedPersona = w.personas.find((persona) => persona.id === initialPersonaId);
+      if (requestedPersona || w.personas[0]) setPersonaId(requestedPersona?.id ?? w.personas[0].id);
       const currentProject = w.projects.find((project) => project.id === d.projectId);
       if (currentProject) {
         setContextEnterpriseId(currentProject.enterpriseId);
@@ -106,7 +153,7 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, showToast]);
+  }, [id, initialPersonaId, showToast]);
 
   useEffect(() => {
     refresh();
@@ -116,8 +163,9 @@ export default function ChatPage() {
   const initialMsg = searchParams.get("msg");
   const msgSent = useRef(false);
   useEffect(() => {
-    if (loading || !workspace || !initialMsg || msgSent.current) return;
+    if (loading || !workspace || !initialMsg || !personaId || msgSent.current) return;
     msgSent.current = true;
+    router.replace(`/chat/${id}`, { scroll: false });
     const content = decodeURIComponent(initialMsg);
     const userMsg: Message = {
       id: nextMsgId(),
@@ -127,17 +175,9 @@ export default function ChatPage() {
     };
     setLocalMessages((prev) => [...prev, userMsg]);
     setSending(true);
-    setStreaming(true);
-    setRunTools([]);
-    setRunPlan([
-      { id: "scope", title: "确认任务范围", detail: "正在识别本次请求的项目和资料范围。", status: "running" },
-      { id: "context", title: "读取项目资料", detail: "等待读取当前企业的资料、自动化和历史对话。", status: "pending" },
-      { id: "skills", title: "匹配 Agent 技能", detail: "等待选择适合的业务能力。", status: "pending" },
-      { id: "tools", title: "执行工具或生成方案", detail: "等待模型决定是否调用工具。", status: "pending" },
-      { id: "reply", title: "写入回复和执行记录", detail: "等待保存结果。", status: "pending" },
-    ]);
 
     const aiMsgId = nextMsgId();
+    beginMessageRun(aiMsgId);
     setLocalMessages((prev) => [...prev, { id: aiMsgId, role: "assistant" as const, content: "", createdAt: new Date().toISOString() }]);
     setStreamingMsgId(aiMsgId);
 
@@ -160,16 +200,18 @@ export default function ChatPage() {
           switch (sseEvent.event) {
             case "thinking": {
               const data = sseEvent.data as { message?: string };
-              setRunPlan((prev) =>
-                prev.map((step, i) => i === 0 ? { ...step, status: "running" as const, detail: data.message ?? step.detail } : step),
-              );
+              updateMessageRun(aiMsgId, (run) => ({
+                ...run,
+                planSteps: run.planSteps.map((step, i) => i === 0 ? { ...step, status: "running" as const, detail: data.message ?? step.detail } : step),
+              }));
               break;
             }
             case "tool_call": {
               const data = sseEvent.data as { toolId: string; toolName?: string };
-              setRunPlan((prev) =>
-                prev.map((step) => step.id === "tools" ? { ...step, status: "running" as const, detail: `正在执行 ${data.toolName ?? data.toolId}...` } : step),
-              );
+              updateMessageRun(aiMsgId, (run) => ({
+                ...run,
+                planSteps: run.planSteps.map((step) => step.id === "tools" ? { ...step, status: "running" as const, detail: `正在执行 ${data.toolName ?? data.toolId}...` } : step),
+              }));
               break;
             }
             case "tool_result": {
@@ -182,21 +224,30 @@ export default function ChatPage() {
                 output: data.output ?? "",
                 createdAt: new Date().toISOString(),
               }];
-              setRunTools(resolvedToolRuns);
-              setRunPlan((prev) =>
-                prev.map((step) => step.id === "tools" ? { ...step, status: "done" as const, detail: `${data.toolId} 执行${data.status === "success" ? "成功" : "失败"}` } : step),
-              );
+              updateMessageRun(aiMsgId, (run) => ({
+                ...run,
+                toolRuns: resolvedToolRuns,
+                planSteps: run.planSteps.map((step) => step.id === "tools" ? { ...step, status: "done" as const, detail: `${data.toolId} 执行${data.status === "success" ? "成功" : "失败"}` } : step),
+              }));
               break;
             }
             case "content_chunk": {
               const data = sseEvent.data as { delta: string };
               fullContent += data.delta;
               setLocalMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: fullContent } : m));
+              updateMessageRun(aiMsgId, (run) => run.hasContent ? run : {
+                ...run,
+                collapsed: true,
+                hasContent: true,
+              });
               break;
             }
             case "plan_update": {
               const data = sseEvent.data as { planSteps: AgentPlanStep[] };
-              if (data.planSteps?.length) { resolvedPlanSteps = data.planSteps; setRunPlan(data.planSteps); }
+              if (data.planSteps?.length) {
+                resolvedPlanSteps = data.planSteps;
+                updateMessageRun(aiMsgId, (run) => ({ ...run, planSteps: data.planSteps }));
+              }
               break;
             }
             case "done": {
@@ -204,15 +255,14 @@ export default function ChatPage() {
               if (data.message?.content) fullContent = data.message.content;
               if (data.planSteps?.length) resolvedPlanSteps = data.planSteps;
               if (data.toolRuns?.length) resolvedToolRuns = data.toolRuns;
-              setRunPlan(resolvedPlanSteps.length > 0 ? resolvedPlanSteps : [
-                { id: "scope", title: "确认任务范围", detail: "已确认本次请求范围。", status: "done" },
-                { id: "context", title: "读取项目资料", detail: "已完成项目资料读取。", status: "done" },
-                { id: "skills", title: "匹配 Agent 技能", detail: "已匹配相关业务能力。", status: "done" },
-                { id: "tools", title: "执行工具或生成方案", detail: resolvedToolRuns.length > 0 ? `执行了 ${resolvedToolRuns.length} 个工具。` : "已生成方案。", status: "done" },
-                { id: "reply", title: "写入回复和执行记录", detail: "已保存结果。", status: "done" },
-              ]);
-              setRunTools(resolvedToolRuns);
-              setLocalMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: fullContent, id: data.message?.id ?? m.id } : m));
+              updateMessageRun(aiMsgId, (run) => ({
+                ...run,
+                planSteps: resolvedPlanSteps.length > 0 ? resolvedPlanSteps : createCompletedPlan(resolvedToolRuns),
+                toolRuns: resolvedToolRuns,
+                collapsed: fullContent && !run.hasContent ? true : run.collapsed,
+                hasContent: Boolean(fullContent) || run.hasContent,
+              }));
+              setLocalMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: fullContent } : m));
               break;
             }
             case "error": {
@@ -226,18 +276,21 @@ export default function ChatPage() {
         if (!fullContent) {
           showToast(errMsg, "error");
           setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id && m.id !== aiMsgId));
+          removeMessageRun(aiMsgId);
+        } else {
+          updateMessageRun(aiMsgId, (run) => ({
+            ...run,
+            planSteps: run.planSteps.map((step) => step.status === "running" ? { ...step, status: "skipped" as const, detail: errMsg } : step),
+          }));
         }
-        setRunPlan((prev) =>
-          prev.map((step) => step.status === "running" ? { ...step, status: "skipped" as const, detail: errMsg } : step),
-        );
       } finally {
         abortRef.current = null;
         setSending(false);
-        setStreaming(false);
         setStreamingMsgId(null);
+        updateMessageRun(aiMsgId, (run) => ({ ...run, sending: false, streaming: false }));
       }
     })();
-  }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds, id, showToast]);
+  }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds, id, router, showToast, beginMessageRun, removeMessageRun, updateMessageRun]);
 
   useEffect(() => {
     if (!streamingMsgId) {
@@ -318,19 +371,24 @@ export default function ChatPage() {
   }
 
   async function stopRun() {
+    const activeMessageId = streamingMsgId;
     // Abort SSE connection
     if (abortRef.current) {
       abortRef.current();
       abortRef.current = null;
     }
     setSending(false);
-    setStreaming(false);
     setStreamingMsgId(null);
-    setRunPlan((prev) =>
-      prev.map((step) =>
-        step.status === "running" ? { ...step, status: "skipped", detail: "用户停止执行" } : step,
-      ),
-    );
+    if (activeMessageId) {
+      updateMessageRun(activeMessageId, (run) => ({
+        ...run,
+        sending: false,
+        streaming: false,
+        planSteps: run.planSteps.map((step) =>
+          step.status === "running" ? { ...step, status: "skipped", detail: "用户停止执行" } : step,
+        ),
+      }));
+    }
     // Tell the backend to stop the active Agent run.
     try {
       await fetchJson(`/conversations/${id}/stop`, { method: "POST" });
@@ -349,17 +407,8 @@ export default function ChatPage() {
       createdAt: new Date().toISOString(),
     };
     setLocalMessages((prev) => [...prev, userMsg]);
-    setRunTools([]);
-    setRunPlan([
-      { id: "scope", title: "确认任务范围", detail: "正在识别本次请求的项目和资料范围。", status: "running" },
-      { id: "context", title: "读取项目资料", detail: "等待读取当前企业的资料、自动化和历史对话。", status: "pending" },
-      { id: "skills", title: "匹配 Agent 技能", detail: "等待选择适合的业务能力。", status: "pending" },
-      { id: "tools", title: "执行工具或生成方案", detail: "等待模型决定是否调用工具。", status: "pending" },
-      { id: "reply", title: "写入回复和执行记录", detail: "等待保存结果。", status: "pending" },
-    ]);
     setInput("");
     setSending(true);
-    setStreaming(true);
 
     // Create placeholder AI message
     const aiMsgId = nextMsgId();
@@ -369,6 +418,7 @@ export default function ChatPage() {
       content: "",
       createdAt: new Date().toISOString(),
     };
+    beginMessageRun(aiMsgId);
     setLocalMessages((prev) => [...prev, aiMsg]);
     setStreamingMsgId(aiMsgId);
 
@@ -384,27 +434,29 @@ export default function ChatPage() {
         skillIds: [],
         contextScope,
         contextProjectIds,
-      });
+      }, getStoredToken() ?? undefined);
       abortRef.current = conn.abort;
 
       for await (const sseEvent of conn.events) {
         switch (sseEvent.event) {
           case "thinking": {
             const data = sseEvent.data as { message?: string };
-            setRunPlan((prev) =>
-              prev.map((step, i) =>
+            updateMessageRun(aiMsgId, (run) => ({
+              ...run,
+              planSteps: run.planSteps.map((step, i) =>
                 i === 0 ? { ...step, status: "running" as const, detail: data.message ?? step.detail } : step,
               ),
-            );
+            }));
             break;
           }
           case "tool_call": {
             const data = sseEvent.data as { toolId: string; toolName?: string; input?: Record<string, unknown> };
-            setRunPlan((prev) =>
-              prev.map((step) =>
+            updateMessageRun(aiMsgId, (run) => ({
+              ...run,
+              planSteps: run.planSteps.map((step) =>
                 step.id === "tools" ? { ...step, status: "running" as const, detail: `正在执行 ${data.toolName ?? data.toolId}...` } : step,
               ),
-            );
+            }));
             break;
           }
           case "tool_result": {
@@ -418,12 +470,13 @@ export default function ChatPage() {
               createdAt: new Date().toISOString(),
             };
             resolvedToolRuns = [...resolvedToolRuns, tr];
-            setRunTools(resolvedToolRuns);
-            setRunPlan((prev) =>
-              prev.map((step) =>
+            updateMessageRun(aiMsgId, (run) => ({
+              ...run,
+              toolRuns: resolvedToolRuns,
+              planSteps: run.planSteps.map((step) =>
                 step.id === "tools" ? { ...step, status: "done" as const, detail: `${data.toolId} 执行${data.status === "success" ? "成功" : "失败"}` } : step,
               ),
-            );
+            }));
             break;
           }
           case "content_chunk": {
@@ -432,13 +485,18 @@ export default function ChatPage() {
             setLocalMessages((prev) =>
               prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullContent } : m)),
             );
+            updateMessageRun(aiMsgId, (run) => run.hasContent ? run : {
+              ...run,
+              collapsed: true,
+              hasContent: true,
+            });
             break;
           }
           case "plan_update": {
             const data = sseEvent.data as { planSteps: AgentPlanStep[] };
             if (data.planSteps?.length) {
               resolvedPlanSteps = data.planSteps;
-              setRunPlan(data.planSteps);
+              updateMessageRun(aiMsgId, (run) => ({ ...run, planSteps: data.planSteps }));
             }
             break;
           }
@@ -453,16 +511,15 @@ export default function ChatPage() {
             }
             if (data.planSteps?.length) resolvedPlanSteps = data.planSteps;
             if (data.toolRuns?.length) resolvedToolRuns = data.toolRuns;
-            setRunPlan(resolvedPlanSteps.length > 0 ? resolvedPlanSteps : [
-              { id: "scope", title: "确认任务范围", detail: "已确认本次请求范围。", status: "done" },
-              { id: "context", title: "读取项目资料", detail: "已完成项目资料读取。", status: "done" },
-              { id: "skills", title: "匹配 Agent 技能", detail: "已匹配相关业务能力。", status: "done" },
-              { id: "tools", title: "执行工具或生成方案", detail: resolvedToolRuns.length > 0 ? `执行了 ${resolvedToolRuns.length} 个工具。` : "已生成方案。", status: "done" },
-              { id: "reply", title: "写入回复和执行记录", detail: "已保存结果。", status: "done" },
-            ]);
-            setRunTools(resolvedToolRuns);
+            updateMessageRun(aiMsgId, (run) => ({
+              ...run,
+              planSteps: resolvedPlanSteps.length > 0 ? resolvedPlanSteps : createCompletedPlan(resolvedToolRuns),
+              toolRuns: resolvedToolRuns,
+              collapsed: fullContent && !run.hasContent ? true : run.collapsed,
+              hasContent: Boolean(fullContent) || run.hasContent,
+            }));
             setLocalMessages((prev) =>
-              prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullContent, id: data.message?.id ?? m.id } : m)),
+              prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullContent } : m)),
             );
             break;
           }
@@ -480,7 +537,7 @@ export default function ChatPage() {
         showToast("该对话已被删除，正在刷新...", "error");
         setTimeout(() => window.location.reload(), 1000);
         setSending(false);
-        setStreaming(false);
+        removeMessageRun(aiMsgId);
         return;
       }
 
@@ -489,21 +546,25 @@ export default function ChatPage() {
         showToast(errMsg, "error");
         setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id && m.id !== aiMsgId));
         setInput(userContent);
+        removeMessageRun(aiMsgId);
       } else {
         // Partial content — mark as done with what we have
         showToast(`执行中断: ${errMsg}`, "error");
       }
 
-      setRunPlan((prev) =>
-        prev.map((step) =>
-          step.status === "running" ? { ...step, status: "skipped" as const, detail: errMsg } : step,
-        ),
-      );
+      if (fullContent) {
+        updateMessageRun(aiMsgId, (run) => ({
+          ...run,
+          planSteps: run.planSteps.map((step) =>
+            step.status === "running" ? { ...step, status: "skipped" as const, detail: errMsg } : step,
+          ),
+        }));
+      }
     } finally {
       abortRef.current = null;
       setSending(false);
-      setStreaming(false);
       setStreamingMsgId(null);
+      updateMessageRun(aiMsgId, (run) => ({ ...run, sending: false, streaming: false }));
     }
   }
 
@@ -538,7 +599,7 @@ export default function ChatPage() {
       {/* Header */}
       <header className="chat-header">
         <button className="chat-back" onClick={() => router.push("/")} type="button" aria-label="返回首页">
-          ←
+          <AppIcon name="arrow-left" />
         </button>
         <div className="chat-header-main">
           <h1 className="chat-title">{detail.title}</h1>
@@ -568,7 +629,7 @@ export default function ChatPage() {
                       onClick={() => removeTag(tag)}
                       type="button"
                     >
-                      ×
+                      <AppIcon name="x" />
                     </button>
                   </span>
                 ))}
@@ -593,7 +654,7 @@ export default function ChatPage() {
                     onClick={() => setEditingTag(true)}
                     type="button"
                   >
-                    + 添加
+                    <AppIcon name="plus" /> 添加
                   </button>
                 )}
               </div>
@@ -607,24 +668,34 @@ export default function ChatPage() {
         {localMessages.length === 0 && (
           <div className="chat-empty">暂无消息记录</div>
         )}
-        {localMessages.map((msg) => (
-          <MarkdownMessage
-            key={msg.id}
-            content={msg.content + (streamingMsgId === msg.id ? "▊" : "")}
-            role={msg.role}
-          />
-        ))}
+        {localMessages.map((msg) => {
+          const run = messageRuns[msg.id];
+          return (
+            <Fragment key={msg.id}>
+              {msg.role === "assistant" && run && (
+                <AgentRunPanel
+                  planSteps={run.planSteps}
+                  toolRuns={run.toolRuns}
+                  sending={run.sending}
+                  streaming={run.streaming}
+                  collapsed={run.collapsed}
+                  onToggle={() => updateMessageRun(msg.id, (current) => ({
+                    ...current,
+                    collapsed: !current.collapsed,
+                  }))}
+                  onStop={streamingMsgId === msg.id ? stopRun : undefined}
+                />
+              )}
+              <MarkdownMessage
+                content={msg.content + (streamingMsgId === msg.id ? "▊" : "")}
+                role={msg.role}
+              />
+            </Fragment>
+          );
+        })}
         {sending && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
-
-      <AgentRunPanel
-        planSteps={runPlan}
-        toolRuns={runTools}
-        sending={sending}
-        streaming={streaming}
-        onStop={stopRun}
-      />
 
       {/* Input */}
       <div className="chat-composer">
@@ -665,9 +736,7 @@ export default function ChatPage() {
               </option>
             ))}
           </select>
-          <span className="composer-plus" aria-hidden="true">
-            +
-          </span>
+          <span className="composer-control-label">角色</span>
           <select
             className="composer-select"
             value={personaId}

@@ -80,7 +80,7 @@ export function ThemeToggle() {
       title={isDark ? "切换浅色模式" : "切换深色模式"}
       aria-label={isDark ? "切换浅色模式" : "切换深色模式"}
     >
-      <AppIcon name={isDark ? "spark" : "moon"} />
+      <AppIcon name={isDark ? "sun" : "moon"} />
     </button>
   );
 }

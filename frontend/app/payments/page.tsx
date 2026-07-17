@@ -11,6 +11,7 @@ import { SearchInput } from "../components/SearchInput";
 import { StatusBadge } from "../components/StatusBadge";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
+import { AppIcon } from "../components/AppIcon";
 import type { Payment, PaginatedList } from "shared";
 
 const methodLabels: Record<string, string> = {
@@ -110,7 +111,7 @@ export default function PaymentsPage() {
           description="管理所有收款与付款记录"
           actions={
             <button className="page-primary-button" onClick={() => setShowForm(!showForm)} type="button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)" }}>
-              {showForm ? "取消" : "+ 新建付款"}
+              {showForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 新建付款</>}
             </button>
           }
         />

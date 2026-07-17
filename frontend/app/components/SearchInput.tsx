@@ -30,13 +30,14 @@ export function SearchInput({
       <AppIcon name="search" className="search-input-icon" />
       <input
         className="search-input-field"
+        aria-label={placeholder}
         value={local}
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
       />
       {local && (
         <button className="search-input-clear" onClick={() => handleChange("")} type="button" aria-label="清除搜索">
-          ×
+          <AppIcon name="x" />
         </button>
       )}
     </div>

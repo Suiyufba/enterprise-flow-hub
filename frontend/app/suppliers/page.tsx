@@ -10,6 +10,7 @@ import { PageHeader } from "../components/PageHeader";
 import { SearchInput } from "../components/SearchInput";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
+import { AppIcon } from "../components/AppIcon";
 import type { Supplier, PaginatedList } from "shared";
 
 export default function SuppliersPage() {
@@ -99,7 +100,7 @@ export default function SuppliersPage() {
           description="管理所有供应商信息"
           actions={
             <button className="page-primary-button" onClick={() => setShowForm(!showForm)} type="button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)" }}>
-              {showForm ? "取消" : "+ 新建供应商"}
+              {showForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 新建供应商</>}
             </button>
           }
         />
