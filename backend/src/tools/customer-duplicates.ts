@@ -71,7 +71,7 @@ function aggregate(groups: DuplicateKey[]) {
   };
 }
 
-function details(enterpriseId: string, field: "phone" | "email" | "name", groups: DuplicateKey[], limit: number, projectId?: string) {
+function details(enterpriseId: string, field: "phone" | "email" | "name", groups: DuplicateKey[], limit: number | undefined, projectId?: string) {
   return groups.slice(0, limit).map((group) => ({
     normalizedValue: group.key,
     count: group.count,
@@ -87,8 +87,8 @@ export function listCustomersByNormalizedPhone(enterpriseId: string, normalizedV
   return customersForKey(enterpriseId, "phone", normalizedValue, projectId);
 }
 
-export function customerDuplicateReport(enterpriseId: string, requestedDetailLimit = 20, projectId?: string) {
-  const detailLimit = Math.max(0, Math.min(50, Math.trunc(requestedDetailLimit)));
+export function customerDuplicateReport(enterpriseId: string, requestedDetailLimit?: number, projectId?: string) {
+  const detailLimit = requestedDetailLimit === undefined ? undefined : Math.max(0, Math.trunc(requestedDetailLimit));
   const db = getDb();
   const scannedCustomers = (db.prepare(
     `SELECT COUNT(*) AS count FROM customers WHERE enterprise_id = ? ${projectId ? "AND project_id = ?" : ""}`,
@@ -117,11 +117,11 @@ export function customerDuplicateReport(enterpriseId: string, requestedDetailLim
       sameNameCandidateGroups: name.groups,
       sameNameCandidateCustomerRecords: name.customerRecords,
     },
-    detailLimit,
+    detailLimit: detailLimit ?? "all",
     detailsTruncated: {
-      phone: phone.groups > detailLimit,
-      email: email.groups > detailLimit,
-      name: name.groups > detailLimit,
+      phone: detailLimit === undefined ? false : phone.groups > detailLimit,
+      email: detailLimit === undefined ? false : email.groups > detailLimit,
+      name: detailLimit === undefined ? false : name.groups > detailLimit,
     },
     phoneGroups: details(enterpriseId, "phone", phoneGroups, detailLimit, projectId),
     emailGroups: details(enterpriseId, "email", emailGroups, detailLimit, projectId),

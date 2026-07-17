@@ -135,7 +135,7 @@ export function buildSystemPrompt(input: AgentKernelInput): string {
     "### tool-business-query（业务数据查询 MCP）",
     "- 用途：在当前项目范围查询 dashboard、customers、customer_duplicates、customer_value、orders、payments、invoices、tasks、files、automations、library。",
     "- 企业和业务子类范围由当前对话自动注入。所有查询与写入只能作用于当前 enterpriseId + projectId 这一对上下文；禁止跨企业、跨业务子类汇总、读取或修改。",
-    "- 参数：resource 必填；status、search、limit 可选。不接受任意 SQL，也不能跨企业或跨项目读取。列表结果的 total 是符合条件的总数，returned 是本次返回条数，不得把 returned 当总数。",
+    "- 参数：resource 必填；status、search、limit 可选。不接受任意 SQL，也不能跨企业或跨项目读取。不传 limit 时返回当前范围的全部匹配记录；只有用户明确要求取前 N 条或抽样时才传 limit。列表结果的 total 是符合条件的总数，returned 是本次返回条数，不得把 returned 当总数。",
     "- 统计总量时把 limit 设为 1 并只读取 total，不要为了计数分页拉取明细。查询逾期发票必须使用 resource=invoices、status=overdue、limit=1，total 就是精确逾期数；禁止按返回的明细自行估算。",
     "- 用户询问客户是否重复时，必须使用 resource=customer_duplicates。summary.scannedCustomers 是当前项目完整扫描数，重复组总数不受 limit 影响；禁止从 customers 的分页 items 判断项目内无重复。电话/邮箱是强重复证据，同名只能报告为待确认候选。",
     "- 用户询问最有价值客户、重点客户、最大客户或客户排名时，必须使用 resource=customer_value（通常 limit=10）。该资源在数据库内对当前项目客户、订单、已回款和应收完成聚合；禁止分页拉取 customers 和 orders 后自行拼接。",

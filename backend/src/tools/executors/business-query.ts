@@ -21,9 +21,10 @@ const RESOURCES: Record<string, ResourceConfig> = {
   files: { table: "files", columns: "id,project_id,filename,mime_type,size,uploaded_by,created_at", searchColumns: ["filename", "mime_type"], orderBy: "created_at DESC" },
 };
 
-function boundedLimit(value: unknown): number {
-  const parsed = Number(value ?? 20);
-  return Number.isFinite(parsed) ? Math.max(1, Math.min(50, Math.trunc(parsed))) : 20;
+function requestedLimit(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : undefined;
 }
 
 function withParsedTags(row: unknown): unknown {
@@ -55,7 +56,7 @@ function dashboard(enterpriseId: string, projectId?: string) {
   };
 }
 
-function customerValueRanking(enterpriseId: string, limit: number, projectId?: string) {
+function customerValueRanking(enterpriseId: string, limit: number | undefined, projectId?: string) {
   const db = getDb();
   const projectClause = projectId ? "AND project_id = ?" : "";
   const scopeParams = projectId ? [enterpriseId, projectId] : [enterpriseId];
@@ -110,8 +111,8 @@ function customerValueRanking(enterpriseId: string, limit: number, projectId?: s
               order_amount DESC,
               order_count DESC,
               COALESCE(last_order_at, c.updated_at) DESC
-     LIMIT ?`,
-  ).all(...scopeParams, ...scopeParams, ...scopeParams, ...scopeParams, limit);
+     ${limit === undefined ? "" : "LIMIT ?"}`,
+  ).all(...scopeParams, ...scopeParams, ...scopeParams, ...scopeParams, ...(limit === undefined ? [] : [limit]));
   const summary = db.prepare(
     `SELECT
        (SELECT COUNT(*) FROM customers WHERE enterprise_id = ? ${projectClause}) AS scanned_customers,
@@ -146,6 +147,7 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
   const requestedProjectId = typeof input._projectId === "string" && input._projectId ? input._projectId : undefined;
   // A business subcategory must always be owned by the selected enterprise.
   const projectId = requestedProjectId ? resolveProjectId(enterpriseId, requestedProjectId) : undefined;
+  const limit = requestedLimit(input.limit);
 
   if (resource === "dashboard") {
     return JSON.stringify({ ok: true, resource, summary: dashboard(enterpriseId, projectId) });
@@ -155,12 +157,12 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
     return JSON.stringify({
       ok: true,
       resource,
-      ...customerDuplicateReport(enterpriseId, boundedLimit(input.limit), projectId),
+      ...customerDuplicateReport(enterpriseId, limit, projectId),
     });
   }
 
   if (resource === "customer_value") {
-    return JSON.stringify(customerValueRanking(enterpriseId, boundedLimit(input.limit), projectId));
+    return JSON.stringify(customerValueRanking(enterpriseId, limit, projectId));
   }
 
   if (resource === "automations") {
@@ -172,8 +174,8 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
     const rows = getDb().prepare(
       `SELECT a.id,a.name,a.trigger_type,a.trigger_desc,a.action_type,a.action_desc,a.enabled,a.run_count,a.last_run,a.last_status,a.last_error
        FROM automations a JOIN projects p ON p.id=a.project_id
-       WHERE p.enterprise_id=? ${projectClause} ORDER BY a.enabled DESC,a.name LIMIT ?`,
-    ).all(...scopeParams, boundedLimit(input.limit));
+       WHERE p.enterprise_id=? ${projectClause} ORDER BY a.enabled DESC,a.name${limit === undefined ? "" : " LIMIT ?"}`,
+    ).all(...scopeParams, ...(limit === undefined ? [] : [limit]));
     return JSON.stringify({ ok: true, resource, total, returned: rows.length, items: rows });
   }
 
@@ -182,8 +184,8 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
     const scopeParams = projectId ? [enterpriseId, projectId] : [enterpriseId];
     const total = (getDb().prepare(`SELECT COUNT(*) AS value FROM library_items WHERE enterprise_id=? ${projectClause}`).get(...scopeParams) as { value: number }).value;
     const rows = getDb().prepare(
-      `SELECT id,project_id,name,type,summary,visibility,created_at FROM library_items WHERE enterprise_id=? ${projectClause} ORDER BY created_at DESC LIMIT ?`,
-    ).all(...scopeParams, boundedLimit(input.limit));
+      `SELECT id,project_id,name,type,summary,visibility,created_at FROM library_items WHERE enterprise_id=? ${projectClause} ORDER BY created_at DESC${limit === undefined ? "" : " LIMIT ?"}`,
+    ).all(...scopeParams, ...(limit === undefined ? [] : [limit]));
     return JSON.stringify({ ok: true, resource, total, returned: rows.length, items: rows });
   }
 
@@ -209,13 +211,12 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
     where.push(`(${config.searchColumns.map((column) => `${column} LIKE ?`).join(" OR ")})`);
     for (let index = 0; index < config.searchColumns.length; index += 1) params.push(`%${search}%`);
   }
-  const limit = boundedLimit(input.limit);
   const total = (getDb().prepare(
     `SELECT COUNT(*) AS value FROM ${config.table} WHERE ${where.join(" AND ")}`,
   ).get(...params) as { value: number }).value;
   const rows = getDb().prepare(
-    `SELECT ${config.columns} FROM ${config.table} WHERE ${where.join(" AND ")} ORDER BY ${config.orderBy} LIMIT ?`,
-  ).all(...params, limit);
+    `SELECT ${config.columns} FROM ${config.table} WHERE ${where.join(" AND ")} ORDER BY ${config.orderBy}${limit === undefined ? "" : " LIMIT ?"}`,
+  ).all(...params, ...(limit === undefined ? [] : [limit]));
   const items = resource === "customers" || resource === "suppliers" ? rows.map(withParsedTags) : rows;
   const result: Record<string, unknown> = { ok: true, resource, total, returned: rows.length, items };
   if (resource === "customers") {

@@ -40,7 +40,7 @@ after(() => dbModule.closeDb());
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 17);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 18);
   assert.ok((db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).some((column) => column.name === "gender"));
   assert.ok((db.prepare("PRAGMA table_info(suppliers)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
@@ -266,6 +266,40 @@ test("business MCP queries are enterprise scoped and writes are persisted", asyn
   }));
   assert.equal(task.ok, true);
   assert.equal((db.prepare("SELECT status FROM tasks WHERE id=?").get(task.task.id) as { status: string }).status, "pending");
+});
+
+test("business MCP returns every matching record unless an explicit limit is requested", async () => {
+  const insert = db.prepare(
+    `INSERT INTO customers (id,enterprise_id,project_id,name,contact,phone,email,address,tags,status,gender,created_at,updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  );
+  const ids = Array.from({ length: 55 }, (_, index) => `cust-unbounded-${index}`);
+  const now = new Date().toISOString();
+  try {
+    for (const [index, id] of ids.entries()) {
+      insert.run(id, "ent-qihang", "proj-qihang-growth", `全量查询验收 ${index}`, "", `139900${String(index).padStart(5, "0")}`, "", "", "[]", "lead", "unknown", now, now);
+    }
+    const all = JSON.parse(await businessQueryExecute({
+      _enterpriseId: "ent-qihang",
+      _projectId: "proj-qihang-growth",
+      resource: "customers",
+      search: "全量查询验收",
+    }));
+    assert.equal(all.total, 55);
+    assert.equal(all.returned, 55);
+
+    const sample = JSON.parse(await businessQueryExecute({
+      _enterpriseId: "ent-qihang",
+      _projectId: "proj-qihang-growth",
+      resource: "customers",
+      search: "全量查询验收",
+      limit: 3,
+    }));
+    assert.equal(sample.total, 55);
+    assert.equal(sample.returned, 3);
+  } finally {
+    db.prepare(`DELETE FROM customers WHERE id IN (${ids.map(() => "?").join(",")})`).run(...ids);
+  }
 });
 
 test("business data and Agent tools are isolated by project", async () => {
