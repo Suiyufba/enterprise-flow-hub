@@ -11,6 +11,9 @@ import { SearchInput } from "../components/SearchInput";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
+import { TableRowActions } from "../components/TableRowActions";
+import { FormDialog } from "../components/FormDialog";
+import { TagInput, TagList } from "../components/TagInput";
 import type { Supplier, PaginatedList } from "shared";
 
 export default function SuppliersPage() {
@@ -25,6 +28,9 @@ export default function SuppliersPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", contact: "", phone: "", email: "", address: "", tags: [] as string[] });
+  const [editSaving, setEditSaving] = useState(false);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -45,11 +51,36 @@ export default function SuppliersPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  function startEdit(supplier: Supplier) {
+    setEditingSupplier(supplier);
+    setEditForm({ name: supplier.name, contact: supplier.contact, phone: supplier.phone, email: supplier.email, address: supplier.address, tags: supplier.tags });
+  }
+
+  async function saveSupplier() {
+    if (!editingSupplier || !editForm.name.trim()) return;
+    setEditSaving(true);
+    try {
+      await fetchJson(`/suppliers/${editingSupplier.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: editForm.name.trim(), contact: editForm.contact.trim(), phone: editForm.phone.trim(),
+          email: editForm.email.trim(), address: editForm.address.trim(), tags: editForm.tags,
+        }),
+        adminUserId: user?.id,
+      });
+      setEditingSupplier(null);
+      showToast("供应商信息已更新", "success");
+      await load();
+    } catch { showToast("供应商信息保存失败", "error"); }
+    finally { setEditSaving(false); }
+  }
+
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   async function createSupplier() {
@@ -65,10 +96,11 @@ export default function SuppliersPage() {
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
           address: address.trim() || undefined,
+          tags,
         }),
         adminUserId: user?.id,
       });
-      setName(""); setContact(""); setPhone(""); setEmail(""); setAddress("");
+      setName(""); setContact(""); setPhone(""); setEmail(""); setAddress(""); setTags([]);
       setShowForm(false);
       showToast("供应商已添加", "success");
       await load();
@@ -89,7 +121,13 @@ export default function SuppliersPage() {
     },
     { key: "contact", label: "联系人" },
     { key: "phone", label: "电话" },
-    { key: "email", label: "邮箱" },
+    { key: "tags", label: "标签", render: (s: Supplier) => <TagList tags={s.tags.slice(0, 3)} emptyText="-" /> },
+    {
+      key: "actions",
+      label: "操作",
+      width: "150px",
+      render: (s: Supplier) => <TableRowActions viewHref={`/suppliers/${s.id}`} onEdit={() => startEdit(s)} />,
+    },
   ];
 
   return (
@@ -118,6 +156,8 @@ export default function SuppliersPage() {
               <input id="new-supplier-email" className="page-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="邮箱" />
               <label htmlFor="new-supplier-address">地址</label>
               <input id="new-supplier-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
+              <label>自定义标签</label>
+              <TagInput tags={tags} onChange={setTags} />
               <button className="page-primary-button" onClick={createSupplier} disabled={saving || !name.trim()} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>
@@ -126,7 +166,7 @@ export default function SuppliersPage() {
         )}
 
         <div style={{ marginBottom: "14px" }}>
-          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索供应商..." />
+          <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索名称、联系人、电话或标签..." />
         </div>
         {error ? (
           <ErrorState message={error} onRetry={load} />
@@ -144,6 +184,20 @@ export default function SuppliersPage() {
             emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建供应商</button>}
           />
         )}
+        <FormDialog open={Boolean(editingSupplier)} title={`编辑供应商${editingSupplier ? `：${editingSupplier.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.name.trim()} onSubmit={saveSupplier} onCancel={() => setEditingSupplier(null)}>
+          <label className="form-label" htmlFor="edit-supplier-name">供应商名称 *</label>
+          <input id="edit-supplier-name" className="page-input" autoFocus value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-supplier-contact">联系人</label>
+          <input id="edit-supplier-contact" className="page-input" value={editForm.contact} onChange={(event) => setEditForm((current) => ({ ...current, contact: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-supplier-phone">电话</label>
+          <input id="edit-supplier-phone" className="page-input" value={editForm.phone} onChange={(event) => setEditForm((current) => ({ ...current, phone: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-supplier-email">邮箱</label>
+          <input id="edit-supplier-email" className="page-input" type="email" value={editForm.email} onChange={(event) => setEditForm((current) => ({ ...current, email: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-supplier-address">地址</label>
+          <input id="edit-supplier-address" className="page-input" value={editForm.address} onChange={(event) => setEditForm((current) => ({ ...current, address: event.target.value }))} />
+          <label className="form-label">自定义标签</label>
+          <TagInput tags={editForm.tags} onChange={(tags) => setEditForm((current) => ({ ...current, tags }))} />
+        </FormDialog>
       </div>
     </div>
   );

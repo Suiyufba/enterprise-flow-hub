@@ -83,8 +83,16 @@ export const CreatePaymentRequestSchema = z.preprocess(normalizeNullableOrderId,
   method: z.enum(["cash","bank_transfer","alipay","wechat","credit_card","other"]).optional(),
 }));
 
+export const UpdatePaymentRequestSchema = z.object({
+  orderId: z.string().nullable().optional(),
+  amount: z.number().positive().optional(),
+  method: z.enum(["cash","bank_transfer","alipay","wechat","credit_card","other"]).optional(),
+  status: z.enum(["pending","completed","failed","refunded"]).optional(),
+});
+
 export type Payment = z.infer<typeof PaymentSchema>;
 export type CreatePaymentRequest = z.infer<typeof CreatePaymentRequestSchema>;
+export type UpdatePaymentRequest = z.infer<typeof UpdatePaymentRequestSchema>;
 
 // ---- Invoice ----
 export const InvoiceSchema = z.object({
@@ -131,5 +139,29 @@ export const CreateInvoiceRequestSchema = z.object({
   issuer: z.string().optional(),
 });
 
+export const UpdateInvoiceRequestSchema = CreateInvoiceRequestSchema
+  .omit({ enterpriseId: true })
+  .partial()
+  .extend({
+    orderId: z.string().nullable().optional(),
+    customerId: z.string().nullable().optional(),
+    dueDate: z.string().nullable().optional(),
+    invoiceNumber: z.string().nullable().optional(),
+    invoiceCode: z.string().nullable().optional(),
+    invoiceType: z.enum(["vat_special","vat_normal","electronic"]).nullable().optional(),
+    taxRate: z.number().nullable().optional(),
+    taxAmount: z.number().nullable().optional(),
+    totalAmount: z.number().nullable().optional(),
+    buyerName: z.string().nullable().optional(),
+    buyerTaxId: z.string().nullable().optional(),
+    sellerName: z.string().nullable().optional(),
+    sellerTaxId: z.string().nullable().optional(),
+    remark: z.string().nullable().optional(),
+    issuer: z.string().nullable().optional(),
+    issuedAt: z.string().nullable().optional(),
+    status: z.enum(["draft","issued","paid","overdue","cancelled"]).optional(),
+  });
+
 export type Invoice = z.infer<typeof InvoiceSchema>;
 export type CreateInvoiceRequest = z.infer<typeof CreateInvoiceRequestSchema>;
+export type UpdateInvoiceRequest = z.infer<typeof UpdateInvoiceRequestSchema>;

@@ -7,6 +7,7 @@ import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import type { Customer } from "shared";
+import { TagInput } from "../../components/TagInput";
 
 export default function NewCustomerPage() {
   const router = useRouter();
@@ -19,6 +20,8 @@ export default function NewCustomerPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [gender, setGender] = useState<Customer["gender"]>("unknown");
+  const [tags, setTags] = useState<string[]>([]);
   const [status, setStatus] = useState<Customer["status"]>("active");
   const [saving, setSaving] = useState(false);
 
@@ -36,6 +39,8 @@ export default function NewCustomerPage() {
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
           address: address.trim() || undefined,
+          gender,
+          tags,
           status,
         }),
         adminUserId: user?.id,
@@ -73,6 +78,14 @@ export default function NewCustomerPage() {
 
           <label className="form-label" htmlFor="new-customer-address">地址</label>
           <input id="new-customer-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
+
+          <label className="form-label" htmlFor="new-customer-gender">性别</label>
+          <select id="new-customer-gender" className="page-input" value={gender} onChange={(e) => setGender(e.target.value as Customer["gender"])}>
+            <option value="unknown">未设置</option><option value="male">男</option><option value="female">女</option><option value="other">其他</option>
+          </select>
+
+          <label className="form-label">自定义标签</label>
+          <TagInput tags={tags} onChange={setTags} />
 
           <label className="form-label" htmlFor="new-customer-status">状态</label>
           <select id="new-customer-status" className="page-input" value={status} onChange={(e) => setStatus(e.target.value as Customer["status"])}>

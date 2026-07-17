@@ -5,6 +5,7 @@ import { listCustomersByNormalizedPhone, listDuplicatePhoneGroups } from "../cus
 const INVOICE_STATUSES = new Set(["draft", "issued", "paid", "overdue", "cancelled"]);
 const ORDER_STATUSES = new Set(["draft", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"]);
 const CUSTOMER_STATUSES = new Set(["active", "inactive", "lead", "lost"]);
+const CUSTOMER_GENDERS = new Set(["unknown", "male", "female", "other"]);
 const TASK_PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
 
 function text(input: Record<string, unknown>, key: string): string {
@@ -77,17 +78,21 @@ export async function businessActionExecute(input: Record<string, unknown>): Pro
     if (!name) throw new Error("创建客户需要 name");
     const status = text(input, "status") || "lead";
     if (!CUSTOMER_STATUSES.has(status)) throw new Error("客户状态无效");
+    const gender = text(input, "gender") || "unknown";
+    if (!CUSTOMER_GENDERS.has(gender)) throw new Error("客户性别无效");
     const id = `cust-${randomUUID()}`;
     const now = new Date().toISOString();
-    const tags = Array.isArray(input.tags) ? input.tags.filter((tag): tag is string => typeof tag === "string").slice(0, 20) : [];
+    const tags = Array.isArray(input.tags)
+      ? [...new Set(input.tags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean))].slice(0, 20)
+      : [];
     getDb().prepare(
-      `INSERT INTO customers (id,enterprise_id,name,contact,phone,email,address,tags,status,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO customers (id,enterprise_id,name,contact,phone,email,address,gender,tags,status,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     ).run(
       id, enterpriseId, name, text(input, "contact"), text(input, "phone"), text(input, "email"),
-      text(input, "address"), JSON.stringify(tags), status, now, now,
+      text(input, "address"), gender, JSON.stringify(tags), status, now, now,
     );
-    return JSON.stringify({ ok: true, operation, customer: { id, name, status } });
+    return JSON.stringify({ ok: true, operation, customer: { id, name, gender, tags, status } });
   }
 
   if (operation === "update_invoice_status") {

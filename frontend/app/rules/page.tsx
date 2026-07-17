@@ -9,6 +9,7 @@ import { PageHeader } from "../components/PageHeader";
 import { DataTable } from "../components/DataTable";
 import { StatusBadge } from "../components/StatusBadge";
 import { AppIcon } from "../components/AppIcon";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type RuleRow = {
   id: string;
@@ -17,6 +18,7 @@ type RuleRow = {
   objectType: string;
   triggerEvent: string;
   actionType: string;
+  actionConfig: Record<string, unknown>;
   enabled: boolean;
 };
 
@@ -81,6 +83,9 @@ export default function RulesPage() {
   const [data, setData] = useState<RuleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingRule, setEditingRule] = useState<RuleRow | null>(null);
+  const [ruleToDelete, setRuleToDelete] = useState<RuleRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -94,14 +99,22 @@ export default function RulesPage() {
   useEffect(() => { load(); }, [load]);
 
   async function toggleRule(id: string) {
-    await fetchJson(`/rules/${id}/toggle`, { method: "PATCH", adminUserId: user?.id });
-    await load();
+    try {
+      await fetchJson(`/rules/${id}/toggle`, { method: "PATCH", adminUserId: user?.id });
+      await load();
+    } catch { showToast("规则状态更新失败", "error"); }
   }
 
-  async function deleteRule(id: string) {
-    await fetchJson(`/rules/${id}`, { method: "DELETE", adminUserId: user?.id });
-    showToast("已删除", "success");
-    await load();
+  async function deleteRule() {
+    if (!ruleToDelete) return;
+    setDeleting(true);
+    try {
+      await fetchJson(`/rules/${ruleToDelete.id}`, { method: "DELETE", adminUserId: user?.id });
+      showToast("规则已删除", "success");
+      setRuleToDelete(null);
+      await load();
+    } catch { showToast("规则删除失败", "error"); }
+    finally { setDeleting(false); }
   }
 
   const [name, setName] = useState("");
@@ -118,8 +131,29 @@ export default function RulesPage() {
     workspace.projects.some((project) => project.id === automation.projectId && project.enterpriseId === enterpriseId),
   );
 
-  async function createRule() {
+  function resetForm() {
+    setName(""); setDescription(""); setObjectType("customer"); setTriggerEvent("create");
+    setActionType("notify"); setActionConfig(""); setEditingRule(null);
+  }
+
+  function startEdit(rule: RuleRow) {
+    setEditingRule(rule);
+    setName(rule.name);
+    setDescription(rule.description ?? "");
+    setObjectType(rule.objectType);
+    setTriggerEvent(rule.triggerEvent);
+    setActionType(rule.actionType);
+    const configValue = rule.actionType === "notify" ? rule.actionConfig.message
+      : rule.actionType === "create_task" ? rule.actionConfig.title
+        : rule.actionType === "set_field" ? rule.actionConfig.value
+          : rule.actionConfig.automationId;
+    setActionConfig(typeof configValue === "string" ? configValue : "");
+    setShowForm(true);
+  }
+
+  async function saveRule() {
     if (!name.trim() || !enterpriseId) return;
+    const wasEditing = Boolean(editingRule);
     setSaving(true);
     try {
       if (actionType === "notify" && configuredNotificationPlugins.length === 0) {
@@ -133,10 +167,10 @@ export default function RulesPage() {
           : actionType === "set_field"
             ? { table: tableByObject[objectType], field: "status", value: actionConfig.trim() }
             : { automationId: actionConfig.trim() };
-      await fetchJson("/rules", {
-        method: "POST",
+      await fetchJson(editingRule ? `/rules/${editingRule.id}` : "/rules", {
+        method: editingRule ? "PATCH" : "POST",
         body: JSON.stringify({
-          enterpriseId,
+          ...(editingRule ? {} : { enterpriseId }),
           name: name.trim(),
           description: description.trim() || undefined,
           objectType,
@@ -146,11 +180,11 @@ export default function RulesPage() {
         }),
         adminUserId: user?.id,
       });
-      setName(""); setDescription(""); setActionConfig("");
+      resetForm();
       setShowForm(false);
-      showToast("规则已创建", "success");
+      showToast(wasEditing ? "规则已更新" : "规则已创建", "success");
       await load();
-    } catch { showToast("创建失败", "error"); }
+    } catch { showToast(wasEditing ? "规则保存失败" : "规则创建失败", "error"); }
     finally { setSaving(false); }
   }
 
@@ -168,18 +202,21 @@ export default function RulesPage() {
       key: "actions",
       label: "操作",
       render: (r: RuleRow) => (
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div className="table-actions">
+          <button className="table-action-button" onClick={() => startEdit(r)} type="button"><AppIcon name="edit" /> 编辑</button>
           <button
             onClick={() => toggleRule(r.id)}
-            style={{ border: "0", borderRadius: "4px", padding: "3px 8px", fontSize: "11px", cursor: "pointer", background: "var(--c-2a2a2a)", color: "var(--c-d4d4d4)" }}
+            className="table-action-button"
+            type="button"
           >
             {r.enabled ? "禁用" : "启用"}
           </button>
           <button
-            onClick={() => deleteRule(r.id)}
-            style={{ border: "0", borderRadius: "4px", padding: "3px 8px", fontSize: "11px", cursor: "pointer", background: "rgba(255,59,48,0.1)", color: "var(--c-ff3b30)" }}
+            onClick={() => setRuleToDelete(r)}
+            className="table-action-button danger"
+            type="button"
           >
-            删除
+            <AppIcon name="trash" /> 删除
           </button>
         </div>
       ),
@@ -193,7 +230,7 @@ export default function RulesPage() {
           title="规则引擎"
           description="管理自动化业务规则，当条件满足时触发动作"
           actions={
-            <button className="page-primary-button" onClick={() => setShowForm(!showForm)} type="button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)" }}>
+            <button className="page-primary-button" onClick={() => { resetForm(); setShowForm(!showForm); }} type="button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)" }}>
               {showForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 新建规则</>}
             </button>
           }
@@ -202,6 +239,7 @@ export default function RulesPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
+              <strong>{editingRule ? "编辑规则" : "新建规则"}</strong>
               <input className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="规则名称 *" />
               <input className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="规则说明（可选）" />
 
@@ -258,8 +296,8 @@ export default function RulesPage() {
                 <p className="wf-config-warning">通知规则需要先在插件页绑定并启用飞书或企业微信群机器人。</p>
               )}
 
-              <button className="page-primary-button" onClick={createRule} disabled={saving || !name.trim() || (["trigger_automation", "set_field"].includes(actionType) && !actionConfig)} type="button">
-                {saving ? "创建中..." : "确认创建"}
+              <button className="page-primary-button" onClick={saveRule} disabled={saving || !name.trim() || (["trigger_automation", "set_field"].includes(actionType) && !actionConfig)} type="button">
+                {saving ? "保存中..." : editingRule ? "保存修改" : "确认创建"}
               </button>
             </div>
           </div>
@@ -272,8 +310,9 @@ export default function RulesPage() {
           loading={loading}
           emptyTitle="暂无规则"
           emptyDesc="规则适合处理确定性的业务约束；复杂跨步骤流程建议放到「自动化」里。"
-          emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建规则</button>}
+          emptyAction={<button className="page-primary-button" onClick={() => { resetForm(); setShowForm(true); }} type="button">新建规则</button>}
         />
+        <ConfirmDialog open={Boolean(ruleToDelete)} title="删除规则" message={`确定删除规则「${ruleToDelete?.name ?? ""}」吗？删除后将不再触发。`} loading={deleting} onConfirm={deleteRule} onCancel={() => setRuleToDelete(null)} />
       </div>
     </div>
   );

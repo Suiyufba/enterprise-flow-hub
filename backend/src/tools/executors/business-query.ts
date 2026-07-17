@@ -10,8 +10,8 @@ type ResourceConfig = {
 };
 
 const RESOURCES: Record<string, ResourceConfig> = {
-  customers: { table: "customers", columns: "id,name,contact,phone,email,status,created_at,updated_at", statusColumn: "status", searchColumns: ["name", "contact", "phone", "email"], orderBy: "updated_at DESC" },
-  suppliers: { table: "suppliers", columns: "id,name,contact,phone,email,created_at,updated_at", searchColumns: ["name", "contact", "phone", "email"], orderBy: "updated_at DESC" },
+  customers: { table: "customers", columns: "id,name,contact,phone,email,gender,tags,status,created_at,updated_at", statusColumn: "status", searchColumns: ["name", "contact", "phone", "email", "tags"], orderBy: "updated_at DESC" },
+  suppliers: { table: "suppliers", columns: "id,name,contact,phone,email,tags,created_at,updated_at", searchColumns: ["name", "contact", "phone", "email", "tags"], orderBy: "updated_at DESC" },
   products: { table: "products", columns: "id,name,sku,category,unit_price,unit,updated_at", searchColumns: ["name", "sku", "category"], orderBy: "updated_at DESC" },
   orders: { table: "orders", columns: "id,customer_id,status,total_amount,notes,created_at,updated_at", statusColumn: "status", searchColumns: ["id", "notes"], orderBy: "updated_at DESC" },
   payments: { table: "payments", columns: "id,order_id,amount,method,status,received_at,created_at", statusColumn: "status", searchColumns: ["id", "order_id"], orderBy: "created_at DESC" },
@@ -22,6 +22,17 @@ const RESOURCES: Record<string, ResourceConfig> = {
 function boundedLimit(value: unknown): number {
   const parsed = Number(value ?? 20);
   return Number.isFinite(parsed) ? Math.max(1, Math.min(50, Math.trunc(parsed))) : 20;
+}
+
+function withParsedTags(row: unknown): unknown {
+  if (!row || typeof row !== "object" || !("tags" in row)) return row;
+  const record = row as Record<string, unknown>;
+  if (typeof record.tags !== "string") return row;
+  try {
+    return { ...record, tags: JSON.parse(record.tags) as unknown };
+  } catch {
+    return { ...record, tags: [] };
+  }
 }
 
 function dashboard(enterpriseId: string) {
@@ -40,6 +51,87 @@ function dashboard(enterpriseId: string) {
   };
 }
 
+function customerValueRanking(enterpriseId: string, limit: number) {
+  const db = getDb();
+  const rows = db.prepare(
+    `WITH order_metrics AS (
+       SELECT customer_id,
+              COUNT(*) AS order_count,
+              COALESCE(SUM(CASE WHEN status NOT IN ('cancelled','refunded') THEN total_amount ELSE 0 END), 0) AS order_amount,
+              MAX(created_at) AS last_order_at
+       FROM orders
+       WHERE enterprise_id = ? AND customer_id IS NOT NULL
+       GROUP BY customer_id
+     ),
+     payment_metrics AS (
+       SELECT o.customer_id,
+              COUNT(p.id) AS completed_payment_count,
+              COALESCE(SUM(p.amount), 0) AS completed_payment_amount
+       FROM payments p
+       JOIN orders o ON o.id = p.order_id
+       WHERE p.enterprise_id = ? AND p.status = 'completed' AND o.customer_id IS NOT NULL
+       GROUP BY o.customer_id
+     ),
+     invoice_metrics AS (
+       SELECT customer_id,
+              COUNT(*) AS invoice_count,
+              COALESCE(SUM(CASE WHEN status IN ('issued','overdue') THEN COALESCE(total_amount, amount) ELSE 0 END), 0) AS outstanding_invoice_amount
+       FROM invoices
+       WHERE enterprise_id = ? AND customer_id IS NOT NULL
+       GROUP BY customer_id
+     )
+     SELECT c.id,
+            c.name,
+            c.contact,
+            c.phone,
+            c.email,
+            c.gender,
+            c.tags,
+            c.status,
+            COALESCE(om.order_count, 0) AS order_count,
+            COALESCE(om.order_amount, 0) AS order_amount,
+            COALESCE(pm.completed_payment_count, 0) AS completed_payment_count,
+            COALESCE(pm.completed_payment_amount, 0) AS completed_payment_amount,
+            COALESCE(im.invoice_count, 0) AS invoice_count,
+            COALESCE(im.outstanding_invoice_amount, 0) AS outstanding_invoice_amount,
+            om.last_order_at
+     FROM customers c
+     LEFT JOIN order_metrics om ON om.customer_id = c.id
+     LEFT JOIN payment_metrics pm ON pm.customer_id = c.id
+     LEFT JOIN invoice_metrics im ON im.customer_id = c.id
+     WHERE c.enterprise_id = ?
+     ORDER BY completed_payment_amount DESC,
+              order_amount DESC,
+              order_count DESC,
+              COALESCE(last_order_at, c.updated_at) DESC
+     LIMIT ?`,
+  ).all(enterpriseId, enterpriseId, enterpriseId, enterpriseId, limit);
+  const summary = db.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM customers WHERE enterprise_id = ?) AS scanned_customers,
+       (SELECT COUNT(DISTINCT customer_id) FROM orders WHERE enterprise_id = ? AND customer_id IS NOT NULL) AS customers_with_orders,
+       (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE enterprise_id = ? AND status NOT IN ('cancelled','refunded')) AS order_amount,
+       (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE enterprise_id = ? AND status = 'completed') AS completed_payment_amount,
+       (SELECT COALESCE(SUM(COALESCE(total_amount, amount)), 0) FROM invoices WHERE enterprise_id = ? AND status IN ('issued','overdue')) AS outstanding_invoice_amount`,
+  ).get(enterpriseId, enterpriseId, enterpriseId, enterpriseId, enterpriseId) as Record<string, number>;
+
+  return {
+    ok: true,
+    resource: "customer_value",
+    summary: {
+      scannedCustomers: summary.scanned_customers,
+      customersWithOrders: summary.customers_with_orders,
+      orderAmount: summary.order_amount,
+      completedPaymentAmount: summary.completed_payment_amount,
+      outstandingInvoiceAmount: summary.outstanding_invoice_amount,
+      completeScan: true,
+    },
+    rankingBasis: ["completed_payment_amount", "order_amount", "order_count", "last_order_at"],
+    returned: rows.length,
+    items: rows.map(withParsedTags),
+  };
+}
+
 export async function businessQueryExecute(input: Record<string, unknown>): Promise<string> {
   const enterpriseId = typeof input._enterpriseId === "string" ? input._enterpriseId : "";
   const resource = typeof input.resource === "string" ? input.resource.trim().toLowerCase() : "dashboard";
@@ -55,6 +147,10 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
       resource,
       ...customerDuplicateReport(enterpriseId, boundedLimit(input.limit)),
     });
+  }
+
+  if (resource === "customer_value") {
+    return JSON.stringify(customerValueRanking(enterpriseId, boundedLimit(input.limit)));
   }
 
   if (resource === "automations") {
@@ -102,7 +198,8 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
   const rows = getDb().prepare(
     `SELECT ${config.columns} FROM ${config.table} WHERE ${where.join(" AND ")} ORDER BY ${config.orderBy} LIMIT ?`,
   ).all(...params, limit);
-  const result: Record<string, unknown> = { ok: true, resource, total, returned: rows.length, items: rows };
+  const items = resource === "customers" || resource === "suppliers" ? rows.map(withParsedTags) : rows;
+  const result: Record<string, unknown> = { ok: true, resource, total, returned: rows.length, items };
   if (resource === "customers") {
     result.duplicateAnalysis = customerDuplicateReport(enterpriseId, 0).summary;
   }

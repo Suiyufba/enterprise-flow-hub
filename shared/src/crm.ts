@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const EntityTagsSchema = z.array(z.string().trim().min(1).max(30)).max(20);
+export const CustomerGenderSchema = z.enum(["unknown", "male", "female", "other"]);
+
 function withUnitPriceAlias(raw: unknown): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const input = raw as Record<string, unknown>;
@@ -18,7 +21,8 @@ export const CustomerSchema = z.object({
   phone: z.string(),
   email: z.string(),
   address: z.string(),
-  tags: z.array(z.string()),
+  gender: CustomerGenderSchema,
+  tags: EntityTagsSchema,
   status: z.enum(["active", "inactive", "lead", "lost"]),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -31,7 +35,8 @@ export const CreateCustomerRequestSchema = z.object({
   phone: z.string().max(30).optional(),
   email: z.string().max(120).optional(),
   address: z.string().max(300).optional(),
-  tags: z.array(z.string()).optional(),
+  gender: CustomerGenderSchema.optional(),
+  tags: EntityTagsSchema.optional(),
   status: z.enum(["active", "inactive", "lead", "lost"]).optional(),
 });
 
@@ -41,7 +46,8 @@ export const UpdateCustomerRequestSchema = z.object({
   phone: z.string().max(30).optional(),
   email: z.string().max(120).optional(),
   address: z.string().max(300).optional(),
-  tags: z.array(z.string()).optional(),
+  gender: CustomerGenderSchema.optional(),
+  tags: EntityTagsSchema.optional(),
   status: z.enum(["active", "inactive", "lead", "lost"]).optional(),
 });
 
@@ -58,6 +64,7 @@ export const SupplierSchema = z.object({
   phone: z.string(),
   email: z.string(),
   address: z.string(),
+  tags: EntityTagsSchema,
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -69,6 +76,7 @@ export const CreateSupplierRequestSchema = z.object({
   phone: z.string().max(30).optional(),
   email: z.string().max(120).optional(),
   address: z.string().max(300).optional(),
+  tags: EntityTagsSchema.optional(),
 });
 
 export const UpdateSupplierRequestSchema = z.object({
@@ -77,6 +85,7 @@ export const UpdateSupplierRequestSchema = z.object({
   phone: z.string().max(30).optional(),
   email: z.string().max(120).optional(),
   address: z.string().max(300).optional(),
+  tags: EntityTagsSchema.optional(),
 });
 
 export type Supplier = z.infer<typeof SupplierSchema>;

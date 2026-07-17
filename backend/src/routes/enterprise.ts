@@ -3,6 +3,7 @@ import {
   CreateDepartmentRequestSchema,
   CreateUserRequestSchema,
   UpdateDepartmentRequestSchema,
+  UpdateEnterpriseRequestSchema,
   UpdateUserRequestSchema,
 } from "shared";
 import {
@@ -11,9 +12,11 @@ import {
   deleteDepartment,
   deleteUser,
   getDepartment,
+  getEnterprise,
   getUser,
   listDepartments,
   updateDepartment,
+  updateEnterprise,
   updateUser,
 } from "../store.js";
 import { canAccessEnterprise, getRequestActor, requireAdminActor } from "./auth-context.js";
@@ -31,6 +34,16 @@ function ensureEnterpriseScope(request: FastifyRequest, targetEnterpriseId: stri
 }
 
 export function enterpriseRoutes(app: FastifyInstance): void {
+  app.patch("/enterprises/:id", { preHandler: [requireAdmin] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const existing = getEnterprise(id);
+    if (!existing) return reply.status(404).send({ error: "企业不存在" });
+    if (!ensureEnterpriseScope(request, existing.id, reply)) return;
+    const parsed = UpdateEnterpriseRequestSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    return reply.send(updateEnterprise(id, parsed.data));
+  });
+
   // ---- Departments (read: anyone, write: admin) ----
 
   app.get("/departments", async (request, reply) => {

@@ -52,6 +52,10 @@ import { emitEvent } from "../events/emitter.js";
 import { canAccessEnterprise, getRequestActor, requireAdminActor } from "./auth-context.js";
 
 const activeRuns = new Map<string, { abort: () => void }>();
+const configuredAgentTimeoutMs = Number(process.env.AGENT_RUN_TIMEOUT_MS ?? 180_000);
+const agentRunTimeoutMs = Number.isFinite(configuredAgentTimeoutMs)
+  ? Math.max(30_000, configuredAgentTimeoutMs)
+  : 180_000;
 const allowedCorsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3001")
   .split(",")
   .map((origin) => origin.trim())
@@ -63,6 +67,13 @@ function sseCorsHeaders(origin: string | undefined): Record<string, string> {
     "Access-Control-Allow-Origin": allowedCorsOrigins.includes("*") ? "*" : origin,
     Vary: "Origin",
   };
+}
+
+function agentFailureMessage(message: string): string {
+  if (/401|403|auth|api key/i.test(message)) return "模型账号认证失败，请到设置中检查 API Key。";
+  if (/timeout|timed out|ETIMEDOUT/i.test(message)) return "模型服务响应超时，请稍后重试。";
+  if (/max.turn|回合上限/i.test(message)) return "本轮工具调用达到安全上限，系统已停止继续查询。";
+  return "Agent 执行遇到异常，系统已安全停止本轮任务，请重新发送后再试。";
 }
 
 async function requireAdmin(request: Parameters<typeof requireAdminActor>[0], reply: Parameters<typeof requireAdminActor>[1]) {
@@ -572,7 +583,14 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
     // Register this SSE session so the stop endpoint can abort it
     const abortController = new AbortController();
+    let stoppedByUser = false;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      abortController.abort();
+    }, agentRunTimeoutMs);
     const abortRun = () => {
+      stoppedByUser = true;
       abortController.abort();
       try { reply.raw.destroy(); } catch { /* already closed */ }
     };
@@ -580,6 +598,24 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
     let aiContent = "";
     let aiMsgId = "";
+    const finishRun = (
+      content: string,
+      options: { planSteps?: unknown[]; toolRuns?: unknown[]; interrupted?: boolean } = {},
+    ) => {
+      aiContent = content;
+      if (!aiMsgId) {
+        aiMsgId = `msg-${randomUUID()}`;
+        db().prepare(
+          "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+        ).run(aiMsgId, id, "assistant", aiContent, new Date().toISOString());
+      }
+      sendSSE("done", {
+        message: { id: aiMsgId, role: "assistant", content: aiContent, createdAt: new Date().toISOString() },
+        planSteps: options.planSteps,
+        toolRuns: options.toolRuns,
+        interrupted: options.interrupted ?? false,
+      });
+    };
 
     try {
       const runtime = await getRuntime(actor?.id);
@@ -620,34 +656,39 @@ export async function workspaceRoutes(app: FastifyInstance) {
             sendSSE("plan_update", { planSteps: event.planSteps });
             break;
           case "done": {
-            aiContent = event.content || aiContent;
-            aiMsgId = `msg-${randomUUID()}`;
-            db().prepare(
-              "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-            ).run(aiMsgId, id, "assistant", aiContent, new Date().toISOString());
-            sendSSE("done", {
-              message: { id: aiMsgId, role: "assistant", content: aiContent, createdAt: new Date().toISOString() },
+            finishRun(event.content || aiContent || "任务已完成。", {
               planSteps: event.planSteps,
               toolRuns: event.toolRuns,
             });
             break;
           }
-          case "error":
-            // Store partial reply if we have content
-            if (aiContent && !aiMsgId) {
-              aiMsgId = `msg-${randomUUID()}`;
-              db().prepare(
-                "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-              ).run(aiMsgId, id, "assistant", aiContent, new Date().toISOString());
-            }
-            sendSSE("error", { message: event.message });
+          case "error": {
+            if (stoppedByUser) break;
+            const failure = timedOut
+              ? `Agent 在 ${Math.round(agentRunTimeoutMs / 1000)} 秒内未完成，系统已停止本轮任务。`
+              : agentFailureMessage(event.message);
+            const finalContent = aiContent.trim()
+              ? `${aiContent.trim()}\n\n> ${failure} 上面的内容是未完成的过程记录，不应视为最终结论。`
+              : `## 本轮执行未完成\n\n${failure}`;
+            finishRun(finalContent, { interrupted: true });
             break;
+          }
         }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      sendSSE("error", { message: msg });
+      app.log.error({ err, conversationId: id }, "Agent streaming run failed");
+      if (!stoppedByUser && !aiMsgId) {
+        const failure = timedOut
+          ? `Agent 在 ${Math.round(agentRunTimeoutMs / 1000)} 秒内未完成，系统已停止本轮任务。`
+          : agentFailureMessage(msg);
+        const finalContent = aiContent.trim()
+          ? `${aiContent.trim()}\n\n> ${failure} 上面的内容是未完成的过程记录，不应视为最终结论。`
+          : `## 本轮执行未完成\n\n${failure}`;
+        finishRun(finalContent, { interrupted: true });
+      }
     } finally {
+      clearTimeout(timeout);
       activeRuns.delete(id);
       reply.raw.end();
     }

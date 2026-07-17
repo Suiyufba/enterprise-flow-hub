@@ -10,11 +10,8 @@ import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ErrorState } from "../../components/ErrorState";
 import { AppIcon } from "../../components/AppIcon";
-import type { Invoice, PaginatedList } from "shared";
-
-const statusLabels: Record<string, string> = {
-  draft: "草稿", issued: "已开具", paid: "已付款", overdue: "已逾期", cancelled: "已取消",
-};
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import type { Invoice } from "shared";
 
 const invoiceTypeLabels: Record<string, string> = {
   vat_special: "增值税专用发票",
@@ -30,6 +27,26 @@ const taxRateOptions = [
   { value: 0.09, label: "9%" },
   { value: 0.13, label: "13%" },
 ];
+
+function editFormForInvoice(target: Invoice) {
+  return {
+    invoiceNumber: target.invoiceNumber ?? "",
+    invoiceCode: target.invoiceCode ?? "",
+    invoiceType: target.invoiceType ?? "",
+    amount: target.amount,
+    taxRate: target.taxRate,
+    taxAmount: target.taxAmount,
+    totalAmount: target.totalAmount,
+    buyerName: target.buyerName ?? "",
+    buyerTaxId: target.buyerTaxId ?? "",
+    sellerName: target.sellerName ?? "",
+    sellerTaxId: target.sellerTaxId ?? "",
+    remark: target.remark ?? "",
+    issuer: target.issuer ?? "",
+    dueDate: target.dueDate?.slice(0, 10) ?? "",
+    issuedAt: target.issuedAt?.slice(0, 10) ?? "",
+  };
+}
 
 const DIGITS = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
 const UNITS = ["", "拾", "佰", "仟"];
@@ -114,6 +131,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [statusConfirm, setStatusConfirm] = useState<Invoice["status"] | null>(null);
 
   // Form fields that track edits
   const [editForm, setEditForm] = useState({
@@ -124,7 +143,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     taxRate: null as number | null,
     taxAmount: null as number | null,
     totalAmount: null as number | null,
-    status: "" as string,
     buyerName: "",
     buyerTaxId: "",
     sellerName: "",
@@ -139,11 +157,13 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     if (!enterpriseId) { setError("未选择企业"); setLoading(false); return; }
     setError(null);
     setLoading(true);
-    fetchJson<PaginatedList<Invoice>>(`/invoices?enterpriseId=${enterpriseId}&limit=1000`, { adminUserId: user?.id })
-      .then((res) => {
-        const found = res.items.find((i) => i.id === id);
-        if (!found) { setInvoice(null); return; }
+    fetchJson<Invoice>(`/invoices/${id}`, { adminUserId: user?.id })
+      .then((found) => {
         setInvoice(found);
+        if (found.status === "draft" && new URLSearchParams(window.location.search).get("edit") === "1") {
+          setEditForm(editFormForInvoice(found));
+          setIsEditing(true);
+        }
       })
       .catch(() => {
         setError("加载发票详情失败");
@@ -157,28 +177,11 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   }, [fetchInvoice]);
 
   // ---- Enter edit mode: populate form from current invoice ----
-  const handleEdit = () => {
-    if (!invoice) return;
-    setEditForm({
-      invoiceNumber: invoice.invoiceNumber ?? "",
-      invoiceCode: invoice.invoiceCode ?? "",
-      invoiceType: invoice.invoiceType ?? "",
-      amount: invoice.amount,
-      taxRate: invoice.taxRate,
-      taxAmount: invoice.taxAmount,
-      totalAmount: invoice.totalAmount,
-      status: invoice.status,
-      buyerName: invoice.buyerName ?? "",
-      buyerTaxId: invoice.buyerTaxId ?? "",
-      sellerName: invoice.sellerName ?? "",
-      sellerTaxId: invoice.sellerTaxId ?? "",
-      remark: invoice.remark ?? "",
-      issuer: invoice.issuer ?? "",
-      dueDate: invoice.dueDate?.slice(0, 10) ?? "",
-      issuedAt: invoice.issuedAt?.slice(0, 10) ?? "",
-    });
+  function handleEdit(target: Invoice | null = invoice) {
+    if (!target) return;
+    setEditForm(editFormForInvoice(target));
     setIsEditing(true);
-  };
+  }
 
   const handleCancel = () => {
     setIsEditing(false);
@@ -197,7 +200,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         taxRate: editForm.taxRate,
         taxAmount: editForm.taxAmount,
         totalAmount: editForm.totalAmount,
-        status: editForm.status,
         buyerName: editForm.buyerName || null,
         buyerTaxId: editForm.buyerTaxId || null,
         sellerName: editForm.sellerName || null,
@@ -225,7 +227,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   // ---- Delete ----
   const handleDelete = async () => {
     if (!invoice) return;
-    if (!confirm(`确认删除发票「${invoice.invoiceNumber ?? invoice.id}」？此操作不可撤销。`)) return;
     setDeleting(true);
     try {
       await fetchJson(`/invoices/${invoice.id}`, {
@@ -237,7 +238,23 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     } catch {
       showToast("删除失败", "error");
       setDeleting(false);
+      setDeleteOpen(false);
     }
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!invoice || !statusConfirm) return;
+    setSaving(true);
+    try {
+      const updated = await fetchJson<Invoice>(`/invoices/${invoice.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: statusConfirm }),
+        adminUserId: user?.id,
+      });
+      setInvoice(updated);
+      showToast("发票状态已更新", "success");
+    } catch { showToast("发票状态更新失败", "error"); }
+    finally { setSaving(false); setStatusConfirm(null); }
   };
 
   // ---- Shared form change handler ----
@@ -363,22 +380,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               </>
             ) : (
               <>
-                <button
-                  className="page-secondary-button"
-                  onClick={handleEdit}
-                  type="button"
-                >
-                  编辑
-                </button>
-                <button
-                  className="page-primary-button"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  type="button"
-                  style={{ backgroundColor: "var(--c-d20f39)", borderColor: "var(--c-d20f39)" }}
-                >
-                  {deleting ? "删除中…" : "删除"}
-                </button>
+                {invoice.status === "draft" && <button className="page-secondary-button" onClick={() => handleEdit()} type="button"><AppIcon name="edit" /> 编辑票面</button>}
+                {invoice.status === "draft" && <button className="page-primary-button" onClick={() => setStatusConfirm("issued")} type="button">确认开具</button>}
+                {(["issued", "overdue"] as Invoice["status"][]).includes(invoice.status) && <button className="page-primary-button" onClick={() => setStatusConfirm("paid")} type="button">标记已支付</button>}
+                {invoice.status === "issued" && <button className="page-secondary-button" onClick={() => setStatusConfirm("overdue")} type="button">标记逾期</button>}
+                {(["issued", "overdue"] as Invoice["status"][]).includes(invoice.status) && <button className="page-secondary-button" onClick={() => setStatusConfirm("cancelled")} type="button">作废</button>}
+                {invoice.status === "draft" && <button className="page-secondary-button" onClick={() => setDeleteOpen(true)} disabled={deleting} type="button" style={{ color: "var(--c-ff3b30)" }}><AppIcon name="trash" /> 删除草稿</button>}
               </>
             )}
           </div>
@@ -418,9 +425,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               {renderField(
                 "状态",
                 <StatusBadge status={invoice.status} />,
-                <select style={editSelect} value={editForm.status} onChange={(e) => updateField("status", e.target.value)}>
-                  {Object.entries(statusLabels).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
-                </select>,
+                <StatusBadge status={invoice.status} />,
               )}
 
               <div style={fieldRow}>
@@ -570,6 +575,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         </div>
+        <ConfirmDialog open={deleteOpen} title="删除草稿发票" message={`确定删除发票「${invoice.invoiceNumber ?? invoice.id}」吗？此操作不可撤销。`} loading={deleting} onConfirm={handleDelete} onCancel={() => setDeleteOpen(false)} />
+        <ConfirmDialog open={Boolean(statusConfirm)} title="更新发票状态" message={statusConfirm === "cancelled" ? "确认作废这张发票吗？作废后不能恢复。" : "确认执行本次发票状态变更吗？"} confirmLabel="确认更新" loading={saving} onConfirm={handleStatusUpdate} onCancel={() => setStatusConfirm(null)} />
       </div>
     </div>
   );

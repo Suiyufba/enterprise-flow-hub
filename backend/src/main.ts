@@ -35,6 +35,7 @@ await app.register(cors, {
   origin: process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim())
     : ["http://localhost:3000", "http://localhost:3001"],
+  methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
 
 // Resolve the signed browser session and attach its user to the request.

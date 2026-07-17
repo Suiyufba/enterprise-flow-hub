@@ -12,6 +12,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
+import { TableRowActions } from "../components/TableRowActions";
 import type { Order, PaginatedList } from "shared";
 
 export default function OrdersPage() {
@@ -56,6 +57,12 @@ export default function OrdersPage() {
     { key: "totalAmount", label: "金额", render: (o: Order) => `¥${o.totalAmount.toFixed(2)}` },
     { key: "status", label: "状态", render: (o: Order) => <StatusBadge status={o.status} /> },
     { key: "createdAt", label: "创建时间", render: (o: Order) => o.createdAt?.slice(0, 10) },
+    {
+      key: "actions",
+      label: "操作",
+      width: "150px",
+      render: (o: Order) => <TableRowActions viewHref={`/orders/${o.id}`} editHref={o.status === "draft" ? `/orders/${o.id}?edit=1` : undefined} />,
+    },
   ];
 
   return (

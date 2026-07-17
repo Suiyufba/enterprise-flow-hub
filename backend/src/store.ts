@@ -35,6 +35,7 @@ import type {
   ToolRun,
   UpdateConversationRequest,
   UpdateDepartmentRequest,
+  UpdateEnterpriseRequest,
   UpdateLibraryItemRequest,
   UpdateProjectRequest,
   UpdateProviderRequest,
@@ -104,7 +105,23 @@ export function getAnalysis(id: string): AnalysisResult | undefined {
 // ---- Enterprise & Project ----
 
 function rowToEnterprise(r: Record<string, unknown>): Enterprise {
-  return { id: r.id as string, name: r.name as string };
+  return { id: r.id as string, name: r.name as string, tags: jsonParse<string[]>(r.tags as string, []) };
+}
+
+export function getEnterprise(id: string): Enterprise | undefined {
+  const row = db().prepare("SELECT * FROM enterprises WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  return row ? rowToEnterprise(row) : undefined;
+}
+
+export function updateEnterprise(id: string, input: UpdateEnterpriseRequest): Enterprise | undefined {
+  const existing = getEnterprise(id);
+  if (!existing) return undefined;
+  db().prepare("UPDATE enterprises SET name=?, tags=? WHERE id=?").run(
+    input.name ?? existing.name,
+    JSON.stringify(input.tags ?? existing.tags),
+    id,
+  );
+  return getEnterprise(id);
 }
 
 function rowToProject(r: Record<string, unknown>): Project {
@@ -131,7 +148,7 @@ export function createProject(input: CreateProjectRequest): Project {
     const name = input.enterpriseName?.trim() || "新企业";
     const id = `ent-${randomUUID()}`;
     db().prepare("INSERT INTO enterprises (id, name) VALUES (?, ?)").run(id, name);
-    enterprise = { id, name };
+    enterprise = { id, name, tags: "[]" };
   }
 
   const project: Project = {

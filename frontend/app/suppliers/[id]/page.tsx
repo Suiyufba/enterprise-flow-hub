@@ -6,6 +6,7 @@ import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
 import { AppIcon } from "../../components/AppIcon";
+import { TagInput, TagList } from "../../components/TagInput";
 import type { Supplier } from "shared";
 
 export default function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +24,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -36,6 +38,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         setPhone(data.phone);
         setEmail(data.email);
         setAddress(data.address);
+        setTags(data.tags);
       })
       .catch(() => {
         setError("加载供应商信息失败，请检查网络连接后重试");
@@ -56,6 +59,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
           address: address.trim() || undefined,
+          tags,
         }),
         adminUserId: user?.id,
       });
@@ -147,13 +151,16 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <label className="form-label" htmlFor="supplier-address">地址</label>
             <input id="supplier-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
 
+            <label className="form-label">自定义标签</label>
+            <TagInput tags={tags} onChange={setTags} />
+
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
               <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim()}>
                 {saving ? "保存中..." : "保存"}
               </button>
               <button className="page-secondary-button" onClick={() => {
                 setName(supplier.name); setContact(supplier.contact);
-                setPhone(supplier.phone); setEmail(supplier.email); setAddress(supplier.address);
+                setPhone(supplier.phone); setEmail(supplier.email); setAddress(supplier.address); setTags(supplier.tags);
                 setEditing(false);
               }}>取消</button>
             </div>
@@ -175,6 +182,10 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <div className="settings-card">
               <div><strong>地址</strong></div>
               <span className="settings-meta">{supplier.address || "未设置"}</span>
+            </div>
+            <div className="settings-card">
+              <div><strong>自定义标签</strong></div>
+              <TagList tags={supplier.tags} />
             </div>
             <div className="settings-card">
               <div><strong>创建时间</strong></div>

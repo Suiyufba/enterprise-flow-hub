@@ -12,6 +12,7 @@ const store = await import("../src/store.js");
 const scheduler = await import("../src/automation/scheduler.js");
 const { businessActionExecute } = await import("../src/tools/executors/business-action.js");
 const { businessQueryExecute } = await import("../src/tools/executors/business-query.js");
+const { buildToolLimitReply } = await import("../src/agent/run-fallback.js");
 const { notifyExecute } = await import("../src/tools/executors/notify.js");
 const { browserCheckExecute } = await import("../src/tools/executors/browser-check.js");
 const { csvProfile } = await import("../src/tools/executors/csv-profile.js");
@@ -22,6 +23,11 @@ const { emitEvent } = await import("../src/events/emitter.js");
 const { setupRulesExecutor } = await import("../src/rules/executor.js");
 const Fastify = (await import("fastify")).default;
 const { dashboardRoutes } = await import("../src/routes/dashboard.js");
+const { ordersRoutes } = await import("../src/routes/orders.js");
+const { taskRoutes } = await import("../src/routes/tasks.js");
+const { rulesRoutes } = await import("../src/routes/rules.js");
+const { crmRoutes } = await import("../src/routes/crm.js");
+const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -33,7 +39,10 @@ after(() => dbModule.closeDb());
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 12);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 14);
+  assert.ok((db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).some((column) => column.name === "gender"));
+  assert.ok((db.prepare("PRAGMA table_info(suppliers)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
+  assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.deepEqual(
     db.prepare("SELECT status,risk FROM ai_tools WHERE id='tool-business-action'").get(),
     { status: "enabled", risk: "write" },
@@ -74,6 +83,118 @@ test("dashboard route returns exact totals beyond list pagination", async () => 
   await app.close();
 });
 
+test("business record routes support real edit flows and protect posted records", async () => {
+  const app = Fastify();
+  app.addHook("onRequest", async (request) => {
+    (request as unknown as Record<string, unknown>).actor = {
+      id: "user-admin",
+      enterpriseId: "ent-qihang",
+      username: "admin",
+      displayName: "Admin",
+      role: "admin",
+      createdAt: new Date().toISOString(),
+    };
+  });
+  await app.register(ordersRoutes);
+  await app.register(taskRoutes);
+  await app.register(rulesRoutes);
+  await app.register(crmRoutes);
+  await app.register(enterpriseRoutes);
+
+  const customerCreate = await app.inject({
+    method: "POST",
+    url: "/customers",
+    payload: { enterpriseId: "ent-qihang", name: "标签测试客户", gender: "female", tags: ["重点", "复购"] },
+  });
+  assert.equal(customerCreate.statusCode, 201);
+  assert.equal(customerCreate.json().gender, "female");
+  assert.deepEqual(customerCreate.json().tags, ["重点", "复购"]);
+  const customerId = customerCreate.json().id as string;
+  const customerEdit = await app.inject({ method: "PATCH", url: `/customers/${customerId}`, payload: { gender: "other", tags: ["已回访"] } });
+  assert.equal(customerEdit.statusCode, 200);
+  assert.equal(customerEdit.json().gender, "other");
+  assert.deepEqual(customerEdit.json().tags, ["已回访"]);
+
+  const supplierCreate = await app.inject({
+    method: "POST",
+    url: "/suppliers",
+    payload: { enterpriseId: "ent-qihang", name: "标签测试供应商", tags: ["长期合作"] },
+  });
+  assert.equal(supplierCreate.statusCode, 201);
+  assert.deepEqual(supplierCreate.json().tags, ["长期合作"]);
+  const supplierId = supplierCreate.json().id as string;
+  const supplierEdit = await app.inject({ method: "PATCH", url: `/suppliers/${supplierId}`, payload: { tags: ["核心供应商"] } });
+  assert.equal(supplierEdit.statusCode, 200);
+  assert.deepEqual(supplierEdit.json().tags, ["核心供应商"]);
+
+  const enterpriseEdit = await app.inject({ method: "PATCH", url: "/enterprises/ent-qihang", payload: { tags: ["留学服务", "重点企业"] } });
+  assert.equal(enterpriseEdit.statusCode, 200);
+  assert.deepEqual(enterpriseEdit.json().tags, ["留学服务", "重点企业"]);
+
+  const paymentId = "pay-route-edit-test";
+  const now = new Date().toISOString();
+  db.prepare("INSERT INTO payments (id,enterprise_id,amount,method,status,created_at) VALUES (?,?,?,?,?,?)")
+    .run(paymentId, "ent-qihang", 88, "cash", "pending", now);
+  const paymentGet = await app.inject({ method: "GET", url: `/payments/${paymentId}` });
+  assert.equal(paymentGet.statusCode, 200);
+  const paymentEdit = await app.inject({ method: "PATCH", url: `/payments/${paymentId}`, payload: { amount: 99, method: "bank_transfer" } });
+  assert.equal(paymentEdit.statusCode, 200);
+  assert.equal(paymentEdit.json().amount, 99);
+  const paymentPost = await app.inject({ method: "PATCH", url: `/payments/${paymentId}`, payload: { status: "completed" } });
+  assert.equal(paymentPost.statusCode, 200);
+  const immutablePayment = await app.inject({ method: "PATCH", url: `/payments/${paymentId}`, payload: { amount: 100 } });
+  assert.equal(immutablePayment.statusCode, 409);
+
+  const invoiceCreate = await app.inject({
+    method: "POST",
+    url: "/invoices",
+    payload: { enterpriseId: "ent-qihang", amount: 200, invoiceNumber: "ROUTE-TEST" },
+  });
+  assert.equal(invoiceCreate.statusCode, 201);
+  const invoiceId = invoiceCreate.json().id as string;
+  assert.equal((await app.inject({ method: "GET", url: `/invoices/${invoiceId}` })).statusCode, 200);
+  assert.equal((await app.inject({ method: "PATCH", url: `/invoices/${invoiceId}`, payload: { status: "issued" } })).statusCode, 200);
+  assert.equal((await app.inject({ method: "DELETE", url: `/invoices/${invoiceId}` })).statusCode, 409);
+
+  const taskCreate = await app.inject({
+    method: "POST",
+    url: "/tasks",
+    payload: { enterpriseId: "ent-qihang", title: "手动待办", description: "初始说明", priority: "high" },
+  });
+  assert.equal(taskCreate.statusCode, 201);
+  const taskId = taskCreate.json().id as string;
+  const taskEdit = await app.inject({ method: "PATCH", url: `/tasks/${taskId}`, payload: { title: "更新后的待办", description: "更新说明" } });
+  assert.equal(taskEdit.statusCode, 200);
+  assert.equal(taskEdit.json().title, "更新后的待办");
+
+  const rule = createRule({
+    enterpriseId: "ent-qihang",
+    name: "路由编辑测试",
+    objectType: "customer",
+    triggerEvent: "create",
+    conditionExpr: { logic: "and", conditions: [] },
+    actionType: "create_task",
+    actionConfig: { title: "旧标题" },
+  });
+  const ruleEdit = await app.inject({
+    method: "PATCH",
+    url: `/rules/${rule.id}`,
+    payload: { name: "规则已修改", actionType: "create_task", actionConfig: { title: "新标题" } },
+  });
+  assert.equal(ruleEdit.statusCode, 200);
+  assert.equal(ruleEdit.json().name, "规则已修改");
+  assert.equal(ruleEdit.json().actionConfig.title, "新标题");
+
+  db.prepare("DELETE FROM payments WHERE id=?").run(paymentId);
+  db.prepare("DELETE FROM invoices WHERE id=?").run(invoiceId);
+  db.prepare("DELETE FROM tasks WHERE id=?").run(taskId);
+  db.prepare("DELETE FROM rules WHERE id=?").run(rule.id);
+  db.prepare("DELETE FROM customers WHERE id=?").run(customerId);
+  db.prepare("DELETE FROM suppliers WHERE id=?").run(supplierId);
+  db.prepare("UPDATE enterprises SET tags='[]' WHERE id='ent-qihang'").run();
+  await app.close();
+});
+
 test("schedule parser handles daily, workday and interval schedules", () => {
   assert.deepEqual(scheduler.parseScheduleText("每天早上9:00"), { kind: "daily", hour: 9, minute: 0, weekdaysOnly: false });
   assert.deepEqual(scheduler.parseScheduleText("每个工作日 18:30"), { kind: "daily", hour: 18, minute: 30, weekdaysOnly: true });
@@ -100,10 +221,40 @@ test("business MCP queries are enterprise scoped and writes are persisted", asyn
   const overdueTotal = (db.prepare("SELECT COUNT(*) AS n FROM invoices WHERE enterprise_id='ent-qihang' AND (status='overdue' OR (due_date < date('now','localtime') AND status NOT IN ('paid','cancelled')))").get() as { n: number }).n;
   assert.equal(overdue.total, overdueTotal);
 
+  const customerValue = JSON.parse(await businessQueryExecute({
+    _enterpriseId: "ent-qihang",
+    resource: "customer_value",
+    limit: 3,
+  }));
+  const customerTotal = (db.prepare("SELECT COUNT(*) AS n FROM customers WHERE enterprise_id='ent-qihang'").get() as { n: number }).n;
+  assert.equal(customerValue.summary.scannedCustomers, customerTotal);
+  assert.equal(customerValue.summary.completeScan, true);
+  assert.equal(customerValue.returned, Math.min(3, customerTotal));
+  for (let index = 1; index < customerValue.items.length; index += 1) {
+    const previous = customerValue.items[index - 1] as { completed_payment_amount: number; order_amount: number };
+    const current = customerValue.items[index] as { completed_payment_amount: number; order_amount: number };
+    assert.ok(
+      previous.completed_payment_amount > current.completed_payment_amount
+      || (previous.completed_payment_amount === current.completed_payment_amount && previous.order_amount >= current.order_amount),
+    );
+  }
+  const limitReply = buildToolLimitReply("找一下客户里最有价值的", [{
+    id: "run-customer-value",
+    toolId: "tool-business-query",
+    status: "success",
+    input: { resource: "customer_value" },
+    output: JSON.stringify(customerValue),
+    createdAt: new Date().toISOString(),
+  }]);
+  assert.match(limitReply, /当前最有价值的客户/);
+  assert.match(limitReply, /全.*客户完成聚合/);
+
   const customer = JSON.parse(await businessActionExecute({
-    _enterpriseId: "ent-qihang", operation: "create_customer", name: "测试客户", phone: "13812345678", status: "lead",
+    _enterpriseId: "ent-qihang", operation: "create_customer", name: "测试客户", phone: "13812345678", gender: "female", tags: ["重点", "重点", "已联系"], status: "lead",
   }));
   assert.equal(customer.ok, true);
+  assert.equal(customer.customer.gender, "female");
+  assert.deepEqual(customer.customer.tags, ["重点", "已联系"]);
   assert.equal((db.prepare("SELECT enterprise_id FROM customers WHERE id=?").get(customer.customer.id) as { enterprise_id: string }).enterprise_id, "ent-qihang");
 
   const task = JSON.parse(await businessActionExecute({

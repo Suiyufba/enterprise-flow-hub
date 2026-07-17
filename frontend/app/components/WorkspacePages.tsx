@@ -18,7 +18,7 @@ import type {
   Supplier,
   ToolDefinition,
 } from "shared";
-import { fetchJson } from "../lib/api";
+import { API, fetchJson, getStoredToken } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
@@ -27,6 +27,8 @@ import { animate, stagger, spring } from "../lib/anime";
 
 import { AppIcon, type AppIconName } from "./AppIcon";
 import { PageHeader } from "./PageHeader";
+import { FormDialog } from "./FormDialog";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 const searchTypes = ["项目", "对话", "资料", "自动化", "客户", "供应商", "商品", "订单", "付款", "发票"] as const;
 
@@ -316,6 +318,7 @@ export function SearchPage() {
 
 export function LibraryPage() {
   const { workspace, refresh } = useWorkspace();
+  const { showToast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -328,6 +331,8 @@ export function LibraryPage() {
   const [type, setType] = useState<LibraryItem["type"]>("screenshot");
   const [visibility, setVisibility] = useState<LibraryItem["visibility"]>("public");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<LibraryItem | null>(null);
+  const [deletingItem, setDeletingItem] = useState(false);
 
   function handleFile(f: File | null) {
     if (!f) return;
@@ -416,6 +421,7 @@ export function LibraryPage() {
 
   async function saveItem() {
     if (!name.trim() || !summary.trim() || !enterpriseId || !projectId) return;
+    const wasEditing = Boolean(editingItemId);
     try {
       const body = { enterpriseId, projectId, name, summary, type, visibility };
       if (editingItemId) {
@@ -429,19 +435,46 @@ export function LibraryPage() {
           body: JSON.stringify(body),
         });
       }
+      let uploadFailed = false;
+      if (selectedFile) {
+        try {
+          const formData = new FormData();
+          formData.append("relatedType", "project");
+          formData.append("relatedId", projectId);
+          formData.append("file", selectedFile);
+          const token = getStoredToken();
+          const response = await fetch(`${API}/files/upload`, {
+            method: "POST",
+            body: formData,
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (!response.ok) uploadFailed = true;
+        } catch {
+          uploadFailed = true;
+        }
+      }
       resetLibraryForm();
       await refresh();
+      showToast(uploadFailed ? "资料信息已保存，但附件上传失败" : wasEditing ? "资料已更新" : "资料已添加", uploadFailed ? "error" : "success");
     } catch (e) {
       console.error(editingItemId ? "编辑资料失败" : "添加资料失败", e);
+      showToast(editingItemId ? "资料保存失败" : "资料添加失败", "error");
     }
   }
 
-  async function deleteItem(id: string) {
+  async function deleteItem() {
+    if (!itemToDelete) return;
+    setDeletingItem(true);
     try {
-      await fetchJson(`/library/${id}`, { method: "DELETE" });
+      await fetchJson(`/library/${itemToDelete.id}`, { method: "DELETE" });
+      setItemToDelete(null);
       await refresh();
+      showToast("资料已删除", "success");
     } catch (e) {
       console.error("删除资料失败", e);
+      showToast("资料删除失败", "error");
+    } finally {
+      setDeletingItem(false);
     }
   }
 
@@ -590,7 +623,7 @@ export function LibraryPage() {
                 </button>
                 <button
                   className="lib-delete-btn"
-                  onClick={() => deleteItem(item.id)}
+                  onClick={() => setItemToDelete(item)}
                   type="button"
                   title="删除资料"
                   aria-label={`删除资料 ${item.name}`}
@@ -605,6 +638,7 @@ export function LibraryPage() {
           );
         })}
       </div>
+      <ConfirmDialog open={Boolean(itemToDelete)} title="删除资料" message={`确定删除资料「${itemToDelete?.name ?? ""}」吗？此操作不可撤销。`} loading={deletingItem} onConfirm={deleteItem} onCancel={() => setItemToDelete(null)} />
     </PageShell>
   );
 }
@@ -1268,7 +1302,13 @@ export function NewProjectPage() {
 
 export function ProjectDetailPage({ id }: { id: string }) {
   const router = useRouter();
-  const { workspace } = useWorkspace();
+  const { workspace, refresh } = useWorkspace();
+  const { showToast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [projectForm, setProjectForm] = useState({ name: "", description: "" });
   const project = workspace.projects.find((item) => item.id === id);
   const enterprise = project ? workspace.enterprises.find((item) => item.id === project.enterpriseId) : undefined;
 
@@ -1280,6 +1320,38 @@ export function ProjectDetailPage({ id }: { id: string }) {
   const libraryItems = workspace.libraryItems.filter((item) => item.projectId === id);
   const automations = workspace.automations.filter((item) => item.projectId === id);
   const activeAutomations = automations.filter((a) => a.enabled);
+
+  function startProjectEdit() {
+    if (!project) return;
+    setProjectForm({ name: project.name, description: project.description ?? "" });
+    setEditing(true);
+  }
+
+  async function saveProject() {
+    if (!projectForm.name.trim()) return;
+    setSaving(true);
+    try {
+      await fetchJson(`/projects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: projectForm.name.trim(), description: projectForm.description.trim() }),
+      });
+      await refresh();
+      setEditing(false);
+      showToast("项目信息已更新", "success");
+    } catch { showToast("项目信息保存失败", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function deleteProject() {
+    setDeleting(true);
+    try {
+      await fetchJson(`/projects/${id}`, { method: "DELETE" });
+      await refresh();
+      showToast("项目已删除", "success");
+      router.push("/projects");
+    } catch { showToast("项目删除失败", "error"); }
+    finally { setDeleting(false); setDeleteOpen(false); }
+  }
 
   const typeIcon: Record<string, AppIconName> = {
     screenshot: "image",
@@ -1348,6 +1420,12 @@ export function ProjectDetailPage({ id }: { id: string }) {
           >
             <AppIcon name="plus" /> 添加资料
           </button>
+          <button className="project-hero-btn secondary" onClick={startProjectEdit} type="button">
+            <AppIcon name="edit" /> 编辑项目
+          </button>
+          <button className="project-hero-btn secondary danger" onClick={() => setDeleteOpen(true)} type="button">
+            <AppIcon name="trash" /> 删除项目
+          </button>
         </div>
       </div>
 
@@ -1391,7 +1469,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
           <div className="project-section-header">
             <span className="project-section-title">最近对话</span>
             {conversations.length > 4 && (
-              <span className="project-section-link">查看全部 <AppIcon name="chevron" className="inline-flow-arrow" /></span>
+              <button className="project-section-link" onClick={() => router.push(`/?projectId=${project.id}`)} type="button">查看全部 <AppIcon name="chevron" className="inline-flow-arrow" /></button>
             )}
           </div>
           {recentConversations.length === 0 ? (
@@ -1552,6 +1630,13 @@ export function ProjectDetailPage({ id }: { id: string }) {
           <p>设置触发规则与 AI 动作，让重复流程自动运行</p>
         </div>
       </div>
+      <FormDialog open={editing} title={`编辑项目：${project.name}`} saving={saving} submitDisabled={!projectForm.name.trim()} onSubmit={saveProject} onCancel={() => setEditing(false)}>
+        <label className="form-label" htmlFor="edit-project-name">项目名称 *</label>
+        <input id="edit-project-name" className="page-input" autoFocus value={projectForm.name} onChange={(event) => setProjectForm((current) => ({ ...current, name: event.target.value }))} />
+        <label className="form-label" htmlFor="edit-project-description">项目说明</label>
+        <textarea id="edit-project-description" className="page-textarea" maxLength={300} value={projectForm.description} onChange={(event) => setProjectForm((current) => ({ ...current, description: event.target.value }))} />
+      </FormDialog>
+      <ConfirmDialog open={deleteOpen} title="删除项目" message={`确定删除项目「${project.name}」吗？项目下的对话、资料和自动化也会一并删除，此操作不可撤销。`} loading={deleting} onConfirm={deleteProject} onCancel={() => setDeleteOpen(false)} />
     </div>
   );
 }

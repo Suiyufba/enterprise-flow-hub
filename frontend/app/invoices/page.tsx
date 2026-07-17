@@ -11,6 +11,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
+import { TableRowActions } from "../components/TableRowActions";
 import type { Invoice, PaginatedList } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -104,17 +105,6 @@ export default function InvoicesPage() {
     finally { setSaving(false); }
   }
 
-  async function handleDelete(inv: Invoice) {
-    if (!confirm(`确认删除发票 ${inv.id.slice(0, 12)}？此操作不可撤销。`)) return;
-    try {
-      await fetchJson(`/invoices/${inv.id}`, { method: "DELETE", adminUserId: user?.id });
-      showToast("发票已删除", "success");
-      await load();
-    } catch {
-      showToast("删除失败", "error");
-    }
-  }
-
   const columns = [
     {
       key: "id",
@@ -163,16 +153,8 @@ export default function InvoicesPage() {
     {
       key: "actions",
       label: "操作",
-      width: "72px",
-      render: (inv: Invoice) => (
-        <button
-          type="button"
-          onClick={() => handleDelete(inv)}
-          style={{ color: "red", fontSize: "12px", cursor: "pointer", background: "none", border: "none", padding: 0 }}
-        >
-          删除
-        </button>
-      ),
+      width: "150px",
+      render: (inv: Invoice) => <TableRowActions viewHref={`/invoices/${inv.id}`} editHref={inv.status === "draft" ? `/invoices/${inv.id}?edit=1` : undefined} />,
     },
   ];
 

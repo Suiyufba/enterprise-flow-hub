@@ -251,18 +251,21 @@ export default function ChatPage() {
               break;
             }
             case "done": {
-              const data = sseEvent.data as { message?: { id: string; content: string }; planSteps?: AgentPlanStep[]; toolRuns?: ToolRun[] };
+              const data = sseEvent.data as { message?: { id: string; content: string }; planSteps?: AgentPlanStep[]; toolRuns?: ToolRun[]; interrupted?: boolean };
               if (data.message?.content) fullContent = data.message.content;
               if (data.planSteps?.length) resolvedPlanSteps = data.planSteps;
               if (data.toolRuns?.length) resolvedToolRuns = data.toolRuns;
               updateMessageRun(aiMsgId, (run) => ({
                 ...run,
-                planSteps: resolvedPlanSteps.length > 0 ? resolvedPlanSteps : createCompletedPlan(resolvedToolRuns),
+                planSteps: data.interrupted
+                  ? run.planSteps.map((step) => step.status === "done" ? step : { ...step, status: "skipped" as const, detail: "本轮执行已中断" })
+                  : resolvedPlanSteps.length > 0 ? resolvedPlanSteps : createCompletedPlan(resolvedToolRuns),
                 toolRuns: resolvedToolRuns,
                 collapsed: fullContent && !run.hasContent ? true : run.collapsed,
                 hasContent: Boolean(fullContent) || run.hasContent,
               }));
               setLocalMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: fullContent } : m));
+              if (data.interrupted) showToast("Agent 本轮执行已中断，已保留错误说明", "error");
               break;
             }
             case "error": {
@@ -505,6 +508,7 @@ export default function ChatPage() {
               message?: { id: string; role: string; content: string; createdAt: string };
               planSteps?: AgentPlanStep[];
               toolRuns?: ToolRun[];
+              interrupted?: boolean;
             };
             if (data.message?.content) {
               fullContent = data.message.content;
@@ -513,7 +517,9 @@ export default function ChatPage() {
             if (data.toolRuns?.length) resolvedToolRuns = data.toolRuns;
             updateMessageRun(aiMsgId, (run) => ({
               ...run,
-              planSteps: resolvedPlanSteps.length > 0 ? resolvedPlanSteps : createCompletedPlan(resolvedToolRuns),
+              planSteps: data.interrupted
+                ? run.planSteps.map((step) => step.status === "done" ? step : { ...step, status: "skipped" as const, detail: "本轮执行已中断" })
+                : resolvedPlanSteps.length > 0 ? resolvedPlanSteps : createCompletedPlan(resolvedToolRuns),
               toolRuns: resolvedToolRuns,
               collapsed: fullContent && !run.hasContent ? true : run.collapsed,
               hasContent: Boolean(fullContent) || run.hasContent,
@@ -521,6 +527,7 @@ export default function ChatPage() {
             setLocalMessages((prev) =>
               prev.map((m) => (m.id === aiMsgId ? { ...m, content: fullContent } : m)),
             );
+            if (data.interrupted) showToast("Agent 本轮执行已中断，已保留错误说明", "error");
             break;
           }
           case "error": {

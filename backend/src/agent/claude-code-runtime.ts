@@ -8,9 +8,11 @@ import { z } from "zod";
 import { mkdirSync } from "node:fs";
 import type { ToolDefinition, ToolRun } from "shared";
 import { buildSystemPrompt, type AgentKernelInput } from "./kernel.js";
+import { buildToolLimitReply } from "./run-fallback.js";
 import type { AgentRunEvent, AgentRunInput, AgentRunResult, AgentRuntime } from "./runtime.js";
 
 const CLAUDE_CODE_VERSION = "2.1.87";
+const MAX_UNIQUE_TOOL_CALLS = 12;
 
 function providerBaseUrl(baseUrl: string): string {
   const normalized = baseUrl.replace(/\/$/, "");
@@ -64,6 +66,85 @@ function textDelta(message: SDKMessage): string | undefined {
   return delta.type === "text_delta" ? delta.text : undefined;
 }
 
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function claudeEnvironment(baseUrl: string, apiKey: string, model: string): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ANTHROPIC_BASE_URL: baseUrl,
+    ANTHROPIC_AUTH_TOKEN: apiKey,
+    ANTHROPIC_API_KEY: apiKey,
+    ANTHROPIC_MODEL: model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+    CLAUDE_CODE_SUBAGENT_MODEL: model,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    DISABLE_TELEMETRY: "1",
+  };
+}
+
+async function finalizeToolLimitedRun(
+  input: AgentRunInput,
+  toolRuns: ToolRun[],
+  partialContent: string,
+  options: { baseUrl: string; apiKey: string; model: string; cwd: string },
+): Promise<string> {
+  const evidence = toolRuns
+    .filter((run) => run.status === "success")
+    .slice(-8)
+    .map((run, index) => `证据 ${index + 1}（${run.toolId}）：\n${run.output.slice(0, 5000)}`)
+    .join("\n\n");
+  if (!evidence) return buildToolLimitReply(input.userContent, toolRuns);
+
+  const finalizer = query({
+    prompt: [
+      `用户请求：${input.userContent}`,
+      partialContent ? `此前未完成的过程说明（不要照抄）：${partialContent.slice(-3000)}` : "",
+      `已获得的真实工具证据：\n${evidence}`,
+      "请直接给出最终业务结论。必须说明统计口径和数据范围；不再调用任何工具，不要描述下一步查询计划。",
+    ].filter(Boolean).join("\n\n---\n\n"),
+    options: {
+      abortController: input.abortController,
+      cwd: options.cwd,
+      env: claudeEnvironment(options.baseUrl, options.apiKey, options.model),
+      includePartialMessages: true,
+      maxTurns: 1,
+      model: options.model,
+      pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE || undefined,
+      permissionMode: "dontAsk",
+      allowedTools: [],
+      tools: [],
+      persistSession: false,
+      settingSources: [],
+      systemPrompt: "你是 Enterprise Flow Hub 的结果整理器。只根据提供的工具证据用中文回答，先给结论，再列关键数据；禁止编造、禁止请求更多数据、禁止输出过程计划。",
+    },
+  });
+  let content = "";
+  try {
+    for await (const message of finalizer) {
+      const delta = textDelta(message);
+      if (delta) content += delta;
+      if (message.type === "result") {
+        if (message.subtype !== "success") throw new Error(message.errors.join("; ") || message.subtype);
+        if (message.result) content = message.result;
+      }
+    }
+  } finally {
+    finalizer.close();
+  }
+  return content.trim() || buildToolLimitReply(input.userContent, toolRuns);
+}
+
 export class ClaudeCodeRuntime implements AgentRuntime {
   async run(input: AgentRunInput): Promise<AgentRunResult> {
     let result: AgentRunResult = { content: "", toolRuns: [], planSteps: [] };
@@ -88,6 +169,9 @@ export class ClaudeCodeRuntime implements AgentRuntime {
 
     const toolRuns: ToolRun[] = [];
     const pendingEvents: AgentRunEvent[] = [];
+    const toolOutputCache = new Map<string, Promise<{ output: string; isError: boolean }>>();
+    let uniqueToolCalls = 0;
+    let budgetNoticeQueued = false;
     const permittedToolIds = new Set([
       "tool-business-query",
       "tool-mcp-company-context",
@@ -103,6 +187,26 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       description: definition.description,
       inputSchema: inputShape(definition),
       handler: async (args) => {
+        const signature = `${definition.id}:${stableJson(args)}`;
+        const cached = toolOutputCache.get(signature);
+        if (cached) {
+          const result = await cached;
+          return { content: [{ type: "text" as const, text: result.output }], isError: result.isError };
+        }
+        if (uniqueToolCalls >= MAX_UNIQUE_TOOL_CALLS) {
+          if (!budgetNoticeQueued) {
+            budgetNoticeQueued = true;
+            pendingEvents.push({ type: "thinking", message: "已达到本轮工具调用预算，正在根据现有证据整理结论..." });
+          }
+          return {
+            content: [{
+              type: "text" as const,
+              text: "本轮唯一工具调用预算已用完。禁止继续调用工具，请立即根据已经取得的结果给出最终答案。",
+            }],
+            isError: false,
+          };
+        }
+        uniqueToolCalls += 1;
         const toolInput = {
           ...(args as Record<string, unknown>),
           _enterpriseId: input.context.enterpriseId,
@@ -115,32 +219,37 @@ export class ClaudeCodeRuntime implements AgentRuntime {
           toolName: definition.name,
           input: toolInput,
         });
-        let result: ToolRun | undefined;
-        try {
-          const { runTool } = await import("../store.js");
-          result = await runTool(definition.id, {
-            input: { ...toolInput, _agentReason: "Claude Code MCP tool call" },
-            dryRun: false,
+        const execution = (async (): Promise<{ output: string; isError: boolean }> => {
+          let result: ToolRun | undefined;
+          try {
+            const { runTool } = await import("../store.js");
+            result = await runTool(definition.id, {
+              input: { ...toolInput, _agentReason: "Claude Code MCP tool call" },
+              dryRun: false,
+            });
+          } catch (error) {
+            const output = error instanceof Error ? error.message : String(error);
+            pendingEvents.push({ type: "tool_result", toolId: definition.id, status: "error", output });
+            return { output, isError: true };
+          }
+          if (!result) {
+            pendingEvents.push({ type: "tool_result", toolId: definition.id, status: "error", output: "Tool not found" });
+            return { output: "Tool not found", isError: true };
+          }
+          toolRuns.push(result);
+          pendingEvents.push({
+            type: "tool_result",
+            toolId: definition.id,
+            status: result.status,
+            output: result.output,
           });
-        } catch (error) {
-          const output = error instanceof Error ? error.message : String(error);
-          pendingEvents.push({ type: "tool_result", toolId: definition.id, status: "error", output });
-          return { content: [{ type: "text" as const, text: output }], isError: true };
-        }
-        if (!result) {
-          pendingEvents.push({ type: "tool_result", toolId: definition.id, status: "error", output: "Tool not found" });
-          return { content: [{ type: "text" as const, text: "Tool not found" }], isError: true };
-        }
-        toolRuns.push(result);
-        pendingEvents.push({
-          type: "tool_result",
-          toolId: definition.id,
-          status: result.status,
-          output: result.output,
-        });
+          return { output: result.output, isError: result.status === "error" };
+        })();
+        toolOutputCache.set(signature, execution);
+        const result = await execution;
         return {
           content: [{ type: "text" as const, text: result.output }],
-          isError: result.status === "error",
+          isError: result.isError,
         };
       },
     }));
@@ -151,6 +260,7 @@ export class ClaudeCodeRuntime implements AgentRuntime {
     const cwd = process.env.CLAUDE_CODE_WORKDIR ?? "/tmp/efh-agent";
     mkdirSync(cwd, { recursive: true });
     let content = "";
+    let hitMaxTurns = false;
 
     yield { type: "thinking", message: "Claude Code 正在分析业务上下文..." };
 
@@ -159,19 +269,7 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       options: {
         abortController: input.abortController,
         cwd,
-        env: {
-          ...process.env,
-          ANTHROPIC_BASE_URL: baseUrl,
-          ANTHROPIC_AUTH_TOKEN: input.provider.apiKey,
-          ANTHROPIC_API_KEY: input.provider.apiKey,
-          ANTHROPIC_MODEL: model,
-          ANTHROPIC_DEFAULT_OPUS_MODEL: model,
-          ANTHROPIC_DEFAULT_SONNET_MODEL: model,
-          ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
-          CLAUDE_CODE_SUBAGENT_MODEL: model,
-          CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
-          DISABLE_TELEMETRY: "1",
-        },
+        env: claudeEnvironment(baseUrl, input.provider.apiKey, model),
         includePartialMessages: true,
         maxTurns: 10,
         mcpServers: { efh: mcpServer },
@@ -196,6 +294,10 @@ export class ClaudeCodeRuntime implements AgentRuntime {
           yield { type: "content_chunk", delta };
         }
         if (message.type === "result") {
+          if (message.subtype === "error_max_turns") {
+            hitMaxTurns = true;
+            break;
+          }
           if (message.subtype !== "success") {
             throw new Error(message.errors.join("; ") || `Claude Code stopped: ${message.subtype}`);
           }
@@ -208,6 +310,19 @@ export class ClaudeCodeRuntime implements AgentRuntime {
         }
       }
       while (pendingEvents.length) yield pendingEvents.shift()!;
+      if (hitMaxTurns) {
+        yield { type: "thinking", message: "工具执行已到安全上限，正在生成最终业务结论..." };
+        try {
+          content = await finalizeToolLimitedRun(input, toolRuns, content, {
+            baseUrl,
+            apiKey: input.provider.apiKey,
+            model,
+            cwd,
+          });
+        } catch {
+          content = buildToolLimitReply(input.userContent, toolRuns);
+        }
+      }
       yield { type: "done", content, toolRuns, planSteps: [] };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

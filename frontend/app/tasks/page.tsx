@@ -5,6 +5,8 @@ import type { PaginatedList, Task } from "shared";
 import { DataTable } from "../components/DataTable";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
+import { AppIcon } from "../components/AppIcon";
+import { FormDialog } from "../components/FormDialog";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
@@ -24,6 +26,10 @@ export default function TasksPage() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("open");
   const [loading, setLoading] = useState(true);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as Task["priority"], dueDate: "" });
 
   const load = useCallback(async () => {
     if (!user?.enterpriseId) return;
@@ -53,8 +59,50 @@ export default function TasksPage() {
     }
   }
 
+  function openCreate() {
+    setEditingTask(null);
+    setForm({ title: "", description: "", priority: "medium", dueDate: "" });
+    setShowForm(true);
+  }
+
+  function openEdit(task: Task) {
+    setEditingTask(task);
+    setForm({
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      dueDate: task.dueDate?.slice(0, 10) ?? "",
+    });
+    setShowForm(true);
+  }
+
+  async function saveTask() {
+    if (!user?.enterpriseId || !form.title.trim()) return;
+    setSaving(true);
+    try {
+      await fetchJson(editingTask ? `/tasks/${editingTask.id}` : "/tasks", {
+        method: editingTask ? "PATCH" : "POST",
+        body: JSON.stringify({
+          ...(editingTask ? {} : { enterpriseId: user.enterpriseId }),
+          title: form.title.trim(),
+          description: form.description.trim(),
+          priority: form.priority,
+          dueDate: form.dueDate ? new Date(`${form.dueDate}T23:59:59`).toISOString() : null,
+        }),
+      });
+      showToast(editingTask ? "待办已更新" : "待办已创建", "success");
+      setShowForm(false);
+      await load();
+    } catch { showToast(editingTask ? "待办保存失败" : "待办创建失败", "error"); }
+    finally { setSaving(false); }
+  }
+
   const columns = [
-    { key: "title", label: "待办" },
+    {
+      key: "title",
+      label: "待办",
+      render: (task: Task) => <div><strong>{task.title}</strong>{task.description && <div className="table-secondary-text">{task.description}</div>}</div>,
+    },
     { key: "priority", label: "优先级", render: (task: Task) => priorityLabel[task.priority] },
     { key: "dueDate", label: "截止时间", render: (task: Task) => task.dueDate?.slice(0, 10) || "未设置" },
     { key: "sourceType", label: "来源", render: (task: Task) => task.sourceType || "手动" },
@@ -64,8 +112,11 @@ export default function TasksPage() {
       label: "操作",
       render: (task: Task) => (
         <div className="table-actions">
+          <button className="table-action-button" onClick={() => openEdit(task)} type="button"><AppIcon name="edit" /> 编辑</button>
           {task.status === "pending" && <button className="page-secondary-button compact" onClick={() => changeStatus(task, "in_progress")} type="button">开始</button>}
-          {task.status !== "completed" && <button className="page-secondary-button compact" onClick={() => changeStatus(task, "completed")} type="button">完成</button>}
+          {["pending", "in_progress"].includes(task.status) && <button className="page-secondary-button compact" onClick={() => changeStatus(task, "completed")} type="button">完成</button>}
+          {["completed", "cancelled"].includes(task.status) && <button className="page-secondary-button compact" onClick={() => changeStatus(task, "pending")} type="button">重新打开</button>}
+          {!["completed", "cancelled"].includes(task.status) && <button className="page-secondary-button compact" onClick={() => changeStatus(task, "cancelled")} type="button">取消</button>}
         </div>
       ),
     },
@@ -74,16 +125,32 @@ export default function TasksPage() {
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: 40 }}>
       <div className="page-shell">
-        <PageHeader title="待办中心" description="承接 Agent、规则和自动化产生的业务动作。" actions={(
-          <select className="page-input compact-select" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
-            <option value="open">未完成</option>
-            <option value="all">全部</option>
-            <option value="pending">待处理</option>
-            <option value="in_progress">处理中</option>
-            <option value="completed">已完成</option>
-          </select>
+        <PageHeader title="待办中心" description="承接手动、Agent、规则和自动化产生的业务动作。" actions={(
+          <div className="page-header-controls">
+            <select className="page-input compact-select" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
+              <option value="open">未完成</option>
+              <option value="all">全部</option>
+              <option value="pending">待处理</option>
+              <option value="in_progress">处理中</option>
+              <option value="completed">已完成</option>
+              <option value="cancelled">已取消</option>
+            </select>
+            <button className="page-primary-button" onClick={openCreate} type="button"><AppIcon name="plus" /> 新建待办</button>
+          </div>
         )} />
-        <DataTable columns={columns} data={items} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="没有待处理任务" emptyDesc="Agent 或规则创建的待办会出现在这里。" />
+        <DataTable columns={columns} data={items} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="没有待处理任务" emptyDesc="可以手动创建待办，Agent、规则和自动化产生的业务动作也会出现在这里。" emptyAction={<button className="page-primary-button" onClick={openCreate} type="button">新建待办</button>} />
+        <FormDialog open={showForm} title={editingTask ? `编辑待办：${editingTask.title}` : "新建待办"} saving={saving} submitLabel={editingTask ? "保存修改" : "创建待办"} submitDisabled={!form.title.trim()} onSubmit={saveTask} onCancel={() => setShowForm(false)}>
+          <label className="form-label" htmlFor="task-title">待办标题 *</label>
+          <input id="task-title" className="page-input" autoFocus value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+          <label className="form-label" htmlFor="task-description">说明</label>
+          <textarea id="task-description" className="page-textarea" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+          <label className="form-label" htmlFor="task-priority">优先级</label>
+          <select id="task-priority" className="page-input" value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value as Task["priority"] }))}>
+            <option value="low">低</option><option value="medium">中</option><option value="high">高</option><option value="urgent">紧急</option>
+          </select>
+          <label className="form-label" htmlFor="task-due-date">截止日期</label>
+          <input id="task-due-date" className="page-input" type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
+        </FormDialog>
       </div>
     </div>
   );

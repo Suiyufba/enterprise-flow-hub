@@ -37,6 +37,7 @@ function rowToCustomer(r: Record<string, unknown>): Customer {
     phone: (r.phone as string) || "",
     email: (r.email as string) || "",
     address: (r.address as string) || "",
+    gender: (r.gender as Customer["gender"]) || "unknown",
     tags: jsonParse<string[]>(r.tags as string, []),
     status: (r.status as Customer["status"]) || "active",
     createdAt: r.created_at as string,
@@ -51,7 +52,10 @@ export function listCustomers(
   const conditions: string[] = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
   if (opts?.status) { conditions.push("status = ?"); params.push(opts.status); }
-  if (opts?.search) { conditions.push("name LIKE ?"); params.push(`%${opts.search}%`); }
+  if (opts?.search) {
+    conditions.push("(name LIKE ? OR contact LIKE ? OR phone LIKE ? OR email LIKE ? OR tags LIKE ?)");
+    for (let index = 0; index < 5; index += 1) params.push(`%${opts.search}%`);
+  }
   const where = conditions.join(" AND ");
   const total = (db().prepare(`SELECT COUNT(*) as cnt FROM customers WHERE ${where}`).get(...params) as { cnt: number }).cnt;
   const page = opts?.page ?? 1;
@@ -77,14 +81,15 @@ export function createCustomer(input: CreateCustomerRequest): Customer {
     phone: input.phone ?? "",
     email: input.email ?? "",
     address: input.address ?? "",
+    gender: input.gender ?? "unknown",
     tags: input.tags ?? [],
     status: input.status ?? "active",
     createdAt: now,
     updatedAt: now,
   };
   db()
-    .prepare("INSERT INTO customers (id, enterprise_id, name, contact, phone, email, address, tags, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-    .run(cust.id, cust.enterpriseId, cust.name, cust.contact, cust.phone, cust.email, cust.address, JSON.stringify(cust.tags), cust.status, cust.createdAt, cust.updatedAt);
+    .prepare("INSERT INTO customers (id, enterprise_id, name, contact, phone, email, address, gender, tags, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run(cust.id, cust.enterpriseId, cust.name, cust.contact, cust.phone, cust.email, cust.address, cust.gender, JSON.stringify(cust.tags), cust.status, cust.createdAt, cust.updatedAt);
   return cust;
 }
 
@@ -97,13 +102,14 @@ export function updateCustomer(id: string, input: UpdateCustomerRequest): Custom
     phone: input.phone !== undefined ? input.phone : existing.phone,
     email: input.email !== undefined ? input.email : existing.email,
     address: input.address !== undefined ? input.address : existing.address,
+    gender: input.gender ?? existing.gender,
     tags: input.tags !== undefined ? input.tags : existing.tags,
     status: input.status ?? existing.status,
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE customers SET name=?, contact=?, phone=?, email=?, address=?, tags=?, status=?, updated_at=? WHERE id=?")
-    .run(next.name, next.contact, next.phone, next.email, next.address, JSON.stringify(next.tags), next.status, next.updated_at, id);
+    .prepare("UPDATE customers SET name=?, contact=?, phone=?, email=?, address=?, gender=?, tags=?, status=?, updated_at=? WHERE id=?")
+    .run(next.name, next.contact, next.phone, next.email, next.address, next.gender, JSON.stringify(next.tags), next.status, next.updated_at, id);
   return getCustomer(id)!;
 }
 
@@ -122,6 +128,7 @@ function rowToSupplier(r: Record<string, unknown>): Supplier {
     phone: (r.phone as string) || "",
     email: (r.email as string) || "",
     address: (r.address as string) || "",
+    tags: jsonParse<string[]>(r.tags as string, []),
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
@@ -133,7 +140,10 @@ export function listSuppliers(
 ): PaginatedList<Supplier> {
   const conditions = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
-  if (opts?.search) { conditions.push("name LIKE ?"); params.push(`%${opts.search}%`); }
+  if (opts?.search) {
+    conditions.push("(name LIKE ? OR contact LIKE ? OR phone LIKE ? OR email LIKE ? OR tags LIKE ?)");
+    for (let index = 0; index < 5; index += 1) params.push(`%${opts.search}%`);
+  }
   const where = conditions.join(" AND ");
   const total = (db().prepare(`SELECT COUNT(*) as cnt FROM suppliers WHERE ${where}`).get(...params) as { cnt: number }).cnt;
   const page = opts?.page ?? 1;
@@ -159,12 +169,13 @@ export function createSupplier(input: CreateSupplierRequest): Supplier {
     phone: input.phone ?? "",
     email: input.email ?? "",
     address: input.address ?? "",
+    tags: input.tags ?? [],
     createdAt: now,
     updatedAt: now,
   };
   db()
-    .prepare("INSERT INTO suppliers (id, enterprise_id, name, contact, phone, email, address, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)")
-    .run(sup.id, sup.enterpriseId, sup.name, sup.contact, sup.phone, sup.email, sup.address, sup.createdAt, sup.updatedAt);
+    .prepare("INSERT INTO suppliers (id, enterprise_id, name, contact, phone, email, address, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+    .run(sup.id, sup.enterpriseId, sup.name, sup.contact, sup.phone, sup.email, sup.address, JSON.stringify(sup.tags), sup.createdAt, sup.updatedAt);
   return sup;
 }
 
@@ -177,11 +188,12 @@ export function updateSupplier(id: string, input: UpdateSupplierRequest): Suppli
     phone: input.phone !== undefined ? input.phone : existing.phone,
     email: input.email !== undefined ? input.email : existing.email,
     address: input.address !== undefined ? input.address : existing.address,
+    tags: input.tags !== undefined ? input.tags : existing.tags,
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE suppliers SET name=?, contact=?, phone=?, email=?, address=?, updated_at=? WHERE id=?")
-    .run(next.name, next.contact, next.phone, next.email, next.address, next.updated_at, id);
+    .prepare("UPDATE suppliers SET name=?, contact=?, phone=?, email=?, address=?, tags=?, updated_at=? WHERE id=?")
+    .run(next.name, next.contact, next.phone, next.email, next.address, JSON.stringify(next.tags), next.updated_at, id);
   return getSupplier(id)!;
 }
 

@@ -97,6 +97,34 @@ export function setRuleEnabled(id: string, enabled: boolean): Rule | undefined {
   return getRule(id);
 }
 
+export function updateRule(id: string, input: {
+  name?: string;
+  description?: string;
+  objectType?: string;
+  triggerEvent?: string;
+  conditionExpr?: RuleCondition;
+  actionType?: Rule["actionType"];
+  actionConfig?: Record<string, unknown>;
+}): Rule | undefined {
+  const existing = getRule(id);
+  if (!existing) return undefined;
+  db().prepare(
+    `UPDATE rules SET name=?, description=?, object_type=?, trigger_event=?, condition_expr=?,
+      action_type=?, action_config=?, updated_at=? WHERE id=?`,
+  ).run(
+    input.name?.trim() ?? existing.name,
+    input.description !== undefined ? input.description.trim() : existing.description,
+    input.objectType ?? existing.objectType,
+    input.triggerEvent ?? existing.triggerEvent,
+    JSON.stringify(input.conditionExpr ?? existing.conditionExpr),
+    input.actionType ?? existing.actionType,
+    JSON.stringify(input.actionConfig ?? existing.actionConfig),
+    new Date().toISOString(),
+    id,
+  );
+  return getRule(id);
+}
+
 export function deleteRule(id: string): boolean {
   return db().prepare("DELETE FROM rules WHERE id = ?").run(id).changes > 0;
 }

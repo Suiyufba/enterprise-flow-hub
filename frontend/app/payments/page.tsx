@@ -12,6 +12,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
+import { TableRowActions } from "../components/TableRowActions";
 import type { Payment, PaginatedList } from "shared";
 
 const methodLabels: Record<string, string> = {
@@ -101,6 +102,12 @@ export default function PaymentsPage() {
         ) : <span style={{ color: "var(--c-8c8c8c)", fontSize: 12 }}>-</span>,
     },
     { key: "receivedAt", label: "收款时间", render: (p: Payment) => p.receivedAt?.slice(0, 10) ?? "-" },
+    {
+      key: "actions",
+      label: "操作",
+      width: "150px",
+      render: (p: Payment) => <TableRowActions viewHref={`/payments/${p.id}`} editHref={p.status === "pending" ? `/payments/${p.id}?edit=1` : undefined} />,
+    },
   ];
 
   return (

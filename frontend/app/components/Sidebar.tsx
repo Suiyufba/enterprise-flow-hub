@@ -489,20 +489,22 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
                       <button className="inline-cancel" onClick={cancelRename} type="button"><AppIcon name="x" /></button>
                     </div>
                   ) : (
-                    <button
+                    <div
                       className={`history-chat sidebar-editable-row ${pathname === `/chat/${conversation.id}` ? "active" : ""}`}
                       key={conversation.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => router.push(`/chat/${conversation.id}`)}
+                      onKeyDown={(event) => { if (event.key === "Enter") router.push(`/chat/${conversation.id}`); }}
                     >
                       <span className="history-chat-title sidebar-row-title" title={conversation.title}>
                         {conversation.title.length > 8 ? conversation.title.slice(0, 8) + "…" : conversation.title}
                       </span>
-                      <span className="sidebar-row-actions">
-                        <span className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话"><AppIcon name="edit" /></span>
-                        <span className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话"><AppIcon name="trash" /></span>
-                      </span>
-                    </button>
+                        <span className="sidebar-row-actions">
+                          <button className="sidebar-mini-action" onClick={(e) => startRenameConversation(conversation.id, conversation.title, e)} title="重命名对话" type="button" aria-label={`重命名对话 ${conversation.title}`}><AppIcon name="edit" /></button>
+                          <button className="sidebar-mini-action danger" onClick={(e) => removeConversation(conversation.id, e)} title="删除对话" type="button" aria-label={`删除对话 ${conversation.title}`}><AppIcon name="trash" /></button>
+                        </span>
+                    </div>
                   )
                 ))}
               </AnimateHeight>

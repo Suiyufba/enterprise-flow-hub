@@ -8,6 +8,8 @@ import { useToast } from "../lib/toast-context";
 import { PageHeader } from "../components/PageHeader";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { AppIcon } from "../components/AppIcon";
 import type { FileRecord, PaginatedList } from "shared";
 
 function formatSize(bytes: number): string {
@@ -30,6 +32,8 @@ export default function FilesPage() {
   const [error, setError] = useState("");
   const projectOptions = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [fileToDelete, setFileToDelete] = useState<FileRecord | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -102,23 +106,32 @@ export default function FilesPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!fileToDelete) return;
+    setDeleting(true);
+    try {
+      await fetchJson(`/files/${fileToDelete.id}`, { method: "DELETE", adminUserId: user?.id });
+      showToast("文件已删除", "success");
+      setFileToDelete(null);
+      await load();
+    } catch { showToast("文件删除失败", "error"); }
+    finally { setDeleting(false); }
+  }
+
   const columns = [
     { key: "filename", label: "文件名" },
     { key: "mimeType", label: "类型" },
     { key: "size", label: "大小", render: (f: FileRecord) => formatSize(f.size) },
     { key: "relatedId", label: "所属项目", render: (f: FileRecord) => workspace.projects.find((project) => project.id === f.relatedId)?.name || "未归档" },
-    { key: "createdAt", label: "上传时间" },
+    { key: "createdAt", label: "上传时间", render: (f: FileRecord) => f.createdAt.slice(0, 10) },
     {
       key: "actions",
       label: "操作",
       render: (f: FileRecord) => (
-        <button
-          onClick={() => handleDownload(f.id, f.filename)}
-          style={{ color: "var(--c-4a90e6)", fontSize: "12px", textDecoration: "none", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-          type="button"
-        >
-          下载
-        </button>
+        <div className="table-actions">
+          <button className="table-action-button" onClick={() => handleDownload(f.id, f.filename)} type="button"><AppIcon name="download" /> 下载</button>
+          <button className="table-action-button danger" onClick={() => setFileToDelete(f)} type="button"><AppIcon name="trash" /> 删除</button>
+        </div>
       ),
     },
   ];
@@ -158,9 +171,10 @@ export default function FilesPage() {
             onPageChange={setPage}
             emptyTitle="暂无文件"
             emptyDesc="上传合同、截图、表格或发票附件后，Agent 才能在对话和工作流里引用这些文件。"
-            emptyAction={<button className="page-primary-button" onClick={() => fileInputRef.current?.click()} type="button">上传文件</button>}
+            emptyAction={<button className="page-primary-button" onClick={() => fileInputRef.current?.click()} disabled={!selectedProjectId} type="button">上传文件</button>}
           />
         )}
+        <ConfirmDialog open={Boolean(fileToDelete)} title="删除文件" message={`确定删除「${fileToDelete?.filename ?? ""}」吗？Agent 和自动化将无法再使用此文件。`} loading={deleting} onConfirm={handleDelete} onCancel={() => setFileToDelete(null)} />
       </div>
     </div>
   );

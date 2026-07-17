@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "../db/index.js";
 import type {
   Order, OrderItem, CreateOrderRequest, UpdateOrderRequest,
-  Payment, CreatePaymentRequest,
-  Invoice, CreateInvoiceRequest,
+  Payment, CreatePaymentRequest, UpdatePaymentRequest,
+  Invoice, CreateInvoiceRequest, UpdateInvoiceRequest,
   PaginatedList,
 } from "shared";
 
@@ -47,8 +47,8 @@ export function listOrders(
   if (opts?.status) { conds.push("orders.status = ?"); params.push(opts.status); }
   if (opts?.customerId) { conds.push("orders.customer_id = ?"); params.push(opts.customerId); }
   if (opts?.search) {
-    conds.push("(customers.name LIKE ? OR orders.notes LIKE ?)");
-    params.push(`%${opts.search}%`, `%${opts.search}%`);
+    conds.push("(orders.id LIKE ? OR customers.name LIKE ? OR orders.notes LIKE ?)");
+    params.push(`%${opts.search}%`, `%${opts.search}%`, `%${opts.search}%`);
   }
   const where = conds.join(" AND ");
   const from = "orders LEFT JOIN customers ON orders.customer_id = customers.id";
@@ -176,6 +176,31 @@ export function createPayment(input: CreatePaymentRequest): Payment {
   return payment;
 }
 
+export function getPayment(id: string): Payment | undefined {
+  const row = db().prepare("SELECT * FROM payments WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  return row ? rowToPayment(row) : undefined;
+}
+
+export function updatePayment(id: string, input: UpdatePaymentRequest): Payment | undefined {
+  const existing = getPayment(id);
+  if (!existing) return undefined;
+  const status = input.status ?? existing.status;
+  const receivedAt = status === "completed" && existing.status !== "completed"
+    ? new Date().toISOString()
+    : status === "pending" ? null : existing.receivedAt;
+  db().prepare(
+    "UPDATE payments SET order_id=?, amount=?, method=?, status=?, received_at=? WHERE id=?",
+  ).run(
+    input.orderId !== undefined ? input.orderId : existing.orderId,
+    input.amount ?? existing.amount,
+    input.method ?? existing.method,
+    status,
+    receivedAt,
+    id,
+  );
+  return getPayment(id);
+}
+
 // ---- Invoice ----
 
 function rowToInvoice(r: Record<string, unknown>): Invoice {
@@ -259,39 +284,49 @@ export function createInvoice(input: CreateInvoiceRequest): Invoice {
   return invoice;
 }
 
-export function updateInvoice(id: string, input: Partial<CreateInvoiceRequest>): Invoice | null {
+export function updateInvoice(id: string, input: UpdateInvoiceRequest): Invoice | null {
   const existing = db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!existing) return null;
 
-  const taxRate = input.taxRate ?? (existing.tax_rate as number | null) ?? null;
+  const keepOrReplace = <T>(value: T | undefined, current: unknown): T | null =>
+    value !== undefined ? value : (current as T | null) ?? null;
+  const taxRate = keepOrReplace(input.taxRate, existing.tax_rate);
   const amount = input.amount ?? (existing.amount as number);
-  const taxAmount = input.taxAmount ?? (taxRate != null ? Math.round(amount * taxRate * 100) / 100 : (existing.tax_amount as number | null) ?? 0);
-  const totalAmount = input.totalAmount ?? Math.round((amount + taxAmount) * 100) / 100;
-  const now = new Date().toISOString();
+  const taxAmount = input.taxAmount !== undefined
+    ? input.taxAmount
+    : input.amount !== undefined || input.taxRate !== undefined
+      ? (taxRate != null ? Math.round(amount * taxRate * 100) / 100 : 0)
+      : (existing.tax_amount as number | null) ?? 0;
+  const totalAmount = input.totalAmount !== undefined
+    ? input.totalAmount
+    : input.amount !== undefined || input.taxRate !== undefined || input.taxAmount !== undefined
+      ? Math.round((amount + (taxAmount ?? 0)) * 100) / 100
+      : (existing.total_amount as number | null) ?? amount;
 
   db().prepare(`UPDATE invoices SET
-    order_id = ?, customer_id = ?, amount = ?, status = ?, due_date = ?,
+    order_id = ?, customer_id = ?, amount = ?, status = ?, due_date = ?, issued_at = ?,
     invoice_number = ?, invoice_code = ?, invoice_type = ?, tax_rate = ?,
     tax_amount = ?, total_amount = ?, buyer_name = ?, buyer_tax_id = ?,
     seller_name = ?, seller_tax_id = ?, remark = ?, issuer = ?
     WHERE id = ?`).run(
-    input.orderId ?? existing.order_id ?? null,
-    input.customerId ?? existing.customer_id ?? null,
+    keepOrReplace(input.orderId, existing.order_id),
+    keepOrReplace(input.customerId, existing.customer_id),
     amount,
-    (input as Record<string, unknown>).status ?? existing.status ?? "draft",
-    input.dueDate ?? existing.due_date ?? null,
-    input.invoiceNumber ?? existing.invoice_number ?? null,
-    input.invoiceCode ?? existing.invoice_code ?? null,
-    input.invoiceType ?? existing.invoice_type ?? null,
+    input.status ?? existing.status ?? "draft",
+    keepOrReplace(input.dueDate, existing.due_date),
+    keepOrReplace(input.issuedAt, existing.issued_at),
+    keepOrReplace(input.invoiceNumber, existing.invoice_number),
+    keepOrReplace(input.invoiceCode, existing.invoice_code),
+    keepOrReplace(input.invoiceType, existing.invoice_type),
     taxRate,
     taxAmount,
     totalAmount,
-    input.buyerName ?? existing.buyer_name ?? null,
-    input.buyerTaxId ?? existing.buyer_tax_id ?? null,
-    input.sellerName ?? existing.seller_name ?? null,
-    input.sellerTaxId ?? existing.seller_tax_id ?? null,
-    input.remark ?? existing.remark ?? null,
-    input.issuer ?? existing.issuer ?? null,
+    keepOrReplace(input.buyerName, existing.buyer_name),
+    keepOrReplace(input.buyerTaxId, existing.buyer_tax_id),
+    keepOrReplace(input.sellerName, existing.seller_name),
+    keepOrReplace(input.sellerTaxId, existing.seller_tax_id),
+    keepOrReplace(input.remark, existing.remark),
+    keepOrReplace(input.issuer, existing.issuer),
     id,
   );
   return rowToInvoice(db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Record<string, unknown>);

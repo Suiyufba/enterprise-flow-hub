@@ -11,6 +11,8 @@ import { SearchInput } from "../components/SearchInput";
 import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
+import { TableRowActions } from "../components/TableRowActions";
+import { FormDialog } from "../components/FormDialog";
 import type { Product, PaginatedList } from "shared";
 
 export default function ProductsPage() {
@@ -26,6 +28,9 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", sku: "", category: "", unitPrice: "", unit: "", description: "" });
+  const [editSaving, setEditSaving] = useState(false);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -46,6 +51,34 @@ export default function ProductsPage() {
   }, [enterpriseId, page, search, category, showToast, user?.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  function startEdit(product: Product) {
+    setEditingProduct(product);
+    setEditForm({
+      name: product.name, sku: product.sku, category: product.category,
+      unitPrice: String(product.unitPrice), unit: product.unit, description: product.description,
+    });
+  }
+
+  async function saveProduct() {
+    const price = Number(editForm.unitPrice);
+    if (!editingProduct || !editForm.name.trim() || !Number.isFinite(price) || price < 0) return;
+    setEditSaving(true);
+    try {
+      await fetchJson(`/products/${editingProduct.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: editForm.name.trim(), sku: editForm.sku.trim(), category: editForm.category.trim(),
+          unitPrice: price, unit: editForm.unit.trim(), description: editForm.description.trim(),
+        }),
+        adminUserId: user?.id,
+      });
+      setEditingProduct(null);
+      showToast("商品信息已更新", "success");
+      await load();
+    } catch { showToast("商品信息保存失败", "error"); }
+    finally { setEditSaving(false); }
+  }
 
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -95,6 +128,12 @@ export default function ProductsPage() {
     { key: "sku", label: "SKU" },
     { key: "category", label: "分类" },
     { key: "unitPrice", label: "单价", render: (p: Product) => `¥${p.unitPrice.toFixed(2)}/${p.unit}` },
+    {
+      key: "actions",
+      label: "操作",
+      width: "150px",
+      render: (p: Product) => <TableRowActions viewHref={`/products/${p.id}`} onEdit={() => startEdit(p)} />,
+    },
   ];
 
   return (
@@ -163,6 +202,20 @@ export default function ProductsPage() {
             emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建商品</button>}
           />
         )}
+        <FormDialog open={Boolean(editingProduct)} title={`编辑商品${editingProduct ? `：${editingProduct.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.name.trim() || !Number.isFinite(Number(editForm.unitPrice)) || Number(editForm.unitPrice) < 0} onSubmit={saveProduct} onCancel={() => setEditingProduct(null)}>
+          <label className="form-label" htmlFor="edit-product-name">商品名称 *</label>
+          <input id="edit-product-name" className="page-input" autoFocus value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-product-sku">SKU</label>
+          <input id="edit-product-sku" className="page-input" value={editForm.sku} onChange={(event) => setEditForm((current) => ({ ...current, sku: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-product-category">分类</label>
+          <input id="edit-product-category" className="page-input" value={editForm.category} onChange={(event) => setEditForm((current) => ({ ...current, category: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-product-price">单价</label>
+          <input id="edit-product-price" className="page-input" type="number" min="0" step="0.01" value={editForm.unitPrice} onChange={(event) => setEditForm((current) => ({ ...current, unitPrice: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-product-unit">单位</label>
+          <input id="edit-product-unit" className="page-input" value={editForm.unit} onChange={(event) => setEditForm((current) => ({ ...current, unit: event.target.value }))} />
+          <label className="form-label" htmlFor="edit-product-description">描述</label>
+          <textarea id="edit-product-description" className="page-textarea" value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} />
+        </FormDialog>
       </div>
     </div>
   );

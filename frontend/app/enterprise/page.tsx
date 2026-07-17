@@ -9,6 +9,7 @@ import { useWorkspace } from "../lib/workspace-context";
 import { gsap, useGSAP } from "../lib/gsap";
 import { animate, stagger } from "../lib/anime";
 import { AppIcon } from "../components/AppIcon";
+import { TagInput, TagList } from "../components/TagInput";
 import type { Department, User } from "shared";
 
 interface DepartmentWithChildren extends Department {
@@ -252,9 +253,30 @@ export default function EnterprisePage() {
   }>({ open: false, type: "dept", id: "", name: "" });
 
   const [processing, setProcessing] = useState(false);
+  const [enterpriseForm, setEnterpriseForm] = useState({ open: false, name: "", tags: [] as string[] });
 
   const isAdmin = user?.role === "admin";
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const currentEnterprise = workspace.enterprises.find((enterprise) => enterprise.id === enterpriseId);
+
+  async function handleSaveEnterprise() {
+    if (!currentEnterprise || !enterpriseForm.name.trim()) return;
+    setProcessing(true);
+    try {
+      await fetchJson(`/enterprises/${currentEnterprise.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: enterpriseForm.name.trim(), tags: enterpriseForm.tags }),
+        adminUserId: user?.id,
+      });
+      await refresh();
+      setEnterpriseForm({ open: false, name: "", tags: [] });
+      showToast("企业信息已更新", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "企业信息保存失败", "error");
+    } finally {
+      setProcessing(false);
+    }
+  }
 
   const loadData = useCallback(async () => {
     if (!enterpriseId) return;
@@ -477,9 +499,29 @@ export default function EnterprisePage() {
     <div className="enterprise-page">
       <div className="page-shell">
         <div className="page-header">
-          <h1>企业管理</h1>
-          <p>组织架构一目了然，高效管理团队</p>
+          <div>
+            <h1>企业管理</h1>
+            <p>维护企业资料、标签和组织架构</p>
+          </div>
+          {isAdmin && currentEnterprise && (
+            <button className="page-secondary-button" type="button" onClick={() => setEnterpriseForm({ open: true, name: currentEnterprise.name, tags: currentEnterprise.tags })}>
+              <AppIcon name="edit" /> 编辑企业信息
+            </button>
+          )}
         </div>
+
+        {currentEnterprise && (
+          <div className="enterprise-profile-bar">
+            <div>
+              <span className="enterprise-profile-label">当前企业</span>
+              <strong>{currentEnterprise.name}</strong>
+            </div>
+            <div>
+              <span className="enterprise-profile-label">自定义标签</span>
+              <TagList tags={currentEnterprise.tags} />
+            </div>
+          </div>
+        )}
 
         <div className="page-stats" ref={statsRef}>
           <div className="page-stat">
@@ -568,6 +610,22 @@ export default function EnterprisePage() {
             )}
           </div>
         </div>
+
+        {enterpriseForm.open && (
+          <ModalWrap open={enterpriseForm.open} onClose={() => setEnterpriseForm({ open: false, name: "", tags: [] })}>
+            <h3>编辑企业信息</h3>
+            <div className="modal-body">
+              <label className="form-label" htmlFor="enterprise-name">企业名称</label>
+              <input id="enterprise-name" className="page-input" autoFocus value={enterpriseForm.name} onChange={(event) => setEnterpriseForm((current) => ({ ...current, name: event.target.value }))} />
+              <label className="form-label">自定义标签</label>
+              <TagInput tags={enterpriseForm.tags} onChange={(tags) => setEnterpriseForm((current) => ({ ...current, tags }))} placeholder="例如：留学服务、重点企业" />
+            </div>
+            <div className="modal-actions">
+              <button className="page-secondary-button" onClick={() => setEnterpriseForm({ open: false, name: "", tags: [] })} type="button" disabled={processing}>取消</button>
+              <button className="page-primary-button" onClick={handleSaveEnterprise} type="button" disabled={processing || !enterpriseForm.name.trim()}>{processing ? "保存中..." : "保存"}</button>
+            </div>
+          </ModalWrap>
+        )}
 
         {deptForm.open && (
           <ModalWrap open={deptForm.open} onClose={() => setDeptForm({ open: false, name: "" })}>

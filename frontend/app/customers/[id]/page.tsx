@@ -6,6 +6,7 @@ import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
 import { AppIcon } from "../../components/AppIcon";
+import { TagInput, TagList } from "../../components/TagInput";
 import type { Customer } from "shared";
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +24,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [gender, setGender] = useState<Customer["gender"]>("unknown");
+  const [tags, setTags] = useState<string[]>([]);
   const [status, setStatus] = useState<Customer["status"]>("active");
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -37,6 +40,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         setPhone(data.phone);
         setEmail(data.email);
         setAddress(data.address);
+        setGender(data.gender);
+        setTags(data.tags);
         setStatus(data.status);
       })
       .catch(() => {
@@ -58,6 +63,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
           address: address.trim() || undefined,
+          gender,
+          tags,
           status,
         }),
         adminUserId: user?.id,
@@ -159,6 +166,14 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             <label className="form-label" htmlFor="customer-address">地址</label>
             <input id="customer-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
 
+            <label className="form-label" htmlFor="customer-gender">性别</label>
+            <select id="customer-gender" className="page-input" value={gender} onChange={(e) => setGender(e.target.value as Customer["gender"])}>
+              <option value="unknown">未设置</option><option value="male">男</option><option value="female">女</option><option value="other">其他</option>
+            </select>
+
+            <label className="form-label">自定义标签</label>
+            <TagInput tags={tags} onChange={setTags} />
+
             <label className="form-label" htmlFor="customer-status">状态</label>
             <select id="customer-status" className="page-input" value={status} onChange={(e) => setStatus(e.target.value as Customer["status"])}>
               <option value="active">活跃</option>
@@ -177,6 +192,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
                 setPhone(customer.phone);
                 setEmail(customer.email);
                 setAddress(customer.address);
+                setGender(customer.gender);
+                setTags(customer.tags);
                 setStatus(customer.status);
                 setEditing(false);
               }}>取消</button>
@@ -199,6 +216,14 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             <div className="settings-card">
               <div><strong>地址</strong></div>
               <span className="settings-meta">{customer.address || "未设置"}</span>
+            </div>
+            <div className="settings-card">
+              <div><strong>性别</strong></div>
+              <span className="settings-meta">{{ unknown: "未设置", male: "男", female: "女", other: "其他" }[customer.gender]}</span>
+            </div>
+            <div className="settings-card">
+              <div><strong>自定义标签</strong></div>
+              <TagList tags={customer.tags} />
             </div>
             <div className="settings-card">
               <div><strong>状态</strong></div>

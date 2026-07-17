@@ -8,6 +8,7 @@ import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
 import { StatusBadge } from "../../components/StatusBadge";
 import { AppIcon } from "../../components/AppIcon";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import type { Order } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -24,10 +25,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchJson<Order>(`/orders/${id}`, { adminUserId: user?.id })
-      .then(setOrder)
+      .then((data) => {
+        setOrder(data);
+        setNotes(data.notes);
+        if (data.status === "draft" && new URLSearchParams(window.location.search).get("edit") === "1") setEditing(true);
+      })
       .catch(() => {
         setError("加载订单失败，请检查网络连接后重试");
         showToast("加载订单失败", "error");
@@ -47,6 +57,32 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       showToast("状态已更新", "success");
     } catch { showToast("更新失败", "error"); }
     finally { setUpdating(false); }
+  }
+
+  async function saveOrder() {
+    if (!order) return;
+    setSaving(true);
+    try {
+      const updated = await fetchJson<Order>(`/orders/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ notes: notes.trim() }),
+        adminUserId: user?.id,
+      });
+      setOrder({ ...order, ...updated });
+      setEditing(false);
+      showToast("订单备注已保存", "success");
+    } catch { showToast("订单保存失败", "error"); }
+    finally { setSaving(false); }
+  }
+
+  async function deleteOrder() {
+    setDeleting(true);
+    try {
+      await fetchJson(`/orders/${id}`, { method: "DELETE", adminUserId: user?.id });
+      showToast("草稿订单已删除", "success");
+      router.push("/orders");
+    } catch { showToast("订单删除失败", "error"); }
+    finally { setDeleting(false); setDeleteOpen(false); }
   }
 
   const nextStatuses: Record<string, string[]> = {
@@ -105,6 +141,21 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <button className="chat-back" onClick={() => router.push("/orders")} type="button" aria-label="返回列表"><AppIcon name="arrow-left" /></button>
             <h1>订单 {order.id.slice(0, 12)}</h1>
           </div>
+          {order.status === "draft" && (
+            <div className="page-header-controls">
+              {editing ? (
+                <>
+                  <button className="page-secondary-button" onClick={() => { setNotes(order.notes); setEditing(false); }} disabled={saving} type="button">取消</button>
+                  <button className="page-primary-button" onClick={saveOrder} disabled={saving} type="button">{saving ? "保存中..." : "保存"}</button>
+                </>
+              ) : (
+                <>
+                  <button className="page-secondary-button" onClick={() => setEditing(true)} type="button"><AppIcon name="edit" /> 编辑备注</button>
+                  <button className="page-secondary-button" onClick={() => setDeleteOpen(true)} type="button" style={{ color: "var(--c-ff3b30)" }}><AppIcon name="trash" /> 删除草稿</button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="settings-list">
@@ -126,7 +177,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           )}
           <div className="settings-card">
             <div><strong>备注</strong></div>
-            <span className="settings-meta">{order.notes || "无"}</span>
+            {editing ? (
+              <textarea className="page-textarea order-notes-editor" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={500} autoFocus />
+            ) : <span className="settings-meta">{order.notes || "无"}</span>}
           </div>
           <div className="settings-card">
             <div><strong>创建时间</strong></div>
@@ -151,7 +204,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
 
-        {nextStatuses[order.status]?.length > 0 && (
+        {!editing && nextStatuses[order.status]?.length > 0 && (
           <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
             {nextStatuses[order.status].map((ns) => (
               <button
@@ -166,6 +219,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             ))}
           </div>
         )}
+        <ConfirmDialog
+          open={deleteOpen}
+          title="删除草稿订单"
+          message={`确定删除订单 ${order.id.slice(0, 12)} 吗？订单项目也会一并删除，此操作不可撤销。`}
+          loading={deleting}
+          onConfirm={deleteOrder}
+          onCancel={() => setDeleteOpen(false)}
+        />
       </div>
     </div>
   );

@@ -3,6 +3,12 @@ import { z } from "zod";
 export const EnterpriseSchema = z.object({
   id: z.string(),
   name: z.string(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(20),
+});
+
+export const UpdateEnterpriseRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  tags: z.array(z.string().trim().min(1).max(30)).max(20).optional(),
 });
 
 export const UserSchema = z.object({
@@ -162,7 +168,18 @@ export const TaskSchema = z.object({
   updatedAt: z.string(),
 });
 
+export const CreateTaskRequestSchema = z.object({
+  enterpriseId: z.string(),
+  title: z.string().min(1).max(120),
+  description: z.string().max(1000).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  dueDate: z.string().nullable().optional(),
+  assigneeId: z.string().nullable().optional(),
+});
+
 export const UpdateTaskRequestSchema = z.object({
+  title: z.string().min(1).max(120).optional(),
+  description: z.string().max(1000).optional(),
   status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   assigneeId: z.string().nullable().optional(),
@@ -361,6 +378,7 @@ export type UpdateDepartmentRequest = z.infer<typeof UpdateDepartmentRequestSche
 export type CreateUserRequest = z.infer<typeof CreateUserRequestSchema>;
 export type UpdateUserRequest = z.infer<typeof UpdateUserRequestSchema>;
 export type Enterprise = z.infer<typeof EnterpriseSchema>;
+export type UpdateEnterpriseRequest = z.infer<typeof UpdateEnterpriseRequestSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type RegisterUserRequest = z.infer<typeof RegisterUserRequestSchema>;
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
@@ -377,6 +395,7 @@ export type PluginConfigResponse = z.infer<typeof PluginConfigResponseSchema>;
 export type Automation = z.infer<typeof AutomationSchema>;
 export type AutomationRun = z.infer<typeof AutomationRunSchema>;
 export type Task = z.infer<typeof TaskSchema>;
+export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>;
 export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>;
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 export type ToolRun = z.infer<typeof ToolRunSchema>;
