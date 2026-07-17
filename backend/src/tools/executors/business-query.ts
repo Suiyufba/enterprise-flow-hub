@@ -1,5 +1,6 @@
 import { getDb } from "../../db/index.js";
 import { customerDuplicateReport } from "../customer-duplicates.js";
+import { resolveProjectId } from "../../project-scope.js";
 
 type ResourceConfig = {
   table: string;
@@ -140,9 +141,11 @@ function customerValueRanking(enterpriseId: string, limit: number, projectId?: s
 
 export async function businessQueryExecute(input: Record<string, unknown>): Promise<string> {
   const enterpriseId = typeof input._enterpriseId === "string" ? input._enterpriseId : "";
-  const projectId = typeof input._projectId === "string" && input._projectId ? input._projectId : undefined;
   const resource = typeof input.resource === "string" ? input.resource.trim().toLowerCase() : "dashboard";
   if (!enterpriseId) throw new Error("缺少当前企业上下文");
+  const requestedProjectId = typeof input._projectId === "string" && input._projectId ? input._projectId : undefined;
+  // A business subcategory must always be owned by the selected enterprise.
+  const projectId = requestedProjectId ? resolveProjectId(enterpriseId, requestedProjectId) : undefined;
 
   if (resource === "dashboard") {
     return JSON.stringify({ ok: true, resource, summary: dashboard(enterpriseId, projectId) });

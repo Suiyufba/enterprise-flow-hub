@@ -309,6 +309,26 @@ test("business data and Agent tools are isolated by project", async () => {
   }
 });
 
+test("business query MCP rejects a business subcategory from another enterprise", async () => {
+  await assert.rejects(
+    businessQueryExecute({
+      _enterpriseId: "ent-yunshan",
+      _projectId: "proj-qihang-growth",
+      resource: "customers",
+    }),
+    /不属于当前企业/,
+  );
+
+  const yunshan = JSON.parse(await businessQueryExecute({
+    _enterpriseId: "ent-yunshan",
+    _projectId: "proj-yunshan-orders",
+    resource: "customers",
+    limit: 50,
+  }));
+  assert.equal(yunshan.ok, true);
+  assert.ok(yunshan.items.every((item: { project_id: string }) => item.project_id === "proj-yunshan-orders"));
+});
+
 test("customer duplicate audit scans the full enterprise beyond the returned page", async () => {
   const now = new Date().toISOString();
   const insert = db.prepare(
