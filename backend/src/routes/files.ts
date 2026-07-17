@@ -17,10 +17,10 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/files", async (request, reply) => {
-    const { enterpriseId, relatedType, relatedId, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, relatedType, relatedId, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listFiles(enterpriseId, { relatedType, relatedId, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listFiles(enterpriseId, { projectId, relatedType, relatedId, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/files/:id/download", async (request, reply) => {
@@ -58,6 +58,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
 
     const file = createFile({
       enterpriseId: targetEnterpriseId,
+      projectId: project.id,
       filename: data.filename,
       mimeType: data.mimetype,
       size: buf.length,

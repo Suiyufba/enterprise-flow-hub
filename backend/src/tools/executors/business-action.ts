@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../../db/index.js";
 import { listCustomersByNormalizedPhone, listDuplicatePhoneGroups } from "../customer-duplicates.js";
+import { resolveProjectId } from "../../project-scope.js";
 
 const INVOICE_STATUSES = new Set(["draft", "issued", "paid", "overdue", "cancelled"]);
 const ORDER_STATUSES = new Set(["draft", "confirmed", "processing", "shipped", "delivered", "cancelled", "refunded"]);
@@ -12,38 +13,38 @@ function text(input: Record<string, unknown>, key: string): string {
   return typeof input[key] === "string" ? input[key].trim() : "";
 }
 
-function updateStatus(table: string, id: string, enterpriseId: string, status: string, allowed: Set<string>) {
+function updateStatus(table: string, id: string, enterpriseId: string, projectId: string, status: string, allowed: Set<string>) {
   if (!id || !allowed.has(status)) throw new Error(`无效的 ${table} ID 或状态`);
   const db = getDb();
   const hasUpdatedAt = table !== "invoices";
   const sql = hasUpdatedAt
-    ? `UPDATE ${table} SET status=?, updated_at=? WHERE id=? AND enterprise_id=?`
-    : `UPDATE ${table} SET status=? WHERE id=? AND enterprise_id=?`;
+    ? `UPDATE ${table} SET status=?, updated_at=? WHERE id=? AND enterprise_id=? AND project_id=?`
+    : `UPDATE ${table} SET status=? WHERE id=? AND enterprise_id=? AND project_id=?`;
   const result = hasUpdatedAt
-    ? db.prepare(sql).run(status, new Date().toISOString(), id, enterpriseId)
-    : db.prepare(sql).run(status, id, enterpriseId);
-  if (result.changes !== 1) throw new Error("记录不存在或不属于当前企业");
+    ? db.prepare(sql).run(status, new Date().toISOString(), id, enterpriseId, projectId)
+    : db.prepare(sql).run(status, id, enterpriseId, projectId);
+  if (result.changes !== 1) throw new Error("记录不存在或不属于当前项目");
   return { id, status };
 }
 
-function deduplicateCustomers(enterpriseId: string) {
+function deduplicateCustomers(enterpriseId: string, projectId: string) {
   const db = getDb();
-  const duplicatePhones = listDuplicatePhoneGroups(enterpriseId);
+  const duplicatePhones = listDuplicatePhoneGroups(enterpriseId, projectId);
 
   let merged = 0;
   let ordersMoved = 0;
   let invoicesMoved = 0;
   const merge = db.transaction(() => {
     for (const duplicate of duplicatePhones) {
-      const customers = listCustomersByNormalizedPhone(enterpriseId, duplicate.key);
+      const customers = listCustomersByNormalizedPhone(enterpriseId, duplicate.key, projectId);
       const keeper = customers[0];
       if (!keeper) continue;
       for (const duplicateCustomer of customers.slice(1)) {
         const duplicateId = duplicateCustomer.id as string;
         const keeperId = keeper.id as string;
-        ordersMoved += db.prepare("UPDATE orders SET customer_id=? WHERE customer_id=? AND enterprise_id=?").run(keeperId, duplicateId, enterpriseId).changes;
-        invoicesMoved += db.prepare("UPDATE invoices SET customer_id=? WHERE customer_id=? AND enterprise_id=?").run(keeperId, duplicateId, enterpriseId).changes;
-        merged += db.prepare("DELETE FROM customers WHERE id=? AND enterprise_id=?").run(duplicateId, enterpriseId).changes;
+        ordersMoved += db.prepare("UPDATE orders SET customer_id=? WHERE customer_id=? AND enterprise_id=? AND project_id=?").run(keeperId, duplicateId, enterpriseId, projectId).changes;
+        invoicesMoved += db.prepare("UPDATE invoices SET customer_id=? WHERE customer_id=? AND enterprise_id=? AND project_id=?").run(keeperId, duplicateId, enterpriseId, projectId).changes;
+        merged += db.prepare("DELETE FROM customers WHERE id=? AND enterprise_id=? AND project_id=?").run(duplicateId, enterpriseId, projectId).changes;
       }
     }
   });
@@ -55,6 +56,7 @@ export async function businessActionExecute(input: Record<string, unknown>): Pro
   const enterpriseId = text(input, "_enterpriseId");
   const operation = text(input, "operation");
   if (!enterpriseId) throw new Error("缺少当前企业上下文");
+  const projectId = resolveProjectId(enterpriseId, text(input, "_projectId") || undefined);
 
   if (operation === "create_task") {
     const title = text(input, "title");
@@ -64,13 +66,13 @@ export async function businessActionExecute(input: Record<string, unknown>): Pro
     const id = `task-${randomUUID()}`;
     const now = new Date().toISOString();
     getDb().prepare(
-      `INSERT INTO tasks (id,enterprise_id,assignee_id,title,description,status,priority,due_date,source_type,source_id,created_at,updated_at)
-       VALUES (?,?,?,?,?,'pending',?,?,?,?,?,?)`,
+      `INSERT INTO tasks (id,enterprise_id,project_id,assignee_id,title,description,status,priority,due_date,source_type,source_id,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,'pending',?,?,?,?,?,?)`,
     ).run(
-      id, enterpriseId, text(input, "assigneeId") || null, title, text(input, "description"), priority,
+      id, enterpriseId, projectId, text(input, "assigneeId") || null, title, text(input, "description"), priority,
       text(input, "dueDate") || null, text(input, "sourceType") || "agent", text(input, "sourceId") || null, now, now,
     );
-    return JSON.stringify({ ok: true, operation, task: { id, title, priority, dueDate: text(input, "dueDate") || null } });
+    return JSON.stringify({ ok: true, operation, task: { id, projectId, title, priority, dueDate: text(input, "dueDate") || null } });
   }
 
   if (operation === "create_customer") {
@@ -86,26 +88,26 @@ export async function businessActionExecute(input: Record<string, unknown>): Pro
       ? [...new Set(input.tags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean))].slice(0, 20)
       : [];
     getDb().prepare(
-      `INSERT INTO customers (id,enterprise_id,name,contact,phone,email,address,gender,tags,status,created_at,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO customers (id,enterprise_id,project_id,name,contact,phone,email,address,gender,tags,status,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     ).run(
-      id, enterpriseId, name, text(input, "contact"), text(input, "phone"), text(input, "email"),
+      id, enterpriseId, projectId, name, text(input, "contact"), text(input, "phone"), text(input, "email"),
       text(input, "address"), gender, JSON.stringify(tags), status, now, now,
     );
-    return JSON.stringify({ ok: true, operation, customer: { id, name, gender, tags, status } });
+    return JSON.stringify({ ok: true, operation, customer: { id, projectId, name, gender, tags, status } });
   }
 
   if (operation === "update_invoice_status") {
-    return JSON.stringify({ ok: true, operation, result: updateStatus("invoices", text(input, "id"), enterpriseId, text(input, "status"), INVOICE_STATUSES) });
+    return JSON.stringify({ ok: true, operation, result: updateStatus("invoices", text(input, "id"), enterpriseId, projectId, text(input, "status"), INVOICE_STATUSES) });
   }
   if (operation === "update_order_status") {
-    return JSON.stringify({ ok: true, operation, result: updateStatus("orders", text(input, "id"), enterpriseId, text(input, "status"), ORDER_STATUSES) });
+    return JSON.stringify({ ok: true, operation, result: updateStatus("orders", text(input, "id"), enterpriseId, projectId, text(input, "status"), ORDER_STATUSES) });
   }
   if (operation === "update_customer_status") {
-    return JSON.stringify({ ok: true, operation, result: updateStatus("customers", text(input, "id"), enterpriseId, text(input, "status"), CUSTOMER_STATUSES) });
+    return JSON.stringify({ ok: true, operation, result: updateStatus("customers", text(input, "id"), enterpriseId, projectId, text(input, "status"), CUSTOMER_STATUSES) });
   }
   if (operation === "deduplicate_customers_by_phone") {
-    return JSON.stringify({ ok: true, operation, result: deduplicateCustomers(enterpriseId) });
+    return JSON.stringify({ ok: true, operation, result: deduplicateCustomers(enterpriseId, projectId) });
   }
 
   throw new Error(`不支持的业务操作：${operation || "未指定"}`);

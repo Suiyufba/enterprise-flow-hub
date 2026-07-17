@@ -13,6 +13,7 @@ import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
+import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Payment, PaginatedList } from "shared";
 
 const methodLabels: Record<string, string> = {
@@ -25,10 +26,12 @@ export default function PaymentsPage() {
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Payment[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,36 +44,39 @@ export default function PaymentsPage() {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (statusFilter) params.set("status", statusFilter);
       if (search) params.set("orderId", search);
+      if (projectFilter) params.set("projectId", projectFilter);
       const res = await fetchJson<PaginatedList<Payment>>(`/payments?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
     } catch { showToast("加载失败", "error"); setError("加载失败，请检查网络后重试"); }
     finally { setLoading(false); }
-  }, [enterpriseId, page, statusFilter, search, showToast, user?.id]);
+  }, [enterpriseId, page, projectFilter, statusFilter, search, showToast, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   const [method, setMethod] = useState("bank_transfer");
+  const [projectId, setProjectId] = useState("");
   const [amount, setAmount] = useState("");
   const [orderId, setOrderId] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function createPayment() {
     const parsed = parseFloat(amount);
-    if (!amount || isNaN(parsed) || parsed <= 0 || !enterpriseId) return;
+    if (!amount || isNaN(parsed) || parsed <= 0 || !enterpriseId || !projectId) return;
     setSaving(true);
     try {
       await fetchJson("/payments", {
         method: "POST",
         body: JSON.stringify({
           enterpriseId,
+          projectId,
           orderId: orderId.trim() || undefined,
           amount: parseFloat(amount),
           method,
         }),
         adminUserId: user?.id,
       });
-      setAmount(""); setOrderId(""); setMethod("bank_transfer");
+      setAmount(""); setOrderId(""); setMethod("bank_transfer"); setProjectId("");
       setShowForm(false);
       showToast("付款已创建", "success");
       await load();
@@ -88,6 +94,7 @@ export default function PaymentsPage() {
         </Link>
       ),
     },
+    { key: "projectId", label: "所属项目", render: (p: Payment) => <ProjectBadge projects={projects} projectId={p.projectId} /> },
     { key: "amount", label: "金额", render: (p: Payment) => `¥${p.amount.toFixed(2)}` },
     { key: "method", label: "支付方式", render: (p: Payment) => methodLabels[p.method] ?? p.method },
     { key: "status", label: "状态", render: (p: Payment) => <StatusBadge status={p.status} /> },
@@ -126,6 +133,8 @@ export default function PaymentsPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
+              <label className="form-label" htmlFor="payment-project">所属项目 *</label>
+              <ProjectScopeSelect id="payment-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="付款所属项目" />
               <label className="form-label" htmlFor="payment-method">支付方式</label>
               <select id="payment-method" className="page-input" value={method} onChange={(e) => setMethod(e.target.value)}>
                 {Object.entries(methodLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -134,7 +143,7 @@ export default function PaymentsPage() {
               <input id="payment-amount" className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
               <label className="form-label" htmlFor="payment-orderid">关联订单 ID（可选）</label>
               <input id="payment-orderid" className="page-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="关联订单 ID（可选）" />
-              <button className="page-primary-button" onClick={createPayment} disabled={saving || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
+              <button className="page-primary-button" onClick={createPayment} disabled={saving || !projectId || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
                 {saving ? "创建中..." : "确认创建"}
               </button>
             </div>
@@ -143,6 +152,7 @@ export default function PaymentsPage() {
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索关联订单..." />
+          <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
           <select className="search-enterprise-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
             <option value="">全部状态</option>
             <option value="pending">待处理</option>

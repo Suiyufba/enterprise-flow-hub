@@ -8,6 +8,7 @@ import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import type { Customer } from "shared";
 import { TagInput } from "../../components/TagInput";
+import { ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 
 export default function NewCustomerPage() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function NewCustomerPage() {
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
+  const [projectId, setProjectId] = useState("");
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
@@ -27,13 +30,14 @@ export default function NewCustomerPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !enterpriseId) return;
+    if (!name.trim() || !enterpriseId || !projectId) return;
     setSaving(true);
     try {
       await fetchJson<Customer>("/customers", {
         method: "POST",
         body: JSON.stringify({
           enterpriseId,
+          projectId,
           name: name.trim(),
           contact: contact.trim() || undefined,
           phone: phone.trim() || undefined,
@@ -64,6 +68,8 @@ export default function NewCustomerPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="page-form-grid" style={{ maxWidth: 560 }}>
+          <label className="form-label" htmlFor="new-customer-project">所属项目 *</label>
+          <ProjectScopeSelect id="new-customer-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="客户所属项目" />
           <label className="form-label" htmlFor="new-customer-name">名称 *</label>
           <input id="new-customer-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="客户名称" required />
 
@@ -96,7 +102,7 @@ export default function NewCustomerPage() {
           </select>
 
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <button className="page-primary-button" type="submit" disabled={saving || !name.trim()}>
+            <button className="page-primary-button" type="submit" disabled={saving || !name.trim() || !projectId}>
               {saving ? "保存中..." : "创建客户"}
             </button>
             <button className="page-secondary-button" type="button" onClick={() => router.back()}>取消</button>

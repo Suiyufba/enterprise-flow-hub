@@ -12,9 +12,10 @@ import {
   listPayments, getPayment, createPayment, updatePayment,
   listInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice,
 } from "../store/orders.js";
-import { getCustomer } from "../store/crm.js";
+import { getCustomer, getProduct } from "../store/crm.js";
 import { canAccessEnterprise } from "./auth-context.js";
 import { emitEvent } from "../events/emitter.js";
+import { projectBelongsToEnterprise } from "../project-scope.js";
 
 function requireScope(request: FastifyRequest, reply: FastifyReply, recordEid: string): boolean {
   return canAccessEnterprise(request, recordEid, reply);
@@ -23,10 +24,10 @@ function requireScope(request: FastifyRequest, reply: FastifyReply, recordEid: s
 export async function ordersRoutes(app: FastifyInstance): Promise<void> {
   // ---- Orders ----
   app.get("/orders", async (request, reply) => {
-    const { enterpriseId, status, customerId, search, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, status, customerId, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listOrders(enterpriseId, { status, customerId, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listOrders(enterpriseId, { projectId, status, customerId, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/orders/:id", async (request, reply) => {
@@ -41,7 +42,30 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     const parsed = CreateOrderRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
-    const order = createOrder(parsed.data);
+    let projectId = parsed.data.projectId;
+    if (parsed.data.customerId) {
+      const customer = getCustomer(parsed.data.customerId);
+      if (!customer || customer.enterpriseId !== parsed.data.enterpriseId) {
+        return reply.status(400).send({ error: "关联客户不存在或不属于当前企业" });
+      }
+      projectId ??= customer.projectId;
+      if (customer.projectId !== projectId) return reply.status(400).send({ error: "客户与订单必须属于同一个项目" });
+    }
+    for (const item of parsed.data.items) {
+      if (!item.productId) continue;
+      const product = getProduct(item.productId);
+      if (!product || product.enterpriseId !== parsed.data.enterpriseId) {
+        return reply.status(400).send({ error: "订单商品不存在或不属于当前企业" });
+      }
+      projectId ??= product.projectId;
+      if (product.projectId !== projectId) return reply.status(400).send({ error: "商品与订单必须属于同一个项目" });
+    }
+    if (projectId && !projectBelongsToEnterprise(projectId, parsed.data.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
+    let order;
+    try { order = createOrder({ ...parsed.data, projectId }); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "创建订单失败" }); }
     emitEvent("create", "order", order.id, order as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(order);
   });
@@ -53,6 +77,21 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     if (!requireScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateOrderRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    if (parsed.data.projectId) {
+      if (!projectBelongsToEnterprise(parsed.data.projectId, existing.enterpriseId)) {
+        return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+      }
+      const customer = existing.customerId ? getCustomer(existing.customerId) : undefined;
+      if (customer && customer.projectId !== parsed.data.projectId) {
+        return reply.status(400).send({ error: "请先将关联客户移到目标项目，再移动订单" });
+      }
+      for (const item of existing.items) {
+        const product = item.productId ? getProduct(item.productId) : undefined;
+        if (product && product.projectId !== parsed.data.projectId) {
+          return reply.status(400).send({ error: "订单包含其他项目的商品，暂不能移动" });
+        }
+      }
+    }
     if (parsed.data.status && parsed.data.status !== existing.status) {
       const allowedTransitions: Record<string, string[]> = {
         draft: ["confirmed", "cancelled"], confirmed: ["processing", "cancelled"],
@@ -84,10 +123,10 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
 
   // ---- Payments ----
   app.get("/payments", async (request, reply) => {
-    const { enterpriseId, orderId, status, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, orderId, status, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listPayments(enterpriseId, { orderId, status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listPayments(enterpriseId, { projectId, orderId, status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/payments/:id", async (request, reply) => {
@@ -102,6 +141,7 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     const parsed = CreatePaymentRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
+    let projectId = parsed.data.projectId;
     if (parsed.data.orderId) {
       const order = getOrder(parsed.data.orderId);
       if (!order) {
@@ -110,8 +150,15 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
       if (order.enterpriseId !== parsed.data.enterpriseId) {
         return reply.status(403).send({ error: "不能为其他企业订单创建付款" });
       }
+      projectId ??= order.projectId;
+      if (order.projectId !== projectId) return reply.status(400).send({ error: "付款与订单必须属于同一个项目" });
     }
-    const payment = createPayment(parsed.data);
+    if (projectId && !projectBelongsToEnterprise(projectId, parsed.data.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
+    let payment;
+    try { payment = createPayment({ ...parsed.data, projectId }); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "创建付款失败" }); }
     emitEvent("create", "payment", payment.id, payment as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(payment);
   });
@@ -123,6 +170,10 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     if (!requireScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdatePaymentRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const targetProjectId = parsed.data.projectId ?? existing.projectId;
+    if (!projectBelongsToEnterprise(targetProjectId, existing.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
     const changesRecord = parsed.data.amount !== undefined || parsed.data.method !== undefined || parsed.data.orderId !== undefined;
     if (changesRecord && existing.status !== "pending") {
       return reply.status(409).send({ error: "已入账付款不能修改金额、方式或关联订单" });
@@ -132,6 +183,10 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
       if (!order || order.enterpriseId !== existing.enterpriseId) {
         return reply.status(400).send({ error: "关联订单不存在或不属于当前企业" });
       }
+      if (order.projectId !== targetProjectId) return reply.status(400).send({ error: "付款与订单必须属于同一个项目" });
+    } else if (existing.orderId) {
+      const order = getOrder(existing.orderId);
+      if (order && order.projectId !== targetProjectId) return reply.status(400).send({ error: "请先解除关联订单，再移动付款" });
     }
     if (parsed.data.status && parsed.data.status !== existing.status) {
       const allowedTransitions: Record<string, string[]> = {
@@ -151,10 +206,10 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
 
   // ---- Invoices ----
   app.get("/invoices", async (request, reply) => {
-    const { enterpriseId, status, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, status, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listInvoices(enterpriseId, { status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listInvoices(enterpriseId, { projectId, status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/invoices/:id", async (request, reply) => {
@@ -169,15 +224,25 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     const parsed = CreateInvoiceRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
+    let projectId = parsed.data.projectId;
     if (parsed.data.orderId) {
       const order = getOrder(parsed.data.orderId);
       if (!order || order.enterpriseId !== parsed.data.enterpriseId) return reply.status(400).send({ error: "关联订单不存在或不属于当前企业" });
+      projectId ??= order.projectId;
+      if (order.projectId !== projectId) return reply.status(400).send({ error: "发票与订单必须属于同一个项目" });
     }
     if (parsed.data.customerId) {
       const customer = getCustomer(parsed.data.customerId);
       if (!customer || customer.enterpriseId !== parsed.data.enterpriseId) return reply.status(400).send({ error: "关联客户不存在或不属于当前企业" });
+      projectId ??= customer.projectId;
+      if (customer.projectId !== projectId) return reply.status(400).send({ error: "发票与客户必须属于同一个项目" });
     }
-    const invoice = createInvoice(parsed.data);
+    if (projectId && !projectBelongsToEnterprise(projectId, parsed.data.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
+    let invoice;
+    try { invoice = createInvoice({ ...parsed.data, projectId }); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "创建发票失败" }); }
     emitEvent("create", "invoice", invoice.id, invoice as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(invoice);
   });
@@ -189,6 +254,10 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     if (!requireScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateInvoiceRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    const targetProjectId = parsed.data.projectId ?? existing.projectId;
+    if (!projectBelongsToEnterprise(targetProjectId, existing.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
     const nonStatusFields = Object.keys(parsed.data).filter((key) => key !== "status");
     if (existing.status !== "draft" && nonStatusFields.length > 0) {
       return reply.status(409).send({ error: "已开具发票只能更新业务状态，不能修改票面信息" });
@@ -196,10 +265,18 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     if (parsed.data.orderId) {
       const order = getOrder(parsed.data.orderId);
       if (!order || order.enterpriseId !== existing.enterpriseId) return reply.status(400).send({ error: "关联订单不存在或不属于当前企业" });
+      if (order.projectId !== targetProjectId) return reply.status(400).send({ error: "发票与订单必须属于同一个项目" });
+    } else if (existing.orderId) {
+      const order = getOrder(existing.orderId);
+      if (order && order.projectId !== targetProjectId) return reply.status(400).send({ error: "请先解除关联订单，再移动发票" });
     }
     if (parsed.data.customerId) {
       const customer = getCustomer(parsed.data.customerId);
       if (!customer || customer.enterpriseId !== existing.enterpriseId) return reply.status(400).send({ error: "关联客户不存在或不属于当前企业" });
+      if (customer.projectId !== targetProjectId) return reply.status(400).send({ error: "发票与客户必须属于同一个项目" });
+    } else if (existing.customerId) {
+      const customer = getCustomer(existing.customerId);
+      if (customer && customer.projectId !== targetProjectId) return reply.status(400).send({ error: "请先解除关联客户，再移动发票" });
     }
     if (parsed.data.status && parsed.data.status !== existing.status) {
       const allowedTransitions: Record<string, string[]> = {

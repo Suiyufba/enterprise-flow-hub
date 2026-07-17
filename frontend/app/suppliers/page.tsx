@@ -14,6 +14,7 @@ import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { FormDialog } from "../components/FormDialog";
 import { TagInput, TagList } from "../components/TagInput";
+import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Supplier, PaginatedList } from "shared";
 
 export default function SuppliersPage() {
@@ -21,15 +22,17 @@ export default function SuppliersPage() {
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Supplier[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", contact: "", phone: "", email: "", address: "", tags: [] as string[] });
+  const [editForm, setEditForm] = useState({ projectId: "", name: "", contact: "", phone: "", email: "", address: "", tags: [] as string[] });
   const [editSaving, setEditSaving] = useState(false);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
@@ -38,6 +41,7 @@ export default function SuppliersPage() {
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
+      if (projectFilter) params.set("projectId", projectFilter);
       const res = await fetchJson<PaginatedList<Supplier>>(`/suppliers?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
@@ -47,13 +51,13 @@ export default function SuppliersPage() {
     } finally {
       setLoading(false);
     }
-  }, [enterpriseId, page, search, showToast, user?.id]);
+  }, [enterpriseId, page, projectFilter, search, showToast, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   function startEdit(supplier: Supplier) {
     setEditingSupplier(supplier);
-    setEditForm({ name: supplier.name, contact: supplier.contact, phone: supplier.phone, email: supplier.email, address: supplier.address, tags: supplier.tags });
+    setEditForm({ projectId: supplier.projectId, name: supplier.name, contact: supplier.contact, phone: supplier.phone, email: supplier.email, address: supplier.address, tags: supplier.tags });
   }
 
   async function saveSupplier() {
@@ -63,6 +67,7 @@ export default function SuppliersPage() {
       await fetchJson(`/suppliers/${editingSupplier.id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          projectId: editForm.projectId,
           name: editForm.name.trim(), contact: editForm.contact.trim(), phone: editForm.phone.trim(),
           email: editForm.email.trim(), address: editForm.address.trim(), tags: editForm.tags,
         }),
@@ -76,6 +81,7 @@ export default function SuppliersPage() {
   }
 
   const [name, setName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -84,13 +90,14 @@ export default function SuppliersPage() {
   const [saving, setSaving] = useState(false);
 
   async function createSupplier() {
-    if (!name.trim() || !enterpriseId) return;
+    if (!name.trim() || !enterpriseId || !projectId) return;
     setSaving(true);
     try {
       await fetchJson("/suppliers", {
         method: "POST",
         body: JSON.stringify({
           enterpriseId,
+          projectId,
           name: name.trim(),
           contact: contact.trim() || undefined,
           phone: phone.trim() || undefined,
@@ -100,7 +107,7 @@ export default function SuppliersPage() {
         }),
         adminUserId: user?.id,
       });
-      setName(""); setContact(""); setPhone(""); setEmail(""); setAddress(""); setTags([]);
+      setName(""); setProjectId(""); setContact(""); setPhone(""); setEmail(""); setAddress(""); setTags([]);
       setShowForm(false);
       showToast("供应商已添加", "success");
       await load();
@@ -120,6 +127,7 @@ export default function SuppliersPage() {
       ),
     },
     { key: "contact", label: "联系人" },
+    { key: "projectId", label: "所属项目", render: (s: Supplier) => <ProjectBadge projects={projects} projectId={s.projectId} /> },
     { key: "phone", label: "电话" },
     { key: "tags", label: "标签", render: (s: Supplier) => <TagList tags={s.tags.slice(0, 3)} emptyText="-" /> },
     {
@@ -146,6 +154,8 @@ export default function SuppliersPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
+              <label htmlFor="new-supplier-project">所属项目 *</label>
+              <ProjectScopeSelect id="new-supplier-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="供应商所属项目" />
               <label htmlFor="new-supplier-name">名称 *</label>
               <input id="new-supplier-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="供应商名称 *" />
               <label htmlFor="new-supplier-contact">联系人</label>
@@ -158,15 +168,16 @@ export default function SuppliersPage() {
               <input id="new-supplier-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
               <label>自定义标签</label>
               <TagInput tags={tags} onChange={setTags} />
-              <button className="page-primary-button" onClick={createSupplier} disabled={saving || !name.trim()} type="button">
+              <button className="page-primary-button" onClick={createSupplier} disabled={saving || !name.trim() || !projectId} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>
             </div>
           </div>
         )}
 
-        <div style={{ marginBottom: "14px" }}>
+        <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索名称、联系人、电话或标签..." />
+          <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
         </div>
         {error ? (
           <ErrorState message={error} onRetry={load} />
@@ -185,6 +196,8 @@ export default function SuppliersPage() {
           />
         )}
         <FormDialog open={Boolean(editingSupplier)} title={`编辑供应商${editingSupplier ? `：${editingSupplier.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.name.trim()} onSubmit={saveSupplier} onCancel={() => setEditingSupplier(null)}>
+          <label className="form-label" htmlFor="edit-supplier-project">所属项目 *</label>
+          <ProjectScopeSelect id="edit-supplier-project" projects={projects} value={editForm.projectId} onChange={(projectId) => setEditForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="供应商所属项目" />
           <label className="form-label" htmlFor="edit-supplier-name">供应商名称 *</label>
           <input id="edit-supplier-name" className="page-input" autoFocus value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
           <label className="form-label" htmlFor="edit-supplier-contact">联系人</label>

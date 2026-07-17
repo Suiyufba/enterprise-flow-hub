@@ -7,6 +7,7 @@ import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { AppIcon } from "../../components/AppIcon";
+import { ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 import type { Customer, Product, PaginatedList } from "shared";
 
 interface LineItem {
@@ -21,6 +22,8 @@ export default function NewOrderPage() {
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
+  const [projectId, setProjectId] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customerId, setCustomerId] = useState("");
@@ -29,8 +32,12 @@ export default function NewOrderPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!enterpriseId) return;
-    const params = new URLSearchParams({ enterpriseId, limit: "200" });
+    if (!enterpriseId || !projectId) {
+      setCustomers([]);
+      setProducts([]);
+      return;
+    }
+    const params = new URLSearchParams({ enterpriseId, projectId, limit: "200" });
     Promise.all([
       fetchJson<PaginatedList<Customer>>(`/customers?${params}`, { adminUserId: user?.id }),
       fetchJson<PaginatedList<Product>>(`/products?${params}`, { adminUserId: user?.id }),
@@ -40,7 +47,13 @@ export default function NewOrderPage() {
         setProducts(pr.items);
       })
       .catch(() => showToast("加载数据失败", "error"));
-  }, [enterpriseId, user?.id, showToast]);
+  }, [enterpriseId, projectId, user?.id, showToast]);
+
+  function changeProject(nextProjectId: string) {
+    setProjectId(nextProjectId);
+    setCustomerId("");
+    setItems([{ productId: "", quantity: 1, unitPrice: 0 }]);
+  }
 
   function addItem() {
     setItems((prev) => [...prev, { productId: "", quantity: 1, unitPrice: 0 }]);
@@ -71,7 +84,7 @@ export default function NewOrderPage() {
   }
 
   async function handleSubmit() {
-    if (items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)) {
+    if (!projectId || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)) {
       showToast("请完善订单项目", "error");
       return;
     }
@@ -81,6 +94,7 @@ export default function NewOrderPage() {
         method: "POST",
         body: JSON.stringify({
           enterpriseId,
+          projectId,
           customerId: customerId || undefined,
           items: items.map((i) => ({
             productId: i.productId,
@@ -112,6 +126,9 @@ export default function NewOrderPage() {
         </div>
 
         <div className="page-form-grid" style={{ maxWidth: 640 }}>
+          <label className="form-label" htmlFor="new-order-project">所属项目 *</label>
+          <ProjectScopeSelect id="new-order-project" projects={projects} value={projectId} onChange={changeProject} includeAll={false} className="page-input" ariaLabel="订单所属项目" />
+
           <label className="form-label" htmlFor="new-order-customer">客户</label>
           <select id="new-order-customer" className="page-input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
             <option value="">选择客户（可选）</option>
@@ -180,7 +197,7 @@ export default function NewOrderPage() {
             <button
               className="page-primary-button"
               onClick={handleSubmit}
-              disabled={saving || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)}
+              disabled={saving || !projectId || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)}
               type="button"
             >
               {saving ? "创建中..." : "创建订单"}

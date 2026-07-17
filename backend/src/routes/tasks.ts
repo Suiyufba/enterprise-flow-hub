@@ -4,11 +4,13 @@ import { CreateTaskRequestSchema, UpdateTaskRequestSchema, type Task } from "sha
 import { getDb } from "../db/index.js";
 import { canAccessEnterprise } from "./auth-context.js";
 import { emitEvent } from "../events/emitter.js";
+import { projectBelongsToEnterprise, resolveProjectId } from "../project-scope.js";
 
 function rowToTask(row: Record<string, unknown>): Task {
   return {
     id: row.id as string,
     enterpriseId: row.enterprise_id as string,
+    projectId: (row.project_id as string) || "",
     assigneeId: (row.assignee_id as string) || null,
     title: row.title as string,
     description: (row.description as string) || "",
@@ -24,11 +26,15 @@ function rowToTask(row: Record<string, unknown>): Task {
 
 export async function taskRoutes(app: FastifyInstance): Promise<void> {
   app.get("/tasks", async (request, reply) => {
-    const { enterpriseId, status, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, status, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return reply.status(400).send({ error: "缺少 enterpriseId" });
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
     const conditions = ["enterprise_id = ?"];
     const params: unknown[] = [enterpriseId];
+    if (projectId) {
+      conditions.push("project_id = ?");
+      params.push(projectId);
+    }
     if (status === "open") {
       conditions.push("status IN ('pending','in_progress')");
     } else if (status) {
@@ -52,14 +58,18 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     const parsed = CreateTaskRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
+    let projectId: string;
+    try { projectId = resolveProjectId(parsed.data.enterpriseId, parsed.data.projectId); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "项目无效" }); }
     const id = `task-${randomUUID()}`;
     const now = new Date().toISOString();
     getDb().prepare(
-      `INSERT INTO tasks (id,enterprise_id,assignee_id,title,description,status,priority,due_date,source_type,source_id,created_at,updated_at)
-       VALUES (?,?,?,?,?,'pending',?,?,NULL,NULL,?,?)`,
+      `INSERT INTO tasks (id,enterprise_id,project_id,assignee_id,title,description,status,priority,due_date,source_type,source_id,created_at,updated_at)
+       VALUES (?,?,?,?,?,?,'pending',?,?,NULL,NULL,?,?)`,
     ).run(
       id,
       parsed.data.enterpriseId,
+      projectId,
       parsed.data.assigneeId ?? null,
       parsed.data.title.trim(),
       parsed.data.description?.trim() ?? "",
@@ -81,9 +91,13 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
     const parsed = UpdateTaskRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     const current = rowToTask(row);
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, current.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
     getDb().prepare(
-      "UPDATE tasks SET title=?,description=?,status=?,priority=?,assignee_id=?,due_date=?,updated_at=? WHERE id=?",
+      "UPDATE tasks SET project_id=?,title=?,description=?,status=?,priority=?,assignee_id=?,due_date=?,updated_at=? WHERE id=?",
     ).run(
+      parsed.data.projectId ?? current.projectId,
       parsed.data.title?.trim() ?? current.title,
       parsed.data.description !== undefined ? parsed.data.description.trim() : current.description,
       parsed.data.status ?? current.status,

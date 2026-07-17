@@ -5,20 +5,25 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
+import { useWorkspace } from "../../lib/workspace-context";
 import { AppIcon } from "../../components/AppIcon";
+import { ProjectBadge, ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 import type { Product } from "shared";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const [product, setProduct] = useState<Product | null>(null);
+  const projects = workspace.projects.filter((project) => project.enterpriseId === (user?.enterpriseId ?? product?.enterpriseId));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
   const [name, setName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
@@ -32,6 +37,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     fetchJson<Product>(`/products/${id}`, { adminUserId: user?.id })
       .then((data) => {
         setProduct(data);
+        setProjectId(data.projectId);
         setName(data.name);
         setSku(data.sku);
         setCategory(data.category);
@@ -48,12 +54,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
   async function handleSave() {
     const price = parseFloat(unitPrice);
-    if (!name.trim() || (unitPrice && (isNaN(price) || price <= 0))) return;
+    if (!name.trim() || !projectId || (unitPrice && (isNaN(price) || price <= 0))) return;
     setSaving(true);
     try {
       const updated = await fetchJson<Product>(`/products/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          projectId,
           name: name.trim(),
           sku: sku.trim() || undefined,
           category: category.trim() || undefined,
@@ -136,6 +143,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
         {editing ? (
           <div className="page-form-grid" style={{ maxWidth: 560 }}>
+            <label className="form-label" htmlFor="product-project">所属项目 *</label>
+            <ProjectScopeSelect id="product-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="商品所属项目" />
             <label className="form-label" htmlFor="product-name">名称 *</label>
             <input id="product-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="商品名称" />
 
@@ -160,11 +169,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <input id="product-description" className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
 
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-              <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim() || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))}>
+              <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim() || !projectId || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))}>
                 {saving ? "保存中..." : "保存"}
               </button>
               <button className="page-secondary-button" onClick={() => {
-                setName(product.name); setSku(product.sku); setCategory(product.category);
+                setName(product.name); setProjectId(product.projectId); setSku(product.sku); setCategory(product.category);
                 setUnitPrice(String(product.unitPrice)); setUnit(product.unit); setDescription(product.description);
                 setEditing(false);
               }}>取消</button>
@@ -172,6 +181,10 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
         ) : (
           <div className="settings-list">
+            <div className="settings-card">
+              <div><strong>所属项目</strong></div>
+              <ProjectBadge projects={projects} projectId={product.projectId} />
+            </div>
             <div className="settings-card">
               <div><strong>SKU</strong></div>
               <span className="settings-meta">{product.sku || "未设置"}</span>

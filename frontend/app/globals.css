@@ -6366,6 +6366,20 @@ a {
   color: var(--ui-text);
 }
 
+.project-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .search-input-clear {
   display: inline-flex;
   align-items: center;

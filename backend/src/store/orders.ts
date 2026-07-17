@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db/index.js";
+import { resolveProjectId } from "../project-scope.js";
 import type {
   Order, OrderItem, CreateOrderRequest, UpdateOrderRequest,
   Payment, CreatePaymentRequest, UpdatePaymentRequest,
@@ -15,6 +16,7 @@ function rowToOrder(r: Record<string, unknown>): Order {
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
+    projectId: (r.project_id as string) || "",
     customerId: (r.customer_id as string) || null,
     status: (r.status as Order["status"]) || "draft",
     totalAmount: (r.total_amount as number) || 0,
@@ -40,10 +42,11 @@ function orderItemsFor(orderId: string): OrderItem[] {
 
 export function listOrders(
   enterpriseId: string,
-  opts?: { status?: string; customerId?: string; search?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; status?: string; customerId?: string; search?: string; page?: number; limit?: number },
 ): PaginatedList<Order> {
   const conds: string[] = ["orders.enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (opts?.projectId) { conds.push("orders.project_id = ?"); params.push(opts.projectId); }
   if (opts?.status) { conds.push("orders.status = ?"); params.push(opts.status); }
   if (opts?.customerId) { conds.push("orders.customer_id = ?"); params.push(opts.customerId); }
   if (opts?.search) {
@@ -69,6 +72,7 @@ export function getOrder(id: string): (Order & { items: OrderItem[] }) | undefin
 
 export function createOrder(input: CreateOrderRequest): Order & { items: OrderItem[] } {
   const now = new Date().toISOString();
+  const projectId = resolveProjectId(input.enterpriseId, input.projectId);
   let totalAmount = 0;
   const items: OrderItem[] = input.items.map((item) => {
     const subtotal = item.quantity * item.unitPrice;
@@ -86,6 +90,7 @@ export function createOrder(input: CreateOrderRequest): Order & { items: OrderIt
   const order: Order = {
     id: `ord-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
+    projectId,
     customerId: input.customerId || null,
     status: "draft",
     totalAmount,
@@ -95,8 +100,8 @@ export function createOrder(input: CreateOrderRequest): Order & { items: OrderIt
   };
 
   db()
-    .prepare("INSERT INTO orders (id, enterprise_id, customer_id, status, total_amount, notes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)")
-    .run(order.id, order.enterpriseId, order.customerId, order.status, order.totalAmount, order.notes, order.createdAt, order.updatedAt);
+    .prepare("INSERT INTO orders (id, enterprise_id, project_id, customer_id, status, total_amount, notes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)")
+    .run(order.id, order.enterpriseId, order.projectId, order.customerId, order.status, order.totalAmount, order.notes, order.createdAt, order.updatedAt);
 
   const insertItem = db().prepare(
     "INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, subtotal) VALUES (?,?,?,?,?,?)",
@@ -112,12 +117,15 @@ export function createOrder(input: CreateOrderRequest): Order & { items: OrderIt
 export function updateOrder(id: string, input: UpdateOrderRequest): Order | undefined {
   const existing = getOrder(id);
   if (!existing) return undefined;
+  const projectId = input.projectId === undefined
+    ? existing.projectId
+    : resolveProjectId(existing.enterpriseId, input.projectId);
   const status = input.status ?? existing.status;
   const notes = input.notes !== undefined ? input.notes : existing.notes;
   const updatedAt = new Date().toISOString();
   db()
-    .prepare("UPDATE orders SET status=?, notes=?, updated_at=? WHERE id=?")
-    .run(status, notes, updatedAt, id);
+    .prepare("UPDATE orders SET project_id=?, status=?, notes=?, updated_at=? WHERE id=?")
+    .run(projectId, status, notes, updatedAt, id);
   return rowToOrder(db().prepare("SELECT * FROM orders WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -131,6 +139,7 @@ function rowToPayment(r: Record<string, unknown>): Payment {
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
+    projectId: (r.project_id as string) || "",
     orderId: (r.order_id as string) || null,
     amount: (r.amount as number) || 0,
     method: (r.method as Payment["method"]) || "cash",
@@ -142,10 +151,11 @@ function rowToPayment(r: Record<string, unknown>): Payment {
 
 export function listPayments(
   enterpriseId: string,
-  opts?: { orderId?: string; status?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; orderId?: string; status?: string; page?: number; limit?: number },
 ): PaginatedList<Payment> {
   const conds: string[] = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (opts?.projectId) { conds.push("project_id = ?"); params.push(opts.projectId); }
   if (opts?.orderId) { conds.push("order_id = ?"); params.push(opts.orderId); }
   if (opts?.status) { conds.push("status = ?"); params.push(opts.status); }
   const where = conds.join(" AND ");
@@ -160,9 +170,11 @@ export function listPayments(
 
 export function createPayment(input: CreatePaymentRequest): Payment {
   const now = new Date().toISOString();
+  const projectId = resolveProjectId(input.enterpriseId, input.projectId);
   const payment: Payment = {
     id: `pay-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
+    projectId,
     orderId: input.orderId || null,
     amount: input.amount,
     method: input.method ?? "cash",
@@ -171,8 +183,8 @@ export function createPayment(input: CreatePaymentRequest): Payment {
     createdAt: now,
   };
   db()
-    .prepare("INSERT INTO payments (id, enterprise_id, order_id, amount, method, status, received_at, created_at) VALUES (?,?,?,?,?,?,?,?)")
-    .run(payment.id, payment.enterpriseId, payment.orderId, payment.amount, payment.method, payment.status, payment.receivedAt, payment.createdAt);
+    .prepare("INSERT INTO payments (id, enterprise_id, project_id, order_id, amount, method, status, received_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+    .run(payment.id, payment.enterpriseId, payment.projectId, payment.orderId, payment.amount, payment.method, payment.status, payment.receivedAt, payment.createdAt);
   return payment;
 }
 
@@ -184,13 +196,17 @@ export function getPayment(id: string): Payment | undefined {
 export function updatePayment(id: string, input: UpdatePaymentRequest): Payment | undefined {
   const existing = getPayment(id);
   if (!existing) return undefined;
+  const projectId = input.projectId === undefined
+    ? existing.projectId
+    : resolveProjectId(existing.enterpriseId, input.projectId);
   const status = input.status ?? existing.status;
   const receivedAt = status === "completed" && existing.status !== "completed"
     ? new Date().toISOString()
     : status === "pending" ? null : existing.receivedAt;
   db().prepare(
-    "UPDATE payments SET order_id=?, amount=?, method=?, status=?, received_at=? WHERE id=?",
+    "UPDATE payments SET project_id=?, order_id=?, amount=?, method=?, status=?, received_at=? WHERE id=?",
   ).run(
+    projectId,
     input.orderId !== undefined ? input.orderId : existing.orderId,
     input.amount ?? existing.amount,
     input.method ?? existing.method,
@@ -207,6 +223,7 @@ function rowToInvoice(r: Record<string, unknown>): Invoice {
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
+    projectId: (r.project_id as string) || "",
     orderId: (r.order_id as string) || null,
     customerId: (r.customer_id as string) || null,
     amount: (r.amount as number) || 0,
@@ -231,10 +248,11 @@ function rowToInvoice(r: Record<string, unknown>): Invoice {
 
 export function listInvoices(
   enterpriseId: string,
-  opts?: { status?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; status?: string; page?: number; limit?: number },
 ): PaginatedList<Invoice> {
   const conds: string[] = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (opts?.projectId) { conds.push("project_id = ?"); params.push(opts.projectId); }
   if (opts?.status) { conds.push("status = ?"); params.push(opts.status); }
   const where = conds.join(" AND ");
   const total = (db().prepare(`SELECT COUNT(*) as cnt FROM invoices WHERE ${where}`).get(...params) as { cnt: number }).cnt;
@@ -253,11 +271,13 @@ export function getInvoice(id: string): Invoice | undefined {
 
 export function createInvoice(input: CreateInvoiceRequest): Invoice {
   const now = new Date().toISOString();
+  const projectId = resolveProjectId(input.enterpriseId, input.projectId);
   const taxAmount = input.taxAmount ?? (input.taxRate != null ? Math.round(input.amount * input.taxRate * 100) / 100 : 0);
   const totalAmount = input.totalAmount ?? Math.round((input.amount + taxAmount) * 100) / 100;
   const invoice: Invoice = {
     id: `inv-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
+    projectId,
     orderId: input.orderId || null,
     customerId: input.customerId || null,
     amount: input.amount,
@@ -279,14 +299,17 @@ export function createInvoice(input: CreateInvoiceRequest): Invoice {
     issuer: input.issuer ?? null,
   };
   db()
-    .prepare(`INSERT INTO invoices (id, enterprise_id, order_id, customer_id, amount, status, due_date, issued_at, created_at, invoice_number, invoice_code, invoice_type, tax_rate, tax_amount, total_amount, buyer_name, buyer_tax_id, seller_name, seller_tax_id, remark, issuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(invoice.id, invoice.enterpriseId, invoice.orderId, invoice.customerId, invoice.amount, invoice.status, invoice.dueDate, invoice.issuedAt, invoice.createdAt, invoice.invoiceNumber, invoice.invoiceCode, invoice.invoiceType, invoice.taxRate, invoice.taxAmount, invoice.totalAmount, invoice.buyerName, invoice.buyerTaxId, invoice.sellerName, invoice.sellerTaxId, invoice.remark, invoice.issuer);
+    .prepare(`INSERT INTO invoices (id, enterprise_id, project_id, order_id, customer_id, amount, status, due_date, issued_at, created_at, invoice_number, invoice_code, invoice_type, tax_rate, tax_amount, total_amount, buyer_name, buyer_tax_id, seller_name, seller_tax_id, remark, issuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(invoice.id, invoice.enterpriseId, invoice.projectId, invoice.orderId, invoice.customerId, invoice.amount, invoice.status, invoice.dueDate, invoice.issuedAt, invoice.createdAt, invoice.invoiceNumber, invoice.invoiceCode, invoice.invoiceType, invoice.taxRate, invoice.taxAmount, invoice.totalAmount, invoice.buyerName, invoice.buyerTaxId, invoice.sellerName, invoice.sellerTaxId, invoice.remark, invoice.issuer);
   return invoice;
 }
 
 export function updateInvoice(id: string, input: UpdateInvoiceRequest): Invoice | null {
   const existing = db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!existing) return null;
+  const projectId = input.projectId === undefined
+    ? ((existing.project_id as string) || "")
+    : resolveProjectId(existing.enterprise_id as string, input.projectId);
 
   const keepOrReplace = <T>(value: T | undefined, current: unknown): T | null =>
     value !== undefined ? value : (current as T | null) ?? null;
@@ -304,11 +327,12 @@ export function updateInvoice(id: string, input: UpdateInvoiceRequest): Invoice 
       : (existing.total_amount as number | null) ?? amount;
 
   db().prepare(`UPDATE invoices SET
-    order_id = ?, customer_id = ?, amount = ?, status = ?, due_date = ?, issued_at = ?,
+    project_id = ?, order_id = ?, customer_id = ?, amount = ?, status = ?, due_date = ?, issued_at = ?,
     invoice_number = ?, invoice_code = ?, invoice_type = ?, tax_rate = ?,
     tax_amount = ?, total_amount = ?, buyer_name = ?, buyer_tax_id = ?,
     seller_name = ?, seller_tax_id = ?, remark = ?, issuer = ?
     WHERE id = ?`).run(
+    projectId,
     keepOrReplace(input.orderId, existing.order_id),
     keepOrReplace(input.customerId, existing.customer_id),
     amount,

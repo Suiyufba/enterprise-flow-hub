@@ -39,10 +39,13 @@ after(() => dbModule.closeDb());
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 14);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 15);
   assert.ok((db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).some((column) => column.name === "gender"));
   assert.ok((db.prepare("PRAGMA table_info(suppliers)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
+  for (const table of ["customers", "suppliers", "products", "orders", "payments", "invoices", "tasks", "files"]) {
+    assert.ok((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((column) => column.name === "project_id"));
+  }
   assert.deepEqual(
     db.prepare("SELECT status,risk FROM ai_tools WHERE id='tool-business-action'").get(),
     { status: "enabled", risk: "write" },
@@ -133,8 +136,8 @@ test("business record routes support real edit flows and protect posted records"
 
   const paymentId = "pay-route-edit-test";
   const now = new Date().toISOString();
-  db.prepare("INSERT INTO payments (id,enterprise_id,amount,method,status,created_at) VALUES (?,?,?,?,?,?)")
-    .run(paymentId, "ent-qihang", 88, "cash", "pending", now);
+  db.prepare("INSERT INTO payments (id,enterprise_id,project_id,amount,method,status,created_at) VALUES (?,?,?,?,?,?,?)")
+    .run(paymentId, "ent-qihang", "proj-qihang-growth", 88, "cash", "pending", now);
   const paymentGet = await app.inject({ method: "GET", url: `/payments/${paymentId}` });
   assert.equal(paymentGet.statusCode, 200);
   const paymentEdit = await app.inject({ method: "PATCH", url: `/payments/${paymentId}`, payload: { amount: 99, method: "bank_transfer" } });
@@ -262,6 +265,48 @@ test("business MCP queries are enterprise scoped and writes are persisted", asyn
   }));
   assert.equal(task.ok, true);
   assert.equal((db.prepare("SELECT status FROM tasks WHERE id=?").get(task.task.id) as { status: string }).status, "pending");
+});
+
+test("business data and Agent tools are isolated by project", async () => {
+  const created = JSON.parse(await businessActionExecute({
+    _enterpriseId: "ent-qihang",
+    _projectId: "proj-qihang-daily",
+    operation: "create_customer",
+    name: "项目隔离验收客户",
+    status: "lead",
+  }));
+  const customerId = created.customer.id as string;
+  try {
+    const daily = JSON.parse(await businessQueryExecute({
+      _enterpriseId: "ent-qihang",
+      _projectId: "proj-qihang-daily",
+      resource: "customers",
+      search: "项目隔离验收客户",
+      limit: 10,
+    }));
+    const growth = JSON.parse(await businessQueryExecute({
+      _enterpriseId: "ent-qihang",
+      _projectId: "proj-qihang-growth",
+      resource: "customers",
+      search: "项目隔离验收客户",
+      limit: 10,
+    }));
+    assert.equal(daily.total, 1);
+    assert.equal(daily.items[0].project_id, "proj-qihang-daily");
+    assert.equal(growth.total, 0);
+    await assert.rejects(
+      businessActionExecute({
+        _enterpriseId: "ent-qihang",
+        _projectId: "proj-qihang-growth",
+        operation: "update_customer_status",
+        id: customerId,
+        status: "active",
+      }),
+      /当前项目/,
+    );
+  } finally {
+    db.prepare("DELETE FROM customers WHERE id=?").run(customerId);
+  }
 });
 
 test("customer duplicate audit scans the full enterprise beyond the returned page", async () => {

@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
+import { useWorkspace } from "../../lib/workspace-context";
 import { StatusBadge } from "../../components/StatusBadge";
 import { AppIcon } from "../../components/AppIcon";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { ProjectBadge, ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 import type { Order } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -20,13 +22,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const [order, setOrder] = useState<Order | null>(null);
+  const projects = workspace.projects.filter((project) => project.enterpriseId === (user?.enterpriseId ?? order?.enterpriseId));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -35,6 +40,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     fetchJson<Order>(`/orders/${id}`, { adminUserId: user?.id })
       .then((data) => {
         setOrder(data);
+        setProjectId(data.projectId);
         setNotes(data.notes);
         if (data.status === "draft" && new URLSearchParams(window.location.search).get("edit") === "1") setEditing(true);
       })
@@ -65,7 +71,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const updated = await fetchJson<Order>(`/orders/${id}`, {
         method: "PATCH",
-        body: JSON.stringify({ notes: notes.trim() }),
+        body: JSON.stringify({ projectId, notes: notes.trim() }),
         adminUserId: user?.id,
       });
       setOrder({ ...order, ...updated });
@@ -145,12 +151,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <div className="page-header-controls">
               {editing ? (
                 <>
-                  <button className="page-secondary-button" onClick={() => { setNotes(order.notes); setEditing(false); }} disabled={saving} type="button">取消</button>
+                  <button className="page-secondary-button" onClick={() => { setProjectId(order.projectId); setNotes(order.notes); setEditing(false); }} disabled={saving} type="button">取消</button>
                   <button className="page-primary-button" onClick={saveOrder} disabled={saving} type="button">{saving ? "保存中..." : "保存"}</button>
                 </>
               ) : (
                 <>
-                  <button className="page-secondary-button" onClick={() => setEditing(true)} type="button"><AppIcon name="edit" /> 编辑备注</button>
+                  <button className="page-secondary-button" onClick={() => setEditing(true)} type="button"><AppIcon name="edit" /> 编辑订单</button>
                   <button className="page-secondary-button" onClick={() => setDeleteOpen(true)} type="button" style={{ color: "var(--c-ff3b30)" }}><AppIcon name="trash" /> 删除草稿</button>
                 </>
               )}
@@ -159,6 +165,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
 
         <div className="settings-list">
+          <div className="settings-card">
+            <div><strong>所属项目</strong></div>
+            {editing ? <ProjectScopeSelect projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input compact-select" ariaLabel="订单所属项目" /> : <ProjectBadge projects={projects} projectId={order.projectId} />}
+          </div>
           <div className="settings-card">
             <div><strong>状态</strong></div>
             <StatusBadge status={order.status} label={statusLabels[order.status] ?? order.status} />

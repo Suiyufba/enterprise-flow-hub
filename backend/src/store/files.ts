@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { mkdirSync, unlinkSync } from "node:fs";
 import { getDb } from "../db/index.js";
 import type { FileRecord, PaginatedList } from "shared";
+import { resolveProjectId } from "../project-scope.js";
 
 function db() { return getDb(); }
 
@@ -25,6 +26,7 @@ function rowToFile(r: Record<string, unknown>): FileRecord {
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
+    projectId: (r.project_id as string) || "",
     filename: r.filename as string,
     mimeType: r.mime_type as string,
     size: r.size as number,
@@ -38,10 +40,14 @@ function rowToFile(r: Record<string, unknown>): FileRecord {
 
 export function listFiles(
   enterpriseId: string,
-  opts?: { relatedType?: string; relatedId?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; relatedType?: string; relatedId?: string; page?: number; limit?: number },
 ): PaginatedList<FileRecord> {
   const conds: string[] = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (opts?.projectId) {
+    conds.push("project_id = ?");
+    params.push(opts.projectId);
+  }
   if (opts?.relatedType && opts?.relatedId) {
     conds.push("related_type = ? AND related_id = ?");
     params.push(opts.relatedType, opts.relatedId);
@@ -73,6 +79,7 @@ export function getFileInternal(id: string): (FileRecord & { storagePath: string
 
 export function createFile(record: {
   enterpriseId: string;
+  projectId?: string;
   filename: string;
   mimeType: string;
   size: number;
@@ -82,9 +89,11 @@ export function createFile(record: {
   relatedId?: string;
 }): FileRecord {
   const now = new Date().toISOString();
+  const projectId = resolveProjectId(record.enterpriseId, record.projectId);
   const file: FileRecord = {
     id: `file-${randomUUID()}`,
     enterpriseId: record.enterpriseId,
+    projectId,
     filename: record.filename,
     mimeType: record.mimeType,
     size: record.size,
@@ -95,8 +104,8 @@ export function createFile(record: {
     createdAt: now,
   };
   db()
-    .prepare("INSERT INTO files (id, enterprise_id, filename, mime_type, size, storage_path, uploaded_by, related_type, related_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-    .run(file.id, file.enterpriseId, file.filename, file.mimeType, file.size, file.storagePath, file.uploadedBy, file.relatedType, file.relatedId, file.createdAt);
+    .prepare("INSERT INTO files (id, enterprise_id, project_id, filename, mime_type, size, storage_path, uploaded_by, related_type, related_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+    .run(file.id, file.enterpriseId, file.projectId, file.filename, file.mimeType, file.size, file.storagePath, file.uploadedBy, file.relatedType, file.relatedId, file.createdAt);
   return file;
 }
 

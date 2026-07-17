@@ -11,6 +11,7 @@ import { StatusBadge } from "../../components/StatusBadge";
 import { ErrorState } from "../../components/ErrorState";
 import { AppIcon } from "../../components/AppIcon";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { ProjectBadge, ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 import type { Invoice } from "shared";
 
 const invoiceTypeLabels: Record<string, string> = {
@@ -30,6 +31,7 @@ const taxRateOptions = [
 
 function editFormForInvoice(target: Invoice) {
   return {
+    projectId: target.projectId,
     invoiceNumber: target.invoiceNumber ?? "",
     invoiceCode: target.invoiceCode ?? "",
     invoiceType: target.invoiceType ?? "",
@@ -124,6 +126,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const projects = workspace.projects.filter((project) => project.enterpriseId === (enterpriseId ?? invoice?.enterpriseId));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,6 +139,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
 
   // Form fields that track edits
   const [editForm, setEditForm] = useState({
+    projectId: "",
     invoiceNumber: "",
     invoiceCode: "",
     invoiceType: "" as string,
@@ -193,6 +197,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     setSaving(true);
     try {
       const body: Record<string, unknown> = {
+        projectId: editForm.projectId,
         invoiceNumber: editForm.invoiceNumber || null,
         invoiceCode: editForm.invoiceCode || null,
         invoiceType: editForm.invoiceType || null,
@@ -400,6 +405,12 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
                 <span style={fieldLabel}>编号</span>
                 <span className="settings-meta" style={{ fontFamily: "monospace", fontSize: 12 }}>{invoice.id}</span>
               </div>
+
+              {renderField(
+                "所属项目",
+                <ProjectBadge projects={projects} projectId={invoice.projectId} />,
+                <ProjectScopeSelect projects={projects} value={editForm.projectId} onChange={(projectId) => updateField("projectId", projectId)} includeAll={false} className="page-input" ariaLabel="发票所属项目" />,
+              )}
 
               {renderField(
                 "发票号码",

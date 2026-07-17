@@ -7,9 +7,11 @@ import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { AppIcon } from "../components/AppIcon";
 import { FormDialog } from "../components/FormDialog";
+import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
+import { useWorkspace } from "../lib/workspace-context";
 
 const priorityLabel: Record<Task["priority"], string> = {
   urgent: "紧急",
@@ -20,16 +22,19 @@ const priorityLabel: Record<Task["priority"], string> = {
 
 export default function TasksPage() {
   const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const { showToast } = useToast();
+  const projects = workspace.projects.filter((project) => project.enterpriseId === user?.enterpriseId);
   const [items, setItems] = useState<Task[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("open");
+  const [projectFilter, setProjectFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", priority: "medium" as Task["priority"], dueDate: "" });
+  const [form, setForm] = useState({ projectId: "", title: "", description: "", priority: "medium" as Task["priority"], dueDate: "" });
 
   const load = useCallback(async () => {
     if (!user?.enterpriseId) return;
@@ -37,6 +42,7 @@ export default function TasksPage() {
     try {
       const query = new URLSearchParams({ enterpriseId: user.enterpriseId, page: String(page), limit: "20" });
       if (status !== "all") query.set("status", status);
+      if (projectFilter) query.set("projectId", projectFilter);
       const response = await fetchJson<PaginatedList<Task>>(`/tasks?${query}`);
       setItems(response.items);
       setTotal(response.total);
@@ -45,7 +51,7 @@ export default function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, showToast, status, user?.enterpriseId]);
+  }, [page, projectFilter, showToast, status, user?.enterpriseId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -61,13 +67,14 @@ export default function TasksPage() {
 
   function openCreate() {
     setEditingTask(null);
-    setForm({ title: "", description: "", priority: "medium", dueDate: "" });
+    setForm({ projectId: projectFilter || projects[0]?.id || "", title: "", description: "", priority: "medium", dueDate: "" });
     setShowForm(true);
   }
 
   function openEdit(task: Task) {
     setEditingTask(task);
     setForm({
+      projectId: task.projectId,
       title: task.title,
       description: task.description,
       priority: task.priority,
@@ -77,13 +84,14 @@ export default function TasksPage() {
   }
 
   async function saveTask() {
-    if (!user?.enterpriseId || !form.title.trim()) return;
+    if (!user?.enterpriseId || !form.projectId || !form.title.trim()) return;
     setSaving(true);
     try {
       await fetchJson(editingTask ? `/tasks/${editingTask.id}` : "/tasks", {
         method: editingTask ? "PATCH" : "POST",
         body: JSON.stringify({
           ...(editingTask ? {} : { enterpriseId: user.enterpriseId }),
+          projectId: form.projectId,
           title: form.title.trim(),
           description: form.description.trim(),
           priority: form.priority,
@@ -103,6 +111,7 @@ export default function TasksPage() {
       label: "待办",
       render: (task: Task) => <div><strong>{task.title}</strong>{task.description && <div className="table-secondary-text">{task.description}</div>}</div>,
     },
+    { key: "projectId", label: "所属项目", render: (task: Task) => <ProjectBadge projects={projects} projectId={task.projectId} /> },
     { key: "priority", label: "优先级", render: (task: Task) => priorityLabel[task.priority] },
     { key: "dueDate", label: "截止时间", render: (task: Task) => task.dueDate?.slice(0, 10) || "未设置" },
     { key: "sourceType", label: "来源", render: (task: Task) => task.sourceType || "手动" },
@@ -127,6 +136,7 @@ export default function TasksPage() {
       <div className="page-shell">
         <PageHeader title="待办中心" description="承接手动、Agent、规则和自动化产生的业务动作。" actions={(
           <div className="page-header-controls">
+            <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} className="page-input compact-select" />
             <select className="page-input compact-select" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
               <option value="open">未完成</option>
               <option value="all">全部</option>
@@ -139,7 +149,9 @@ export default function TasksPage() {
           </div>
         )} />
         <DataTable columns={columns} data={items} loading={loading} total={total} page={page} onPageChange={setPage} emptyTitle="没有待处理任务" emptyDesc="可以手动创建待办，Agent、规则和自动化产生的业务动作也会出现在这里。" emptyAction={<button className="page-primary-button" onClick={openCreate} type="button">新建待办</button>} />
-        <FormDialog open={showForm} title={editingTask ? `编辑待办：${editingTask.title}` : "新建待办"} saving={saving} submitLabel={editingTask ? "保存修改" : "创建待办"} submitDisabled={!form.title.trim()} onSubmit={saveTask} onCancel={() => setShowForm(false)}>
+        <FormDialog open={showForm} title={editingTask ? `编辑待办：${editingTask.title}` : "新建待办"} saving={saving} submitLabel={editingTask ? "保存修改" : "创建待办"} submitDisabled={!form.projectId || !form.title.trim()} onSubmit={saveTask} onCancel={() => setShowForm(false)}>
+          <label className="form-label" htmlFor="task-project">所属项目 *</label>
+          <ProjectScopeSelect id="task-project" projects={projects} value={form.projectId} onChange={(projectId) => setForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="待办所属项目" />
           <label className="form-label" htmlFor="task-title">待办标题 *</label>
           <input id="task-title" className="page-input" autoFocus value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
           <label className="form-label" htmlFor="task-description">说明</label>

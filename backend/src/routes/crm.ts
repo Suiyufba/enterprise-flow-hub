@@ -26,6 +26,7 @@ import {
 } from "../store/crm.js";
 import { canAccessEnterprise } from "./auth-context.js";
 import { emitEvent } from "../events/emitter.js";
+import { projectBelongsToEnterprise } from "../project-scope.js";
 
 function requireEnterpriseScope(
   request: FastifyRequest,
@@ -38,11 +39,11 @@ function requireEnterpriseScope(
 export async function crmRoutes(app: FastifyInstance): Promise<void> {
   // ---- Customers ----
   app.get("/customers", async (request, reply) => {
-    const { enterpriseId, status, search, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, status, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
     return listCustomers(enterpriseId, {
-      status, search,
+      projectId, status, search,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
@@ -60,7 +61,12 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     const parsed = CreateCustomerRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
-    const customer = createCustomer(parsed.data);
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, parsed.data.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
+    let customer;
+    try { customer = createCustomer(parsed.data); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "创建客户失败" }); }
     emitEvent("create", "customer", customer.id, customer as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(customer);
   });
@@ -72,6 +78,9 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateCustomerRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, existing.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
     const customer = updateCustomer(id, parsed.data);
     emitEvent("update", "customer", id, customer as unknown as Record<string, unknown>, "api");
     if (parsed.data.status && parsed.data.status !== existing.status) {
@@ -92,10 +101,10 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
 
   // ---- Suppliers ----
   app.get("/suppliers", async (request, reply) => {
-    const { enterpriseId, search, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listSuppliers(enterpriseId, { search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listSuppliers(enterpriseId, { projectId, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/suppliers/:id", async (request, reply) => {
@@ -110,7 +119,12 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     const parsed = CreateSupplierRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
-    const supplier = createSupplier(parsed.data);
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, parsed.data.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
+    let supplier;
+    try { supplier = createSupplier(parsed.data); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "创建供应商失败" }); }
     emitEvent("create", "supplier", supplier.id, supplier as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(supplier);
   });
@@ -122,6 +136,9 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateSupplierRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, existing.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
     const supplier = updateSupplier(id, parsed.data);
     emitEvent("update", "supplier", id, supplier as unknown as Record<string, unknown>, "api");
     return reply.send(supplier);
@@ -139,10 +156,10 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
 
   // ---- Products ----
   app.get("/products", async (request, reply) => {
-    const { enterpriseId, category, search, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, category, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listProducts(enterpriseId, { category, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listProducts(enterpriseId, { projectId, category, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/products/:id", async (request, reply) => {
@@ -157,7 +174,12 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     const parsed = CreateProductRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
-    const product = createProduct(parsed.data);
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, parsed.data.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
+    let product;
+    try { product = createProduct(parsed.data); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "创建商品失败" }); }
     emitEvent("create", "product", product.id, product as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(product);
   });
@@ -169,6 +191,9 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateProductRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, existing.enterpriseId)) {
+      return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
     const product = updateProduct(id, parsed.data);
     emitEvent("update", "product", id, product as unknown as Record<string, unknown>, "api");
     return reply.send(product);

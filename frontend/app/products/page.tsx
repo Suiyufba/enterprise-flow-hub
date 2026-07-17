@@ -13,6 +13,7 @@ import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { FormDialog } from "../components/FormDialog";
+import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Product, PaginatedList } from "shared";
 
 export default function ProductsPage() {
@@ -20,16 +21,18 @@ export default function ProductsPage() {
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", sku: "", category: "", unitPrice: "", unit: "", description: "" });
+  const [editForm, setEditForm] = useState({ projectId: "", name: "", sku: "", category: "", unitPrice: "", unit: "", description: "" });
   const [editSaving, setEditSaving] = useState(false);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
@@ -39,6 +42,7 @@ export default function ProductsPage() {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
       if (category) params.set("category", category);
+      if (projectFilter) params.set("projectId", projectFilter);
       const res = await fetchJson<PaginatedList<Product>>(`/products?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
@@ -48,13 +52,14 @@ export default function ProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [enterpriseId, page, search, category, showToast, user?.id]);
+  }, [enterpriseId, page, search, category, projectFilter, showToast, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   function startEdit(product: Product) {
     setEditingProduct(product);
     setEditForm({
+      projectId: product.projectId,
       name: product.name, sku: product.sku, category: product.category,
       unitPrice: String(product.unitPrice), unit: product.unit, description: product.description,
     });
@@ -68,6 +73,7 @@ export default function ProductsPage() {
       await fetchJson(`/products/${editingProduct.id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          projectId: editForm.projectId,
           name: editForm.name.trim(), sku: editForm.sku.trim(), category: editForm.category.trim(),
           unitPrice: price, unit: editForm.unit.trim(), description: editForm.description.trim(),
         }),
@@ -81,6 +87,7 @@ export default function ProductsPage() {
   }
 
   const [name, setName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [sku, setSku] = useState("");
   const [cat, setCat] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
@@ -90,13 +97,14 @@ export default function ProductsPage() {
 
   async function createProduct() {
     const price = parseFloat(unitPrice);
-    if (!name.trim() || !enterpriseId || (unitPrice && (isNaN(price) || price <= 0))) return;
+    if (!name.trim() || !enterpriseId || !projectId || (unitPrice && (isNaN(price) || price <= 0))) return;
     setSaving(true);
     try {
       await fetchJson("/products", {
         method: "POST",
         body: JSON.stringify({
           enterpriseId,
+          projectId,
           name: name.trim(),
           sku: sku.trim() || undefined,
           category: cat.trim() || undefined,
@@ -106,7 +114,7 @@ export default function ProductsPage() {
         }),
         adminUserId: user?.id,
       });
-      setName(""); setSku(""); setCat(""); setUnitPrice(""); setUnit(""); setDescription("");
+      setName(""); setProjectId(""); setSku(""); setCat(""); setUnitPrice(""); setUnit(""); setDescription("");
       setShowForm(false);
       showToast("商品已添加", "success");
       await load();
@@ -126,6 +134,7 @@ export default function ProductsPage() {
       ),
     },
     { key: "sku", label: "SKU" },
+    { key: "projectId", label: "所属项目", render: (p: Product) => <ProjectBadge projects={projects} projectId={p.projectId} /> },
     { key: "category", label: "分类" },
     { key: "unitPrice", label: "单价", render: (p: Product) => `¥${p.unitPrice.toFixed(2)}/${p.unit}` },
     {
@@ -152,6 +161,8 @@ export default function ProductsPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
+              <label htmlFor="new-product-project">所属项目 *</label>
+              <ProjectScopeSelect id="new-product-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="商品所属项目" />
               <label htmlFor="new-product-name">名称 *</label>
               <input id="new-product-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="商品名称 *" />
               <label htmlFor="new-product-sku">SKU</label>
@@ -170,7 +181,7 @@ export default function ProductsPage() {
               </div>
               <label htmlFor="new-product-description">描述</label>
               <input id="new-product-description" className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
-              <button className="page-primary-button" onClick={createProduct} disabled={saving || !name.trim() || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))} type="button">
+              <button className="page-primary-button" onClick={createProduct} disabled={saving || !name.trim() || !projectId || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>
             </div>
@@ -179,6 +190,7 @@ export default function ProductsPage() {
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索商品..." />
+          <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
           <select className="search-enterprise-select" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }}>
             <option value="">全部分类</option>
             {[...new Set(data.map((p) => p.category).filter(Boolean))].map((c) => (
@@ -203,6 +215,8 @@ export default function ProductsPage() {
           />
         )}
         <FormDialog open={Boolean(editingProduct)} title={`编辑商品${editingProduct ? `：${editingProduct.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.name.trim() || !Number.isFinite(Number(editForm.unitPrice)) || Number(editForm.unitPrice) < 0} onSubmit={saveProduct} onCancel={() => setEditingProduct(null)}>
+          <label className="form-label" htmlFor="edit-product-project">所属项目 *</label>
+          <ProjectScopeSelect id="edit-product-project" projects={projects} value={editForm.projectId} onChange={(projectId) => setEditForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="商品所属项目" />
           <label className="form-label" htmlFor="edit-product-name">商品名称 *</label>
           <input id="edit-product-name" className="page-input" autoFocus value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
           <label className="form-label" htmlFor="edit-product-sku">SKU</label>

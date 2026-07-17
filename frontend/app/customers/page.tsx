@@ -15,6 +15,7 @@ import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { FormDialog } from "../components/FormDialog";
 import { TagInput, TagList } from "../components/TagInput";
+import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Customer, PaginatedList } from "shared";
 
 export default function CustomersPage() {
@@ -22,17 +23,19 @@ export default function CustomersPage() {
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({
-    name: "", contact: "", phone: "", email: "", address: "", gender: "unknown" as Customer["gender"], tags: [] as string[], status: "active" as Customer["status"],
+    projectId: "", name: "", contact: "", phone: "", email: "", address: "", gender: "unknown" as Customer["gender"], tags: [] as string[], status: "active" as Customer["status"],
   });
   const load = useCallback(async () => {
     if (!enterpriseId) return;
@@ -42,6 +45,7 @@ export default function CustomersPage() {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (search) params.set("search", search);
       if (statusFilter) params.set("status", statusFilter);
+      if (projectFilter) params.set("projectId", projectFilter);
       const res = await fetchJson<PaginatedList<Customer>>(`/customers?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
@@ -51,13 +55,14 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [enterpriseId, page, search, statusFilter, showToast, user?.id]);
+  }, [enterpriseId, page, projectFilter, search, statusFilter, showToast, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   function startEdit(customer: Customer) {
     setEditingCustomer(customer);
     setEditForm({
+      projectId: customer.projectId,
       name: customer.name,
       contact: customer.contact,
       phone: customer.phone,
@@ -76,6 +81,7 @@ export default function CustomersPage() {
       await fetchJson(`/customers/${editingCustomer.id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          projectId: editForm.projectId,
           name: editForm.name.trim(),
           contact: editForm.contact.trim(),
           phone: editForm.phone.trim(),
@@ -108,6 +114,7 @@ export default function CustomersPage() {
       ),
     },
     { key: "contact", label: "联系人" },
+    { key: "projectId", label: "所属项目", render: (c: Customer) => <ProjectBadge projects={projects} projectId={c.projectId} /> },
     { key: "phone", label: "电话" },
     { key: "tags", label: "标签", render: (c: Customer) => <TagList tags={c.tags.slice(0, 3)} emptyText="-" /> },
     { key: "status", label: "状态", render: (c: Customer) => <StatusBadge status={c.status} /> },
@@ -129,6 +136,7 @@ export default function CustomersPage() {
         />
         <div className="page-toolbar" style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索名称、联系人、电话或标签..." />
+          <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="search-enterprise-select">
             <option value="">全部状态</option>
             <option value="active">活跃</option>
@@ -161,6 +169,8 @@ export default function CustomersPage() {
           onSubmit={saveCustomer}
           onCancel={() => setEditingCustomer(null)}
         >
+          <label className="form-label" htmlFor="edit-customer-project">所属项目 *</label>
+          <ProjectScopeSelect id="edit-customer-project" projects={projects} value={editForm.projectId} onChange={(projectId) => setEditForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="客户所属项目" />
           <label className="form-label" htmlFor="edit-customer-name">客户名称 *</label>
           <input id="edit-customer-name" className="page-input" autoFocus value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
           <label className="form-label" htmlFor="edit-customer-contact">联系人</label>

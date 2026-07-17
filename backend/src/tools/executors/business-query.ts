@@ -10,13 +10,14 @@ type ResourceConfig = {
 };
 
 const RESOURCES: Record<string, ResourceConfig> = {
-  customers: { table: "customers", columns: "id,name,contact,phone,email,gender,tags,status,created_at,updated_at", statusColumn: "status", searchColumns: ["name", "contact", "phone", "email", "tags"], orderBy: "updated_at DESC" },
-  suppliers: { table: "suppliers", columns: "id,name,contact,phone,email,tags,created_at,updated_at", searchColumns: ["name", "contact", "phone", "email", "tags"], orderBy: "updated_at DESC" },
-  products: { table: "products", columns: "id,name,sku,category,unit_price,unit,updated_at", searchColumns: ["name", "sku", "category"], orderBy: "updated_at DESC" },
-  orders: { table: "orders", columns: "id,customer_id,status,total_amount,notes,created_at,updated_at", statusColumn: "status", searchColumns: ["id", "notes"], orderBy: "updated_at DESC" },
-  payments: { table: "payments", columns: "id,order_id,amount,method,status,received_at,created_at", statusColumn: "status", searchColumns: ["id", "order_id"], orderBy: "created_at DESC" },
-  invoices: { table: "invoices", columns: "id,order_id,customer_id,invoice_number,amount,total_amount,status,due_date,issued_at,buyer_name,seller_name,created_at", statusColumn: "status", searchColumns: ["id", "invoice_number", "buyer_name", "seller_name"], orderBy: "created_at DESC" },
-  tasks: { table: "tasks", columns: "id,assignee_id,title,description,status,priority,due_date,source_type,source_id,created_at,updated_at", statusColumn: "status", searchColumns: ["title", "description"], orderBy: "created_at DESC" },
+  customers: { table: "customers", columns: "id,project_id,name,contact,phone,email,gender,tags,status,created_at,updated_at", statusColumn: "status", searchColumns: ["name", "contact", "phone", "email", "tags"], orderBy: "updated_at DESC" },
+  suppliers: { table: "suppliers", columns: "id,project_id,name,contact,phone,email,tags,created_at,updated_at", searchColumns: ["name", "contact", "phone", "email", "tags"], orderBy: "updated_at DESC" },
+  products: { table: "products", columns: "id,project_id,name,sku,category,unit_price,unit,updated_at", searchColumns: ["name", "sku", "category"], orderBy: "updated_at DESC" },
+  orders: { table: "orders", columns: "id,project_id,customer_id,status,total_amount,notes,created_at,updated_at", statusColumn: "status", searchColumns: ["id", "notes"], orderBy: "updated_at DESC" },
+  payments: { table: "payments", columns: "id,project_id,order_id,amount,method,status,received_at,created_at", statusColumn: "status", searchColumns: ["id", "order_id"], orderBy: "created_at DESC" },
+  invoices: { table: "invoices", columns: "id,project_id,order_id,customer_id,invoice_number,amount,total_amount,status,due_date,issued_at,buyer_name,seller_name,created_at", statusColumn: "status", searchColumns: ["id", "invoice_number", "buyer_name", "seller_name"], orderBy: "created_at DESC" },
+  tasks: { table: "tasks", columns: "id,project_id,assignee_id,title,description,status,priority,due_date,source_type,source_id,created_at,updated_at", statusColumn: "status", searchColumns: ["title", "description"], orderBy: "created_at DESC" },
+  files: { table: "files", columns: "id,project_id,filename,mime_type,size,uploaded_by,created_at", searchColumns: ["filename", "mime_type"], orderBy: "created_at DESC" },
 };
 
 function boundedLimit(value: unknown): number {
@@ -35,11 +36,13 @@ function withParsedTags(row: unknown): unknown {
   }
 }
 
-function dashboard(enterpriseId: string) {
+function dashboard(enterpriseId: string, projectId?: string) {
   const db = getDb();
+  const projectClause = projectId ? "AND project_id = ?" : "";
+  const scopeParams = projectId ? [enterpriseId, projectId] : [enterpriseId];
   const count = (table: string, extra = "", params: unknown[] = []) =>
-    (db.prepare(`SELECT COUNT(*) AS value FROM ${table} WHERE enterprise_id = ? ${extra}`).get(enterpriseId, ...params) as { value: number }).value;
-  const paid = db.prepare("SELECT COALESCE(SUM(amount),0) AS value FROM payments WHERE enterprise_id = ? AND status = 'completed'").get(enterpriseId) as { value: number };
+    (db.prepare(`SELECT COUNT(*) AS value FROM ${table} WHERE enterprise_id = ? ${projectClause} ${extra}`).get(...scopeParams, ...params) as { value: number }).value;
+  const paid = db.prepare(`SELECT COALESCE(SUM(amount),0) AS value FROM payments WHERE enterprise_id = ? ${projectClause} AND status = 'completed'`).get(...scopeParams) as { value: number };
   return {
     customers: count("customers"),
     orders: count("orders"),
@@ -51,8 +54,10 @@ function dashboard(enterpriseId: string) {
   };
 }
 
-function customerValueRanking(enterpriseId: string, limit: number) {
+function customerValueRanking(enterpriseId: string, limit: number, projectId?: string) {
   const db = getDb();
+  const projectClause = projectId ? "AND project_id = ?" : "";
+  const scopeParams = projectId ? [enterpriseId, projectId] : [enterpriseId];
   const rows = db.prepare(
     `WITH order_metrics AS (
        SELECT customer_id,
@@ -60,7 +65,7 @@ function customerValueRanking(enterpriseId: string, limit: number) {
               COALESCE(SUM(CASE WHEN status NOT IN ('cancelled','refunded') THEN total_amount ELSE 0 END), 0) AS order_amount,
               MAX(created_at) AS last_order_at
        FROM orders
-       WHERE enterprise_id = ? AND customer_id IS NOT NULL
+       WHERE enterprise_id = ? ${projectClause} AND customer_id IS NOT NULL
        GROUP BY customer_id
      ),
      payment_metrics AS (
@@ -69,7 +74,7 @@ function customerValueRanking(enterpriseId: string, limit: number) {
               COALESCE(SUM(p.amount), 0) AS completed_payment_amount
        FROM payments p
        JOIN orders o ON o.id = p.order_id
-       WHERE p.enterprise_id = ? AND p.status = 'completed' AND o.customer_id IS NOT NULL
+       WHERE p.enterprise_id = ? ${projectId ? "AND p.project_id = ?" : ""} AND p.status = 'completed' AND o.customer_id IS NOT NULL
        GROUP BY o.customer_id
      ),
      invoice_metrics AS (
@@ -77,7 +82,7 @@ function customerValueRanking(enterpriseId: string, limit: number) {
               COUNT(*) AS invoice_count,
               COALESCE(SUM(CASE WHEN status IN ('issued','overdue') THEN COALESCE(total_amount, amount) ELSE 0 END), 0) AS outstanding_invoice_amount
        FROM invoices
-       WHERE enterprise_id = ? AND customer_id IS NOT NULL
+       WHERE enterprise_id = ? ${projectClause} AND customer_id IS NOT NULL
        GROUP BY customer_id
      )
      SELECT c.id,
@@ -99,21 +104,21 @@ function customerValueRanking(enterpriseId: string, limit: number) {
      LEFT JOIN order_metrics om ON om.customer_id = c.id
      LEFT JOIN payment_metrics pm ON pm.customer_id = c.id
      LEFT JOIN invoice_metrics im ON im.customer_id = c.id
-     WHERE c.enterprise_id = ?
+     WHERE c.enterprise_id = ? ${projectId ? "AND c.project_id = ?" : ""}
      ORDER BY completed_payment_amount DESC,
               order_amount DESC,
               order_count DESC,
               COALESCE(last_order_at, c.updated_at) DESC
      LIMIT ?`,
-  ).all(enterpriseId, enterpriseId, enterpriseId, enterpriseId, limit);
+  ).all(...scopeParams, ...scopeParams, ...scopeParams, ...scopeParams, limit);
   const summary = db.prepare(
     `SELECT
-       (SELECT COUNT(*) FROM customers WHERE enterprise_id = ?) AS scanned_customers,
-       (SELECT COUNT(DISTINCT customer_id) FROM orders WHERE enterprise_id = ? AND customer_id IS NOT NULL) AS customers_with_orders,
-       (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE enterprise_id = ? AND status NOT IN ('cancelled','refunded')) AS order_amount,
-       (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE enterprise_id = ? AND status = 'completed') AS completed_payment_amount,
-       (SELECT COALESCE(SUM(COALESCE(total_amount, amount)), 0) FROM invoices WHERE enterprise_id = ? AND status IN ('issued','overdue')) AS outstanding_invoice_amount`,
-  ).get(enterpriseId, enterpriseId, enterpriseId, enterpriseId, enterpriseId) as Record<string, number>;
+       (SELECT COUNT(*) FROM customers WHERE enterprise_id = ? ${projectClause}) AS scanned_customers,
+       (SELECT COUNT(DISTINCT customer_id) FROM orders WHERE enterprise_id = ? ${projectClause} AND customer_id IS NOT NULL) AS customers_with_orders,
+       (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE enterprise_id = ? ${projectClause} AND status NOT IN ('cancelled','refunded')) AS order_amount,
+       (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE enterprise_id = ? ${projectClause} AND status = 'completed') AS completed_payment_amount,
+       (SELECT COALESCE(SUM(COALESCE(total_amount, amount)), 0) FROM invoices WHERE enterprise_id = ? ${projectClause} AND status IN ('issued','overdue')) AS outstanding_invoice_amount`,
+  ).get(...scopeParams, ...scopeParams, ...scopeParams, ...scopeParams, ...scopeParams) as Record<string, number>;
 
   return {
     ok: true,
@@ -125,6 +130,7 @@ function customerValueRanking(enterpriseId: string, limit: number) {
       completedPaymentAmount: summary.completed_payment_amount,
       outstandingInvoiceAmount: summary.outstanding_invoice_amount,
       completeScan: true,
+      projectId: projectId ?? null,
     },
     rankingBasis: ["completed_payment_amount", "order_amount", "order_count", "last_order_at"],
     returned: rows.length,
@@ -134,42 +140,47 @@ function customerValueRanking(enterpriseId: string, limit: number) {
 
 export async function businessQueryExecute(input: Record<string, unknown>): Promise<string> {
   const enterpriseId = typeof input._enterpriseId === "string" ? input._enterpriseId : "";
+  const projectId = typeof input._projectId === "string" && input._projectId ? input._projectId : undefined;
   const resource = typeof input.resource === "string" ? input.resource.trim().toLowerCase() : "dashboard";
   if (!enterpriseId) throw new Error("缺少当前企业上下文");
 
   if (resource === "dashboard") {
-    return JSON.stringify({ ok: true, resource, summary: dashboard(enterpriseId) });
+    return JSON.stringify({ ok: true, resource, summary: dashboard(enterpriseId, projectId) });
   }
 
   if (resource === "customer_duplicates") {
     return JSON.stringify({
       ok: true,
       resource,
-      ...customerDuplicateReport(enterpriseId, boundedLimit(input.limit)),
+      ...customerDuplicateReport(enterpriseId, boundedLimit(input.limit), projectId),
     });
   }
 
   if (resource === "customer_value") {
-    return JSON.stringify(customerValueRanking(enterpriseId, boundedLimit(input.limit)));
+    return JSON.stringify(customerValueRanking(enterpriseId, boundedLimit(input.limit), projectId));
   }
 
   if (resource === "automations") {
+    const projectClause = projectId ? "AND a.project_id=?" : "";
+    const scopeParams = projectId ? [enterpriseId, projectId] : [enterpriseId];
     const total = (getDb().prepare(
-      "SELECT COUNT(*) AS value FROM automations a JOIN projects p ON p.id=a.project_id WHERE p.enterprise_id=?",
-    ).get(enterpriseId) as { value: number }).value;
+      `SELECT COUNT(*) AS value FROM automations a JOIN projects p ON p.id=a.project_id WHERE p.enterprise_id=? ${projectClause}`,
+    ).get(...scopeParams) as { value: number }).value;
     const rows = getDb().prepare(
       `SELECT a.id,a.name,a.trigger_type,a.trigger_desc,a.action_type,a.action_desc,a.enabled,a.run_count,a.last_run,a.last_status,a.last_error
        FROM automations a JOIN projects p ON p.id=a.project_id
-       WHERE p.enterprise_id=? ORDER BY a.enabled DESC,a.name LIMIT ?`,
-    ).all(enterpriseId, boundedLimit(input.limit));
+       WHERE p.enterprise_id=? ${projectClause} ORDER BY a.enabled DESC,a.name LIMIT ?`,
+    ).all(...scopeParams, boundedLimit(input.limit));
     return JSON.stringify({ ok: true, resource, total, returned: rows.length, items: rows });
   }
 
   if (resource === "library") {
-    const total = (getDb().prepare("SELECT COUNT(*) AS value FROM library_items WHERE enterprise_id=?").get(enterpriseId) as { value: number }).value;
+    const projectClause = projectId ? "AND project_id=?" : "";
+    const scopeParams = projectId ? [enterpriseId, projectId] : [enterpriseId];
+    const total = (getDb().prepare(`SELECT COUNT(*) AS value FROM library_items WHERE enterprise_id=? ${projectClause}`).get(...scopeParams) as { value: number }).value;
     const rows = getDb().prepare(
-      "SELECT id,project_id,name,type,summary,visibility,created_at FROM library_items WHERE enterprise_id=? ORDER BY created_at DESC LIMIT ?",
-    ).all(enterpriseId, boundedLimit(input.limit));
+      `SELECT id,project_id,name,type,summary,visibility,created_at FROM library_items WHERE enterprise_id=? ${projectClause} ORDER BY created_at DESC LIMIT ?`,
+    ).all(...scopeParams, boundedLimit(input.limit));
     return JSON.stringify({ ok: true, resource, total, returned: rows.length, items: rows });
   }
 
@@ -177,6 +188,10 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
   if (!config) throw new Error(`不支持的业务资源：${resource}`);
   const where = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (projectId) {
+    where.push("project_id = ?");
+    params.push(projectId);
+  }
   const status = typeof input.status === "string" ? input.status.trim() : "";
   const search = typeof input.search === "string" ? input.search.trim() : "";
   if (status && config.statusColumn) {
@@ -201,7 +216,7 @@ export async function businessQueryExecute(input: Record<string, unknown>): Prom
   const items = resource === "customers" || resource === "suppliers" ? rows.map(withParsedTags) : rows;
   const result: Record<string, unknown> = { ok: true, resource, total, returned: rows.length, items };
   if (resource === "customers") {
-    result.duplicateAnalysis = customerDuplicateReport(enterpriseId, 0).summary;
+    result.duplicateAnalysis = customerDuplicateReport(enterpriseId, 0, projectId).summary;
   }
   return JSON.stringify(result);
 }

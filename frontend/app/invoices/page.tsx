@@ -12,6 +12,7 @@ import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
+import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Invoice, PaginatedList } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -29,10 +30,12 @@ export default function InvoicesPage() {
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Invoice[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -43,16 +46,18 @@ export default function InvoicesPage() {
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
       if (statusFilter) params.set("status", statusFilter);
+      if (projectFilter) params.set("projectId", projectFilter);
       const res = await fetchJson<PaginatedList<Invoice>>(`/invoices?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
     } catch { showToast("加载失败", "error"); setError("加载失败，请检查网络后重试"); }
     finally { setLoading(false); }
-  }, [enterpriseId, page, statusFilter, showToast, user?.id]);
+  }, [enterpriseId, page, projectFilter, statusFilter, showToast, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
   const [amount, setAmount] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [orderId, setOrderId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -70,13 +75,14 @@ export default function InvoicesPage() {
 
   async function createInvoice() {
     const parsed = parseFloat(amount);
-    if (!amount || isNaN(parsed) || parsed <= 0 || !enterpriseId) return;
+    if (!amount || isNaN(parsed) || parsed <= 0 || !enterpriseId || !projectId) return;
     setSaving(true);
     try {
       await fetchJson("/invoices", {
         method: "POST",
         body: JSON.stringify({
           enterpriseId,
+          projectId,
           orderId: orderId.trim() || undefined,
           customerId: customerId.trim() || undefined,
           amount: parseFloat(amount),
@@ -94,7 +100,7 @@ export default function InvoicesPage() {
         }),
         adminUserId: user?.id,
       });
-      setAmount(""); setOrderId(""); setCustomerId(""); setDueDate("");
+      setAmount(""); setProjectId(""); setOrderId(""); setCustomerId(""); setDueDate("");
       setInvoiceNumber(""); setInvoiceCode(""); setInvoiceType("");
       setTaxRate(""); setBuyerName(""); setBuyerTaxId("");
       setSellerName(""); setSellerTaxId(""); setRemark(""); setIssuer("");
@@ -116,6 +122,7 @@ export default function InvoicesPage() {
         </Link>
       ),
     },
+    { key: "projectId", label: "所属项目", width: "120px", render: (inv: Invoice) => <ProjectBadge projects={projects} projectId={inv.projectId} /> },
     { key: "invoiceNumber", label: "发票号码", width: "112px", render: (inv: Invoice) => inv.invoiceNumber ?? "-" },
     {
       key: "invoiceType",
@@ -174,6 +181,8 @@ export default function InvoicesPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
+              <label className="form-label" htmlFor="invoice-project">所属项目 *</label>
+              <ProjectScopeSelect id="invoice-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="发票所属项目" />
               <label className="form-label" htmlFor="invoice-amount">金额 *</label>
               <input id="invoice-amount" className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
 
@@ -229,14 +238,15 @@ export default function InvoicesPage() {
               <label className="form-label" htmlFor="invoice-issuer">开票人</label>
               <input id="invoice-issuer" className="page-input" value={issuer} onChange={(e) => setIssuer(e.target.value)} placeholder="开票人" />
 
-              <button className="page-primary-button" onClick={createInvoice} disabled={saving || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
+              <button className="page-primary-button" onClick={createInvoice} disabled={saving || !projectId || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
                 {saving ? "创建中..." : "确认创建"}
               </button>
             </div>
           </div>
         )}
 
-        <div style={{ marginBottom: "14px" }}>
+        <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
+          <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
           <select className="search-enterprise-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
             <option value="">全部状态</option>
             <option value="draft">草稿</option>

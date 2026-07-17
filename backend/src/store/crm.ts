@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db/index.js";
+import { resolveProjectId } from "../project-scope.js";
 import type {
   Customer,
   CreateCustomerRequest,
@@ -32,6 +33,7 @@ function rowToCustomer(r: Record<string, unknown>): Customer {
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
+    projectId: (r.project_id as string) || "",
     name: r.name as string,
     contact: (r.contact as string) || "",
     phone: (r.phone as string) || "",
@@ -47,10 +49,11 @@ function rowToCustomer(r: Record<string, unknown>): Customer {
 
 export function listCustomers(
   enterpriseId: string,
-  opts?: { status?: string; search?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; status?: string; search?: string; page?: number; limit?: number },
 ): PaginatedList<Customer> {
   const conditions: string[] = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (opts?.projectId) { conditions.push("project_id = ?"); params.push(opts.projectId); }
   if (opts?.status) { conditions.push("status = ?"); params.push(opts.status); }
   if (opts?.search) {
     conditions.push("(name LIKE ? OR contact LIKE ? OR phone LIKE ? OR email LIKE ? OR tags LIKE ?)");
@@ -73,9 +76,11 @@ export function getCustomer(id: string): Customer | undefined {
 
 export function createCustomer(input: CreateCustomerRequest): Customer {
   const now = new Date().toISOString();
+  const projectId = resolveProjectId(input.enterpriseId, input.projectId);
   const cust: Customer = {
     id: `cust-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
+    projectId,
     name: input.name.trim(),
     contact: input.contact ?? "",
     phone: input.phone ?? "",
@@ -88,15 +93,19 @@ export function createCustomer(input: CreateCustomerRequest): Customer {
     updatedAt: now,
   };
   db()
-    .prepare("INSERT INTO customers (id, enterprise_id, name, contact, phone, email, address, gender, tags, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
-    .run(cust.id, cust.enterpriseId, cust.name, cust.contact, cust.phone, cust.email, cust.address, cust.gender, JSON.stringify(cust.tags), cust.status, cust.createdAt, cust.updatedAt);
+    .prepare("INSERT INTO customers (id, enterprise_id, project_id, name, contact, phone, email, address, gender, tags, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    .run(cust.id, cust.enterpriseId, cust.projectId, cust.name, cust.contact, cust.phone, cust.email, cust.address, cust.gender, JSON.stringify(cust.tags), cust.status, cust.createdAt, cust.updatedAt);
   return cust;
 }
 
 export function updateCustomer(id: string, input: UpdateCustomerRequest): Customer | undefined {
   const existing = getCustomer(id);
   if (!existing) return undefined;
+  const projectId = input.projectId === undefined
+    ? existing.projectId
+    : resolveProjectId(existing.enterpriseId, input.projectId);
   const next = {
+    projectId,
     name: input.name ?? existing.name,
     contact: input.contact !== undefined ? input.contact : existing.contact,
     phone: input.phone !== undefined ? input.phone : existing.phone,
@@ -108,8 +117,8 @@ export function updateCustomer(id: string, input: UpdateCustomerRequest): Custom
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE customers SET name=?, contact=?, phone=?, email=?, address=?, gender=?, tags=?, status=?, updated_at=? WHERE id=?")
-    .run(next.name, next.contact, next.phone, next.email, next.address, next.gender, JSON.stringify(next.tags), next.status, next.updated_at, id);
+    .prepare("UPDATE customers SET project_id=?, name=?, contact=?, phone=?, email=?, address=?, gender=?, tags=?, status=?, updated_at=? WHERE id=?")
+    .run(next.projectId, next.name, next.contact, next.phone, next.email, next.address, next.gender, JSON.stringify(next.tags), next.status, next.updated_at, id);
   return getCustomer(id)!;
 }
 
@@ -123,6 +132,7 @@ function rowToSupplier(r: Record<string, unknown>): Supplier {
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
+    projectId: (r.project_id as string) || "",
     name: r.name as string,
     contact: (r.contact as string) || "",
     phone: (r.phone as string) || "",
@@ -136,10 +146,11 @@ function rowToSupplier(r: Record<string, unknown>): Supplier {
 
 export function listSuppliers(
   enterpriseId: string,
-  opts?: { search?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; search?: string; page?: number; limit?: number },
 ): PaginatedList<Supplier> {
   const conditions = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (opts?.projectId) { conditions.push("project_id = ?"); params.push(opts.projectId); }
   if (opts?.search) {
     conditions.push("(name LIKE ? OR contact LIKE ? OR phone LIKE ? OR email LIKE ? OR tags LIKE ?)");
     for (let index = 0; index < 5; index += 1) params.push(`%${opts.search}%`);
@@ -161,9 +172,11 @@ export function getSupplier(id: string): Supplier | undefined {
 
 export function createSupplier(input: CreateSupplierRequest): Supplier {
   const now = new Date().toISOString();
+  const projectId = resolveProjectId(input.enterpriseId, input.projectId);
   const sup: Supplier = {
     id: `sup-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
+    projectId,
     name: input.name.trim(),
     contact: input.contact ?? "",
     phone: input.phone ?? "",
@@ -174,15 +187,19 @@ export function createSupplier(input: CreateSupplierRequest): Supplier {
     updatedAt: now,
   };
   db()
-    .prepare("INSERT INTO suppliers (id, enterprise_id, name, contact, phone, email, address, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-    .run(sup.id, sup.enterpriseId, sup.name, sup.contact, sup.phone, sup.email, sup.address, JSON.stringify(sup.tags), sup.createdAt, sup.updatedAt);
+    .prepare("INSERT INTO suppliers (id, enterprise_id, project_id, name, contact, phone, email, address, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+    .run(sup.id, sup.enterpriseId, sup.projectId, sup.name, sup.contact, sup.phone, sup.email, sup.address, JSON.stringify(sup.tags), sup.createdAt, sup.updatedAt);
   return sup;
 }
 
 export function updateSupplier(id: string, input: UpdateSupplierRequest): Supplier | undefined {
   const existing = getSupplier(id);
   if (!existing) return undefined;
+  const projectId = input.projectId === undefined
+    ? existing.projectId
+    : resolveProjectId(existing.enterpriseId, input.projectId);
   const next = {
+    projectId,
     name: input.name ?? existing.name,
     contact: input.contact !== undefined ? input.contact : existing.contact,
     phone: input.phone !== undefined ? input.phone : existing.phone,
@@ -192,8 +209,8 @@ export function updateSupplier(id: string, input: UpdateSupplierRequest): Suppli
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE suppliers SET name=?, contact=?, phone=?, email=?, address=?, tags=?, updated_at=? WHERE id=?")
-    .run(next.name, next.contact, next.phone, next.email, next.address, JSON.stringify(next.tags), next.updated_at, id);
+    .prepare("UPDATE suppliers SET project_id=?, name=?, contact=?, phone=?, email=?, address=?, tags=?, updated_at=? WHERE id=?")
+    .run(next.projectId, next.name, next.contact, next.phone, next.email, next.address, JSON.stringify(next.tags), next.updated_at, id);
   return getSupplier(id)!;
 }
 
@@ -208,6 +225,7 @@ function rowToProduct(r: Record<string, unknown>): Product {
   return {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
+    projectId: (r.project_id as string) || "",
     name: r.name as string,
     sku: (r.sku as string) || "",
     category: (r.category as string) || "",
@@ -222,10 +240,11 @@ function rowToProduct(r: Record<string, unknown>): Product {
 
 export function listProducts(
   enterpriseId: string,
-  opts?: { category?: string; search?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; category?: string; search?: string; page?: number; limit?: number },
 ): PaginatedList<Product> {
   const conditions = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
+  if (opts?.projectId) { conditions.push("project_id = ?"); params.push(opts.projectId); }
   if (opts?.category) { conditions.push("category = ?"); params.push(opts.category); }
   if (opts?.search) { conditions.push("(name LIKE ? OR sku LIKE ?)"); params.push(`%${opts.search}%`, `%${opts.search}%`); }
   const where = conditions.join(" AND ");
@@ -245,9 +264,11 @@ export function getProduct(id: string): Product | undefined {
 
 export function createProduct(input: CreateProductRequest): Product {
   const now = new Date().toISOString();
+  const projectId = resolveProjectId(input.enterpriseId, input.projectId);
   const prod: Product = {
     id: `prod-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
+    projectId,
     name: input.name.trim(),
     sku: input.sku ?? "",
     category: input.category ?? "",
@@ -259,15 +280,19 @@ export function createProduct(input: CreateProductRequest): Product {
     updatedAt: now,
   };
   db()
-    .prepare("INSERT INTO products (id, enterprise_id, name, sku, category, unit_price, unit, description, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-    .run(prod.id, prod.enterpriseId, prod.name, prod.sku, prod.category, prod.unitPrice, prod.unit, prod.description, prod.createdAt, prod.updatedAt);
+    .prepare("INSERT INTO products (id, enterprise_id, project_id, name, sku, category, unit_price, unit, description, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+    .run(prod.id, prod.enterpriseId, prod.projectId, prod.name, prod.sku, prod.category, prod.unitPrice, prod.unit, prod.description, prod.createdAt, prod.updatedAt);
   return prod;
 }
 
 export function updateProduct(id: string, input: UpdateProductRequest): Product | undefined {
   const existing = getProduct(id);
   if (!existing) return undefined;
+  const projectId = input.projectId === undefined
+    ? existing.projectId
+    : resolveProjectId(existing.enterpriseId, input.projectId);
   const next = {
+    projectId,
     name: input.name ?? existing.name,
     sku: input.sku !== undefined ? input.sku : existing.sku,
     category: input.category !== undefined ? input.category : existing.category,
@@ -277,8 +302,8 @@ export function updateProduct(id: string, input: UpdateProductRequest): Product 
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE products SET name=?, sku=?, category=?, unit_price=?, unit=?, description=?, updated_at=? WHERE id=?")
-    .run(next.name, next.sku, next.category, next.unit_price, next.unit, next.description, next.updated_at, id);
+    .prepare("UPDATE products SET project_id=?, name=?, sku=?, category=?, unit_price=?, unit=?, description=?, updated_at=? WHERE id=?")
+    .run(next.projectId, next.name, next.sku, next.category, next.unit_price, next.unit, next.description, next.updated_at, id);
   return getProduct(id)!;
 }
 

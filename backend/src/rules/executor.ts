@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { notifyExecute } from "../tools/executors/notify.js";
 import { runAutomationNow } from "../automation/scheduler.js";
 import type { BusinessEvent } from "../events/emitter.js";
+import { resolveProjectId } from "../project-scope.js";
 
 function db() { return getDb(); }
 
@@ -53,6 +54,7 @@ export function setupRulesExecutor(): void {
 async function executeAction(row: RuleRow, event: BusinessEvent): Promise<void> {
   const payload = event.payload;
   const config = JSON.parse(row.action_config || "{}");
+  const projectId = resolveProjectId(row.enterprise_id, typeof payload.projectId === "string" ? payload.projectId : undefined);
 
   switch (row.action_type) {
     case "notify": {
@@ -82,8 +84,8 @@ async function executeAction(row: RuleRow, event: BusinessEvent): Promise<void> 
       if (!targetId) throw new Error("事件缺少 objectId");
       const hasUpdatedAt = !["invoices", "payments"].includes(table as string);
       const result = hasUpdatedAt
-        ? db().prepare(`UPDATE ${table} SET ${field} = ?, updated_at = ? WHERE id = ? AND enterprise_id = ?`).run(value, new Date().toISOString(), targetId, row.enterprise_id)
-        : db().prepare(`UPDATE ${table} SET ${field} = ? WHERE id = ? AND enterprise_id = ?`).run(value, targetId, row.enterprise_id);
+        ? db().prepare(`UPDATE ${table} SET ${field} = ?, updated_at = ? WHERE id = ? AND enterprise_id = ? AND project_id = ?`).run(value, new Date().toISOString(), targetId, row.enterprise_id, projectId)
+        : db().prepare(`UPDATE ${table} SET ${field} = ? WHERE id = ? AND enterprise_id = ? AND project_id = ?`).run(value, targetId, row.enterprise_id, projectId);
       if (result.changes !== 1) throw new Error("规则目标记录不存在或越权");
       break;
     }
@@ -91,10 +93,11 @@ async function executeAction(row: RuleRow, event: BusinessEvent): Promise<void> 
     case "create_task": {
       const { title, assigneeId, priority } = config as Record<string, unknown>;
       db()
-        .prepare("INSERT INTO tasks (id, enterprise_id, assignee_id, title, status, priority, source_type, source_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .prepare("INSERT INTO tasks (id, enterprise_id, project_id, assignee_id, title, status, priority, source_type, source_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
         .run(
           `task-${randomUUID()}`,
           row.enterprise_id,
+          projectId,
           (assigneeId as string) || null,
           (title as string) || `规则「${row.name}」自动创建`,
           "pending",

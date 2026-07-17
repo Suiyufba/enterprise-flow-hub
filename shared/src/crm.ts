@@ -16,6 +16,7 @@ function withUnitPriceAlias(raw: unknown): unknown {
 export const CustomerSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   name: z.string(),
   contact: z.string(),
   phone: z.string(),
@@ -30,6 +31,7 @@ export const CustomerSchema = z.object({
 
 export const CreateCustomerRequestSchema = z.object({
   enterpriseId: z.string(),
+  projectId: z.string().optional(),
   name: z.string().min(1).max(120),
   contact: z.string().max(60).optional(),
   phone: z.string().max(30).optional(),
@@ -41,6 +43,7 @@ export const CreateCustomerRequestSchema = z.object({
 });
 
 export const UpdateCustomerRequestSchema = z.object({
+  projectId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
   contact: z.string().max(60).optional(),
   phone: z.string().max(30).optional(),
@@ -59,6 +62,7 @@ export type UpdateCustomerRequest = z.infer<typeof UpdateCustomerRequestSchema>;
 export const SupplierSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   name: z.string(),
   contact: z.string(),
   phone: z.string(),
@@ -71,6 +75,7 @@ export const SupplierSchema = z.object({
 
 export const CreateSupplierRequestSchema = z.object({
   enterpriseId: z.string(),
+  projectId: z.string().optional(),
   name: z.string().min(1).max(120),
   contact: z.string().max(60).optional(),
   phone: z.string().max(30).optional(),
@@ -80,6 +85,7 @@ export const CreateSupplierRequestSchema = z.object({
 });
 
 export const UpdateSupplierRequestSchema = z.object({
+  projectId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
   contact: z.string().max(60).optional(),
   phone: z.string().max(30).optional(),
@@ -96,6 +102,7 @@ export type UpdateSupplierRequest = z.infer<typeof UpdateSupplierRequestSchema>;
 export const ProductSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   name: z.string(),
   sku: z.string(),
   category: z.string(),
@@ -109,6 +116,7 @@ export const ProductSchema = z.object({
 
 export const CreateProductRequestSchema = z.preprocess(withUnitPriceAlias, z.object({
   enterpriseId: z.string(),
+  projectId: z.string().optional(),
   name: z.string().min(1).max(120),
   sku: z.string().max(60).optional(),
   category: z.string().max(60).optional(),
@@ -118,6 +126,7 @@ export const CreateProductRequestSchema = z.preprocess(withUnitPriceAlias, z.obj
 }));
 
 export const UpdateProductRequestSchema = z.preprocess(withUnitPriceAlias, z.object({
+  projectId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
   sku: z.string().max(60).optional(),
   category: z.string().max(60).optional(),

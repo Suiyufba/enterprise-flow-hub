@@ -3,6 +3,7 @@ import { z } from "zod";
 export const FileSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   filename: z.string(),
   mimeType: z.string(),
   size: z.number(),

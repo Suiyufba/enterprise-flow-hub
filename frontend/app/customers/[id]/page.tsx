@@ -5,21 +5,26 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useToast } from "../../lib/toast-context";
+import { useWorkspace } from "../../lib/workspace-context";
 import { AppIcon } from "../../components/AppIcon";
 import { TagInput, TagList } from "../../components/TagInput";
+import { ProjectBadge, ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 import type { Customer } from "shared";
 
 export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
+  const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const projects = workspace.projects.filter((project) => project.enterpriseId === (user?.enterpriseId ?? customer?.enterpriseId));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
 
   const [name, setName] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -35,6 +40,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     fetchJson<Customer>(`/customers/${id}`, { adminUserId: user?.id })
       .then((data) => {
         setCustomer(data);
+        setProjectId(data.projectId);
         setName(data.name);
         setContact(data.contact);
         setPhone(data.phone);
@@ -52,12 +58,13 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   }, [id, user?.id, showToast]);
 
   async function handleSave() {
-    if (!name.trim()) return;
+    if (!name.trim() || !projectId) return;
     setSaving(true);
     try {
       const updated = await fetchJson<Customer>(`/customers/${id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          projectId,
           name: name.trim(),
           contact: contact.trim() || undefined,
           phone: phone.trim() || undefined,
@@ -151,6 +158,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
         {editing ? (
           <div className="page-form-grid" style={{ maxWidth: 560 }}>
+            <label className="form-label" htmlFor="customer-project">所属项目 *</label>
+            <ProjectScopeSelect id="customer-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="客户所属项目" />
             <label className="form-label" htmlFor="customer-name">名称 *</label>
             <input id="customer-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="客户名称" />
 
@@ -183,11 +192,12 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             </select>
 
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-              <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim()}>
+              <button className="page-primary-button" onClick={handleSave} disabled={saving || !name.trim() || !projectId}>
                 {saving ? "保存中..." : "保存"}
               </button>
               <button className="page-secondary-button" onClick={() => {
                 setName(customer.name);
+                setProjectId(customer.projectId);
                 setContact(customer.contact);
                 setPhone(customer.phone);
                 setEmail(customer.email);
@@ -201,6 +211,10 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           </div>
         ) : (
           <div className="settings-list">
+            <div className="settings-card">
+              <div><strong>所属项目</strong></div>
+              <ProjectBadge projects={projects} projectId={customer.projectId} />
+            </div>
             <div className="settings-card">
               <div><strong>联系人</strong></div>
               <span className="settings-meta">{customer.contact || "未设置"}</span>

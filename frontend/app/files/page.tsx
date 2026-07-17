@@ -10,6 +10,7 @@ import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { AppIcon } from "../components/AppIcon";
+import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { FileRecord, PaginatedList } from "shared";
 
 function formatSize(bytes: number): string {
@@ -32,6 +33,7 @@ export default function FilesPage() {
   const [error, setError] = useState("");
   const projectOptions = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
   const [fileToDelete, setFileToDelete] = useState<FileRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,12 +47,13 @@ export default function FilesPage() {
     setError("");
     try {
       const params = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });
+      if (projectFilter) params.set("projectId", projectFilter);
       const res = await fetchJson<PaginatedList<FileRecord>>(`/files?${params}`, { adminUserId: user?.id });
       setData(res.items);
       setTotal(res.total);
     } catch { showToast("加载失败", "error"); setError("加载失败，请检查网络后重试"); }
     finally { setLoading(false); }
-  }, [enterpriseId, page, user?.id, showToast]);
+  }, [enterpriseId, page, projectFilter, user?.id, showToast]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -122,7 +125,7 @@ export default function FilesPage() {
     { key: "filename", label: "文件名" },
     { key: "mimeType", label: "类型" },
     { key: "size", label: "大小", render: (f: FileRecord) => formatSize(f.size) },
-    { key: "relatedId", label: "所属项目", render: (f: FileRecord) => workspace.projects.find((project) => project.id === f.relatedId)?.name || "未归档" },
+    { key: "projectId", label: "所属项目", render: (f: FileRecord) => <ProjectBadge projects={projectOptions} projectId={f.projectId} /> },
     { key: "createdAt", label: "上传时间", render: (f: FileRecord) => f.createdAt.slice(0, 10) },
     {
       key: "actions",
@@ -158,6 +161,9 @@ export default function FilesPage() {
           onChange={handleUpload}
           style={{ display: "none" }}
         />
+        <div className="page-toolbar" style={{ marginBottom: 14 }}>
+          <ProjectScopeSelect projects={projectOptions} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
+        </div>
         {error ? (
           <ErrorState message={error} onRetry={load} />
         ) : (

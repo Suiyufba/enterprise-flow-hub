@@ -32,6 +32,7 @@ export const OrderItemSchema = z.object({
 export const OrderSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   customerId: z.string().nullable(),
   status: z.enum(["draft","confirmed","processing","shipped","delivered","cancelled","refunded"]),
   totalAmount: z.number(),
@@ -49,12 +50,14 @@ export const OrderItemCreateSchema = z.preprocess(withUnitPriceAlias, z.object({
 
 export const CreateOrderRequestSchema = z.object({
   enterpriseId: z.string(),
+  projectId: z.string().optional(),
   customerId: z.string().optional(),
   items: z.array(OrderItemCreateSchema).min(1),
   notes: z.string().max(500).optional(),
 });
 
 export const UpdateOrderRequestSchema = z.object({
+  projectId: z.string().optional(),
   status: z.enum(["draft","confirmed","processing","shipped","delivered","cancelled","refunded"]).optional(),
   notes: z.string().max(500).optional(),
 });
@@ -68,6 +71,7 @@ export type UpdateOrderRequest = z.infer<typeof UpdateOrderRequestSchema>;
 export const PaymentSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   orderId: z.string().nullable(),
   amount: z.number(),
   method: z.enum(["cash","bank_transfer","alipay","wechat","credit_card","other"]),
@@ -78,12 +82,14 @@ export const PaymentSchema = z.object({
 
 export const CreatePaymentRequestSchema = z.preprocess(normalizeNullableOrderId, z.object({
   enterpriseId: z.string(),
+  projectId: z.string().optional(),
   orderId: z.string().optional(),
   amount: z.number().positive(),
   method: z.enum(["cash","bank_transfer","alipay","wechat","credit_card","other"]).optional(),
 }));
 
 export const UpdatePaymentRequestSchema = z.object({
+  projectId: z.string().optional(),
   orderId: z.string().nullable().optional(),
   amount: z.number().positive().optional(),
   method: z.enum(["cash","bank_transfer","alipay","wechat","credit_card","other"]).optional(),
@@ -98,6 +104,7 @@ export type UpdatePaymentRequest = z.infer<typeof UpdatePaymentRequestSchema>;
 export const InvoiceSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   orderId: z.string().nullable(),
   customerId: z.string().nullable(),
   amount: z.number(),
@@ -121,6 +128,7 @@ export const InvoiceSchema = z.object({
 
 export const CreateInvoiceRequestSchema = z.object({
   enterpriseId: z.string(),
+  projectId: z.string().optional(),
   orderId: z.string().optional(),
   customerId: z.string().optional(),
   amount: z.number().positive(),

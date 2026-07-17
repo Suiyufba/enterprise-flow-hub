@@ -156,6 +156,7 @@ export const AutomationRunSchema = z.object({
 export const TaskSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
+  projectId: z.string(),
   assigneeId: z.string().nullable(),
   title: z.string(),
   description: z.string(),
@@ -170,6 +171,7 @@ export const TaskSchema = z.object({
 
 export const CreateTaskRequestSchema = z.object({
   enterpriseId: z.string(),
+  projectId: z.string().optional(),
   title: z.string().min(1).max(120),
   description: z.string().max(1000).optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
@@ -178,6 +180,7 @@ export const CreateTaskRequestSchema = z.object({
 });
 
 export const UpdateTaskRequestSchema = z.object({
+  projectId: z.string().optional(),
   title: z.string().min(1).max(120).optional(),
   description: z.string().max(1000).optional(),
   status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
