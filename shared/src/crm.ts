@@ -43,6 +43,7 @@ export const CreateCustomerRequestSchema = z.object({
 });
 
 export const UpdateCustomerRequestSchema = z.object({
+  enterpriseId: z.string().optional(),
   projectId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
   contact: z.string().max(60).optional(),
@@ -85,6 +86,7 @@ export const CreateSupplierRequestSchema = z.object({
 });
 
 export const UpdateSupplierRequestSchema = z.object({
+  enterpriseId: z.string().optional(),
   projectId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
   contact: z.string().max(60).optional(),
@@ -126,6 +128,7 @@ export const CreateProductRequestSchema = z.preprocess(withUnitPriceAlias, z.obj
 }));
 
 export const UpdateProductRequestSchema = z.preprocess(withUnitPriceAlias, z.object({
+  enterpriseId: z.string().optional(),
   projectId: z.string().optional(),
   name: z.string().min(1).max(120).optional(),
   sku: z.string().max(60).optional(),

@@ -14,14 +14,16 @@ import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { FormDialog } from "../components/FormDialog";
 import { TagInput, TagList } from "../components/TagInput";
-import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
+import { EnterpriseBadge, EnterpriseScopeSelect, ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Supplier, PaginatedList } from "shared";
 
 export default function SuppliersPage() {
   const { user } = useAuth();
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
-  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const [enterpriseFilter, setEnterpriseFilter] = useState("");
+  const enterprises = user?.role === "admin" ? workspace.enterprises : workspace.enterprises.filter((enterprise) => enterprise.id === user?.enterpriseId);
+  const enterpriseId = enterpriseFilter || user?.enterpriseId || enterprises[0]?.id;
   const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Supplier[]>([]);
   const [total, setTotal] = useState(0);
@@ -32,8 +34,9 @@ export default function SuppliersPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [editForm, setEditForm] = useState({ projectId: "", name: "", contact: "", phone: "", email: "", address: "", tags: [] as string[] });
+  const [editForm, setEditForm] = useState({ enterpriseId: "", projectId: "", name: "", contact: "", phone: "", email: "", address: "", tags: [] as string[] });
   const [editSaving, setEditSaving] = useState(false);
+  useEffect(() => { if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId); }, [enterpriseFilter, user?.enterpriseId]);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -57,16 +60,17 @@ export default function SuppliersPage() {
 
   function startEdit(supplier: Supplier) {
     setEditingSupplier(supplier);
-    setEditForm({ projectId: supplier.projectId, name: supplier.name, contact: supplier.contact, phone: supplier.phone, email: supplier.email, address: supplier.address, tags: supplier.tags });
+    setEditForm({ enterpriseId: supplier.enterpriseId, projectId: supplier.projectId, name: supplier.name, contact: supplier.contact, phone: supplier.phone, email: supplier.email, address: supplier.address, tags: supplier.tags });
   }
 
   async function saveSupplier() {
-    if (!editingSupplier || !editForm.name.trim()) return;
+    if (!editingSupplier || !editForm.enterpriseId || !editForm.projectId || !editForm.name.trim()) return;
     setEditSaving(true);
     try {
       await fetchJson(`/suppliers/${editingSupplier.id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          enterpriseId: editForm.enterpriseId,
           projectId: editForm.projectId,
           name: editForm.name.trim(), contact: editForm.contact.trim(), phone: editForm.phone.trim(),
           email: editForm.email.trim(), address: editForm.address.trim(), tags: editForm.tags,
@@ -127,7 +131,8 @@ export default function SuppliersPage() {
       ),
     },
     { key: "contact", label: "联系人" },
-    { key: "projectId", label: "所属项目", render: (s: Supplier) => <ProjectBadge projects={projects} projectId={s.projectId} /> },
+    { key: "enterpriseId", label: "所属企业", render: (s: Supplier) => <EnterpriseBadge enterprises={workspace.enterprises} enterpriseId={s.enterpriseId} /> },
+    { key: "projectId", label: "业务子类", render: (s: Supplier) => <ProjectBadge projects={workspace.projects} projectId={s.projectId} /> },
     { key: "phone", label: "电话" },
     { key: "tags", label: "标签", render: (s: Supplier) => <TagList tags={s.tags.slice(0, 3)} emptyText="-" /> },
     {
@@ -154,8 +159,10 @@ export default function SuppliersPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
-              <label htmlFor="new-supplier-project">所属项目 *</label>
-              <ProjectScopeSelect id="new-supplier-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="供应商所属项目" />
+              <label htmlFor="new-supplier-enterprise">所属企业 *</label>
+              <EnterpriseScopeSelect id="new-supplier-enterprise" enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectId(""); }} className="page-input" ariaLabel="供应商所属企业" />
+              <label htmlFor="new-supplier-project">业务子类 *</label>
+              <ProjectScopeSelect id="new-supplier-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="供应商业务子类" />
               <label htmlFor="new-supplier-name">名称 *</label>
               <input id="new-supplier-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="供应商名称 *" />
               <label htmlFor="new-supplier-contact">联系人</label>
@@ -168,7 +175,7 @@ export default function SuppliersPage() {
               <input id="new-supplier-address" className="page-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="地址" />
               <label>自定义标签</label>
               <TagInput tags={tags} onChange={setTags} />
-              <button className="page-primary-button" onClick={createSupplier} disabled={saving || !name.trim() || !projectId} type="button">
+              <button className="page-primary-button" onClick={createSupplier} disabled={saving || !name.trim() || !enterpriseId || !projectId} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>
             </div>
@@ -177,6 +184,7 @@ export default function SuppliersPage() {
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索名称、联系人、电话或标签..." />
+          <EnterpriseScopeSelect enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectFilter(""); setPage(1); }} ariaLabel="按所属企业筛选" />
           <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
         </div>
         {error ? (
@@ -195,9 +203,11 @@ export default function SuppliersPage() {
             emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建供应商</button>}
           />
         )}
-        <FormDialog open={Boolean(editingSupplier)} title={`编辑供应商${editingSupplier ? `：${editingSupplier.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.name.trim()} onSubmit={saveSupplier} onCancel={() => setEditingSupplier(null)}>
-          <label className="form-label" htmlFor="edit-supplier-project">所属项目 *</label>
-          <ProjectScopeSelect id="edit-supplier-project" projects={projects} value={editForm.projectId} onChange={(projectId) => setEditForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="供应商所属项目" />
+        <FormDialog open={Boolean(editingSupplier)} title={`编辑供应商${editingSupplier ? `：${editingSupplier.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.enterpriseId || !editForm.projectId || !editForm.name.trim()} onSubmit={saveSupplier} onCancel={() => setEditingSupplier(null)}>
+          <label className="form-label" htmlFor="edit-supplier-enterprise">所属企业 *</label>
+          <EnterpriseScopeSelect id="edit-supplier-enterprise" enterprises={enterprises} value={editForm.enterpriseId} onChange={(enterpriseId) => setEditForm((current) => ({ ...current, enterpriseId, projectId: "" }))} className="page-input" ariaLabel="供应商所属企业" />
+          <label className="form-label" htmlFor="edit-supplier-project">业务子类 *</label>
+          <ProjectScopeSelect id="edit-supplier-project" projects={workspace.projects.filter((project) => project.enterpriseId === editForm.enterpriseId)} value={editForm.projectId} onChange={(projectId) => setEditForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="供应商业务子类" />
           <label className="form-label" htmlFor="edit-supplier-name">供应商名称 *</label>
           <input id="edit-supplier-name" className="page-input" autoFocus value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
           <label className="form-label" htmlFor="edit-supplier-contact">联系人</label>

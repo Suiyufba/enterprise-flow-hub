@@ -10,7 +10,7 @@ import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { AppIcon } from "../components/AppIcon";
-import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
+import { EnterpriseBadge, EnterpriseScopeSelect, ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { FileRecord, PaginatedList } from "shared";
 
 function formatSize(bytes: number): string {
@@ -23,7 +23,9 @@ export default function FilesPage() {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
-  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const [enterpriseFilter, setEnterpriseFilter] = useState("");
+  const enterprises = user?.role === "admin" ? workspace.enterprises : workspace.enterprises.filter((enterprise) => enterprise.id === user?.enterpriseId);
+  const enterpriseId = enterpriseFilter || user?.enterpriseId || enterprises[0]?.id;
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   const [data, setData] = useState<FileRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -37,6 +39,8 @@ export default function FilesPage() {
   const [fileToDelete, setFileToDelete] = useState<FileRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId); }, [enterpriseFilter, user?.enterpriseId]);
 
   useEffect(() => {
     if (!selectedProjectId && projectOptions[0]) setSelectedProjectId(projectOptions[0].id);
@@ -125,7 +129,8 @@ export default function FilesPage() {
     { key: "filename", label: "文件名" },
     { key: "mimeType", label: "类型" },
     { key: "size", label: "大小", render: (f: FileRecord) => formatSize(f.size) },
-    { key: "projectId", label: "所属项目", render: (f: FileRecord) => <ProjectBadge projects={projectOptions} projectId={f.projectId} /> },
+    { key: "enterpriseId", label: "所属企业", render: (f: FileRecord) => <EnterpriseBadge enterprises={workspace.enterprises} enterpriseId={f.enterpriseId} /> },
+    { key: "projectId", label: "业务子类", render: (f: FileRecord) => <ProjectBadge projects={workspace.projects} projectId={f.projectId} /> },
     { key: "createdAt", label: "上传时间", render: (f: FileRecord) => f.createdAt.slice(0, 10) },
     {
       key: "actions",
@@ -146,10 +151,8 @@ export default function FilesPage() {
           title="文件管理"
           description="上传和管理企业文件"
           actions={<div className="page-header-controls">
-            <select className="page-input compact-select" value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} aria-label="文件所属项目">
-              <option value="">选择所属项目</option>
-              {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-            </select>
+            <EnterpriseScopeSelect enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setSelectedProjectId(""); setProjectFilter(""); }} className="page-input compact-select" ariaLabel="文件所属企业" />
+            <ProjectScopeSelect projects={projectOptions} value={selectedProjectId} onChange={setSelectedProjectId} includeAll={false} className="page-input compact-select" ariaLabel="文件业务子类" />
             <button className="page-primary-button" onClick={() => fileInputRef.current?.click()} disabled={uploading || !selectedProjectId} type="button">
               {uploading ? "上传中..." : "上传文件"}
             </button>
@@ -162,6 +165,7 @@ export default function FilesPage() {
           style={{ display: "none" }}
         />
         <div className="page-toolbar" style={{ marginBottom: 14 }}>
+          <EnterpriseScopeSelect enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setSelectedProjectId(""); setProjectFilter(""); setPage(1); }} ariaLabel="按所属企业筛选" />
           <ProjectScopeSelect projects={projectOptions} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
         </div>
         {error ? (

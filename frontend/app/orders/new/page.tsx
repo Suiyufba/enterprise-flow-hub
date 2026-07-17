@@ -7,7 +7,7 @@ import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { AppIcon } from "../../components/AppIcon";
-import { ProjectScopeSelect } from "../../components/ProjectScopeSelect";
+import { EnterpriseScopeSelect, ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 import type { Customer, Product, PaginatedList } from "shared";
 
 interface LineItem {
@@ -21,7 +21,8 @@ export default function NewOrderPage() {
   const { user } = useAuth();
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
-  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const [enterpriseId, setEnterpriseId] = useState("");
+  const enterprises = user?.role === "admin" ? workspace.enterprises : workspace.enterprises.filter((enterprise) => enterprise.id === user?.enterpriseId);
   const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [projectId, setProjectId] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -30,6 +31,10 @@ export default function NewOrderPage() {
   const [items, setItems] = useState<LineItem[]>([{ productId: "", quantity: 1, unitPrice: 0 }]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!enterpriseId && user?.enterpriseId) setEnterpriseId(user.enterpriseId);
+  }, [enterpriseId, user?.enterpriseId]);
 
   useEffect(() => {
     if (!enterpriseId || !projectId) {
@@ -53,6 +58,11 @@ export default function NewOrderPage() {
     setProjectId(nextProjectId);
     setCustomerId("");
     setItems([{ productId: "", quantity: 1, unitPrice: 0 }]);
+  }
+
+  function changeEnterprise(nextEnterpriseId: string) {
+    setEnterpriseId(nextEnterpriseId);
+    changeProject("");
   }
 
   function addItem() {
@@ -84,7 +94,7 @@ export default function NewOrderPage() {
   }
 
   async function handleSubmit() {
-    if (!projectId || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)) {
+    if (!enterpriseId || !projectId || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)) {
       showToast("请完善订单项目", "error");
       return;
     }
@@ -126,8 +136,10 @@ export default function NewOrderPage() {
         </div>
 
         <div className="page-form-grid" style={{ maxWidth: 640 }}>
-          <label className="form-label" htmlFor="new-order-project">所属项目 *</label>
-          <ProjectScopeSelect id="new-order-project" projects={projects} value={projectId} onChange={changeProject} includeAll={false} className="page-input" ariaLabel="订单所属项目" />
+          <label className="form-label" htmlFor="new-order-enterprise">所属企业 *</label>
+          <EnterpriseScopeSelect id="new-order-enterprise" enterprises={enterprises} value={enterpriseId} onChange={changeEnterprise} className="page-input" ariaLabel="订单所属企业" />
+          <label className="form-label" htmlFor="new-order-project">业务子类 *</label>
+          <ProjectScopeSelect id="new-order-project" projects={projects} value={projectId} onChange={changeProject} includeAll={false} className="page-input" ariaLabel="订单业务子类" />
 
           <label className="form-label" htmlFor="new-order-customer">客户</label>
           <select id="new-order-customer" className="page-input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
@@ -197,7 +209,7 @@ export default function NewOrderPage() {
             <button
               className="page-primary-button"
               onClick={handleSubmit}
-              disabled={saving || !projectId || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)}
+              disabled={saving || !enterpriseId || !projectId || items.length === 0 || items.some((i) => !i.productId || i.quantity <= 0 || i.unitPrice <= 0)}
               type="button"
             >
               {saving ? "创建中..." : "创建订单"}

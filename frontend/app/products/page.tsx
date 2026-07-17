@@ -13,14 +13,16 @@ import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { FormDialog } from "../components/FormDialog";
-import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
+import { EnterpriseBadge, EnterpriseScopeSelect, ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Product, PaginatedList } from "shared";
 
 export default function ProductsPage() {
   const { user } = useAuth();
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
-  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const [enterpriseFilter, setEnterpriseFilter] = useState("");
+  const enterprises = user?.role === "admin" ? workspace.enterprises : workspace.enterprises.filter((enterprise) => enterprise.id === user?.enterpriseId);
+  const enterpriseId = enterpriseFilter || user?.enterpriseId || enterprises[0]?.id;
   const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -32,8 +34,9 @@ export default function ProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [editForm, setEditForm] = useState({ projectId: "", name: "", sku: "", category: "", unitPrice: "", unit: "", description: "" });
+  const [editForm, setEditForm] = useState({ enterpriseId: "", projectId: "", name: "", sku: "", category: "", unitPrice: "", unit: "", description: "" });
   const [editSaving, setEditSaving] = useState(false);
+  useEffect(() => { if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId); }, [enterpriseFilter, user?.enterpriseId]);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -59,6 +62,7 @@ export default function ProductsPage() {
   function startEdit(product: Product) {
     setEditingProduct(product);
     setEditForm({
+      enterpriseId: product.enterpriseId,
       projectId: product.projectId,
       name: product.name, sku: product.sku, category: product.category,
       unitPrice: String(product.unitPrice), unit: product.unit, description: product.description,
@@ -67,12 +71,13 @@ export default function ProductsPage() {
 
   async function saveProduct() {
     const price = Number(editForm.unitPrice);
-    if (!editingProduct || !editForm.name.trim() || !Number.isFinite(price) || price < 0) return;
+    if (!editingProduct || !editForm.enterpriseId || !editForm.projectId || !editForm.name.trim() || !Number.isFinite(price) || price < 0) return;
     setEditSaving(true);
     try {
       await fetchJson(`/products/${editingProduct.id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          enterpriseId: editForm.enterpriseId,
           projectId: editForm.projectId,
           name: editForm.name.trim(), sku: editForm.sku.trim(), category: editForm.category.trim(),
           unitPrice: price, unit: editForm.unit.trim(), description: editForm.description.trim(),
@@ -134,7 +139,8 @@ export default function ProductsPage() {
       ),
     },
     { key: "sku", label: "SKU" },
-    { key: "projectId", label: "所属项目", render: (p: Product) => <ProjectBadge projects={projects} projectId={p.projectId} /> },
+    { key: "enterpriseId", label: "所属企业", render: (p: Product) => <EnterpriseBadge enterprises={workspace.enterprises} enterpriseId={p.enterpriseId} /> },
+    { key: "projectId", label: "业务子类", render: (p: Product) => <ProjectBadge projects={workspace.projects} projectId={p.projectId} /> },
     { key: "category", label: "分类" },
     { key: "unitPrice", label: "单价", render: (p: Product) => `¥${p.unitPrice.toFixed(2)}/${p.unit}` },
     {
@@ -161,8 +167,10 @@ export default function ProductsPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
-              <label htmlFor="new-product-project">所属项目 *</label>
-              <ProjectScopeSelect id="new-product-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="商品所属项目" />
+              <label htmlFor="new-product-enterprise">所属企业 *</label>
+              <EnterpriseScopeSelect id="new-product-enterprise" enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectId(""); }} className="page-input" ariaLabel="商品所属企业" />
+              <label htmlFor="new-product-project">业务子类 *</label>
+              <ProjectScopeSelect id="new-product-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="商品业务子类" />
               <label htmlFor="new-product-name">名称 *</label>
               <input id="new-product-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="商品名称 *" />
               <label htmlFor="new-product-sku">SKU</label>
@@ -181,7 +189,7 @@ export default function ProductsPage() {
               </div>
               <label htmlFor="new-product-description">描述</label>
               <input id="new-product-description" className="page-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="描述" />
-              <button className="page-primary-button" onClick={createProduct} disabled={saving || !name.trim() || !projectId || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))} type="button">
+              <button className="page-primary-button" onClick={createProduct} disabled={saving || !name.trim() || !enterpriseId || !projectId || (unitPrice !== "" && (isNaN(parseFloat(unitPrice)) || parseFloat(unitPrice) <= 0))} type="button">
                 {saving ? "添加中..." : "确认添加"}
               </button>
             </div>
@@ -190,6 +198,7 @@ export default function ProductsPage() {
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索商品..." />
+          <EnterpriseScopeSelect enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectFilter(""); setPage(1); }} ariaLabel="按所属企业筛选" />
           <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
           <select className="search-enterprise-select" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }}>
             <option value="">全部分类</option>
@@ -214,9 +223,11 @@ export default function ProductsPage() {
             emptyAction={<button className="page-primary-button" onClick={() => setShowForm(true)} type="button">新建商品</button>}
           />
         )}
-        <FormDialog open={Boolean(editingProduct)} title={`编辑商品${editingProduct ? `：${editingProduct.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.name.trim() || !Number.isFinite(Number(editForm.unitPrice)) || Number(editForm.unitPrice) < 0} onSubmit={saveProduct} onCancel={() => setEditingProduct(null)}>
-          <label className="form-label" htmlFor="edit-product-project">所属项目 *</label>
-          <ProjectScopeSelect id="edit-product-project" projects={projects} value={editForm.projectId} onChange={(projectId) => setEditForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="商品所属项目" />
+        <FormDialog open={Boolean(editingProduct)} title={`编辑商品${editingProduct ? `：${editingProduct.name}` : ""}`} saving={editSaving} submitDisabled={!editForm.enterpriseId || !editForm.projectId || !editForm.name.trim() || !Number.isFinite(Number(editForm.unitPrice)) || Number(editForm.unitPrice) < 0} onSubmit={saveProduct} onCancel={() => setEditingProduct(null)}>
+          <label className="form-label" htmlFor="edit-product-enterprise">所属企业 *</label>
+          <EnterpriseScopeSelect id="edit-product-enterprise" enterprises={enterprises} value={editForm.enterpriseId} onChange={(enterpriseId) => setEditForm((current) => ({ ...current, enterpriseId, projectId: "" }))} className="page-input" ariaLabel="商品所属企业" />
+          <label className="form-label" htmlFor="edit-product-project">业务子类 *</label>
+          <ProjectScopeSelect id="edit-product-project" projects={workspace.projects.filter((project) => project.enterpriseId === editForm.enterpriseId)} value={editForm.projectId} onChange={(projectId) => setEditForm((current) => ({ ...current, projectId }))} includeAll={false} className="page-input" ariaLabel="商品业务子类" />
           <label className="form-label" htmlFor="edit-product-name">商品名称 *</label>
           <input id="edit-product-name" className="page-input" autoFocus value={editForm.name} onChange={(event) => setEditForm((current) => ({ ...current, name: event.target.value }))} />
           <label className="form-label" htmlFor="edit-product-sku">SKU</label>

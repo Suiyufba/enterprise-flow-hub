@@ -101,10 +101,16 @@ export function createCustomer(input: CreateCustomerRequest): Customer {
 export function updateCustomer(id: string, input: UpdateCustomerRequest): Customer | undefined {
   const existing = getCustomer(id);
   if (!existing) return undefined;
-  const projectId = input.projectId === undefined
+  const enterpriseId = input.enterpriseId ?? existing.enterpriseId;
+  if (enterpriseId !== existing.enterpriseId) {
+    const hasRelations = db().prepare("SELECT EXISTS(SELECT 1 FROM orders WHERE customer_id = ?) OR EXISTS(SELECT 1 FROM invoices WHERE customer_id = ?) AS value").get(id, id) as { value: number };
+    if (hasRelations.value) throw new Error("该客户已有订单或发票，不能直接迁移到其他企业");
+  }
+  const projectId = input.projectId === undefined && enterpriseId === existing.enterpriseId
     ? existing.projectId
-    : resolveProjectId(existing.enterpriseId, input.projectId);
+    : resolveProjectId(enterpriseId, input.projectId);
   const next = {
+    enterpriseId,
     projectId,
     name: input.name ?? existing.name,
     contact: input.contact !== undefined ? input.contact : existing.contact,
@@ -117,8 +123,8 @@ export function updateCustomer(id: string, input: UpdateCustomerRequest): Custom
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE customers SET project_id=?, name=?, contact=?, phone=?, email=?, address=?, gender=?, tags=?, status=?, updated_at=? WHERE id=?")
-    .run(next.projectId, next.name, next.contact, next.phone, next.email, next.address, next.gender, JSON.stringify(next.tags), next.status, next.updated_at, id);
+    .prepare("UPDATE customers SET enterprise_id=?, project_id=?, name=?, contact=?, phone=?, email=?, address=?, gender=?, tags=?, status=?, updated_at=? WHERE id=?")
+    .run(next.enterpriseId, next.projectId, next.name, next.contact, next.phone, next.email, next.address, next.gender, JSON.stringify(next.tags), next.status, next.updated_at, id);
   return getCustomer(id)!;
 }
 
@@ -195,10 +201,12 @@ export function createSupplier(input: CreateSupplierRequest): Supplier {
 export function updateSupplier(id: string, input: UpdateSupplierRequest): Supplier | undefined {
   const existing = getSupplier(id);
   if (!existing) return undefined;
-  const projectId = input.projectId === undefined
+  const enterpriseId = input.enterpriseId ?? existing.enterpriseId;
+  const projectId = input.projectId === undefined && enterpriseId === existing.enterpriseId
     ? existing.projectId
-    : resolveProjectId(existing.enterpriseId, input.projectId);
+    : resolveProjectId(enterpriseId, input.projectId);
   const next = {
+    enterpriseId,
     projectId,
     name: input.name ?? existing.name,
     contact: input.contact !== undefined ? input.contact : existing.contact,
@@ -209,8 +217,8 @@ export function updateSupplier(id: string, input: UpdateSupplierRequest): Suppli
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE suppliers SET project_id=?, name=?, contact=?, phone=?, email=?, address=?, tags=?, updated_at=? WHERE id=?")
-    .run(next.projectId, next.name, next.contact, next.phone, next.email, next.address, JSON.stringify(next.tags), next.updated_at, id);
+    .prepare("UPDATE suppliers SET enterprise_id=?, project_id=?, name=?, contact=?, phone=?, email=?, address=?, tags=?, updated_at=? WHERE id=?")
+    .run(next.enterpriseId, next.projectId, next.name, next.contact, next.phone, next.email, next.address, JSON.stringify(next.tags), next.updated_at, id);
   return getSupplier(id)!;
 }
 
@@ -288,10 +296,16 @@ export function createProduct(input: CreateProductRequest): Product {
 export function updateProduct(id: string, input: UpdateProductRequest): Product | undefined {
   const existing = getProduct(id);
   if (!existing) return undefined;
-  const projectId = input.projectId === undefined
+  const enterpriseId = input.enterpriseId ?? existing.enterpriseId;
+  if (enterpriseId !== existing.enterpriseId) {
+    const hasOrderItems = db().prepare("SELECT EXISTS(SELECT 1 FROM order_items WHERE product_id = ?) AS value").get(id) as { value: number };
+    if (hasOrderItems.value) throw new Error("该商品已被订单引用，不能直接迁移到其他企业");
+  }
+  const projectId = input.projectId === undefined && enterpriseId === existing.enterpriseId
     ? existing.projectId
-    : resolveProjectId(existing.enterpriseId, input.projectId);
+    : resolveProjectId(enterpriseId, input.projectId);
   const next = {
+    enterpriseId,
     projectId,
     name: input.name ?? existing.name,
     sku: input.sku !== undefined ? input.sku : existing.sku,
@@ -302,8 +316,8 @@ export function updateProduct(id: string, input: UpdateProductRequest): Product 
     updated_at: new Date().toISOString(),
   };
   db()
-    .prepare("UPDATE products SET project_id=?, name=?, sku=?, category=?, unit_price=?, unit=?, description=?, updated_at=? WHERE id=?")
-    .run(next.projectId, next.name, next.sku, next.category, next.unit_price, next.unit, next.description, next.updated_at, id);
+    .prepare("UPDATE products SET enterprise_id=?, project_id=?, name=?, sku=?, category=?, unit_price=?, unit=?, description=?, updated_at=? WHERE id=?")
+    .run(next.enterpriseId, next.projectId, next.name, next.sku, next.category, next.unit_price, next.unit, next.description, next.updated_at, id);
   return getProduct(id)!;
 }
 

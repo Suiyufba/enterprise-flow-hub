@@ -78,10 +78,14 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateCustomerRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, existing.enterpriseId)) {
+    const targetEnterpriseId = parsed.data.enterpriseId ?? existing.enterpriseId;
+    if (!canAccessEnterprise(request, targetEnterpriseId, reply)) return;
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, targetEnterpriseId)) {
       return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
     }
-    const customer = updateCustomer(id, parsed.data);
+    let customer;
+    try { customer = updateCustomer(id, parsed.data); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "更新客户失败" }); }
     emitEvent("update", "customer", id, customer as unknown as Record<string, unknown>, "api");
     if (parsed.data.status && parsed.data.status !== existing.status) {
       emitEvent("status_change", "customer", id, customer as unknown as Record<string, unknown>, "api");
@@ -136,7 +140,9 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateSupplierRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, existing.enterpriseId)) {
+    const targetEnterpriseId = parsed.data.enterpriseId ?? existing.enterpriseId;
+    if (!canAccessEnterprise(request, targetEnterpriseId, reply)) return;
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, targetEnterpriseId)) {
       return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
     }
     const supplier = updateSupplier(id, parsed.data);
@@ -191,10 +197,14 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     const parsed = UpdateProductRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, existing.enterpriseId)) {
+    const targetEnterpriseId = parsed.data.enterpriseId ?? existing.enterpriseId;
+    if (!canAccessEnterprise(request, targetEnterpriseId, reply)) return;
+    if (parsed.data.projectId && !projectBelongsToEnterprise(parsed.data.projectId, targetEnterpriseId)) {
       return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
     }
-    const product = updateProduct(id, parsed.data);
+    let product;
+    try { product = updateProduct(id, parsed.data); }
+    catch (error) { return reply.status(400).send({ error: error instanceof Error ? error.message : "更新商品失败" }); }
     emitEvent("update", "product", id, product as unknown as Record<string, unknown>, "api");
     return reply.send(product);
   });

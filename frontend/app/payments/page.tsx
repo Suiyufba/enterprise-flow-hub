@@ -13,7 +13,7 @@ import { ErrorState } from "../components/ErrorState";
 import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
-import { ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
+import { EnterpriseBadge, EnterpriseScopeSelect, ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import type { Payment, PaginatedList } from "shared";
 
 const methodLabels: Record<string, string> = {
@@ -25,7 +25,9 @@ export default function PaymentsPage() {
   const { user } = useAuth();
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
-  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const [enterpriseFilter, setEnterpriseFilter] = useState("");
+  const enterprises = user?.role === "admin" ? workspace.enterprises : workspace.enterprises.filter((enterprise) => enterprise.id === user?.enterpriseId);
+  const enterpriseId = enterpriseFilter || user?.enterpriseId || enterprises[0]?.id;
   const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [data, setData] = useState<Payment[]>([]);
   const [total, setTotal] = useState(0);
@@ -36,6 +38,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  useEffect(() => { if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId); }, [enterpriseFilter, user?.enterpriseId]);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -94,7 +97,8 @@ export default function PaymentsPage() {
         </Link>
       ),
     },
-    { key: "projectId", label: "所属项目", render: (p: Payment) => <ProjectBadge projects={projects} projectId={p.projectId} /> },
+    { key: "enterpriseId", label: "所属企业", render: (p: Payment) => <EnterpriseBadge enterprises={workspace.enterprises} enterpriseId={p.enterpriseId} /> },
+    { key: "projectId", label: "业务子类", render: (p: Payment) => <ProjectBadge projects={workspace.projects} projectId={p.projectId} /> },
     { key: "amount", label: "金额", render: (p: Payment) => `¥${p.amount.toFixed(2)}` },
     { key: "method", label: "支付方式", render: (p: Payment) => methodLabels[p.method] ?? p.method },
     { key: "status", label: "状态", render: (p: Payment) => <StatusBadge status={p.status} /> },
@@ -133,8 +137,10 @@ export default function PaymentsPage() {
         {showForm && (
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
-              <label className="form-label" htmlFor="payment-project">所属项目 *</label>
-              <ProjectScopeSelect id="payment-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="付款所属项目" />
+              <label className="form-label" htmlFor="payment-enterprise">所属企业 *</label>
+              <EnterpriseScopeSelect id="payment-enterprise" enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectId(""); }} className="page-input" ariaLabel="付款所属企业" />
+              <label className="form-label" htmlFor="payment-project">业务子类 *</label>
+              <ProjectScopeSelect id="payment-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="付款业务子类" />
               <label className="form-label" htmlFor="payment-method">支付方式</label>
               <select id="payment-method" className="page-input" value={method} onChange={(e) => setMethod(e.target.value)}>
                 {Object.entries(methodLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -143,7 +149,7 @@ export default function PaymentsPage() {
               <input id="payment-amount" className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
               <label className="form-label" htmlFor="payment-orderid">关联订单 ID（可选）</label>
               <input id="payment-orderid" className="page-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="关联订单 ID（可选）" />
-              <button className="page-primary-button" onClick={createPayment} disabled={saving || !projectId || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
+              <button className="page-primary-button" onClick={createPayment} disabled={saving || !enterpriseId || !projectId || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
                 {saving ? "创建中..." : "确认创建"}
               </button>
             </div>
@@ -152,6 +158,7 @@ export default function PaymentsPage() {
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索关联订单..." />
+          <EnterpriseScopeSelect enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectFilter(""); setPage(1); }} ariaLabel="按所属企业筛选" />
           <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
           <select className="search-enterprise-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
             <option value="">全部状态</option>

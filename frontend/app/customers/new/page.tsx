@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
@@ -8,14 +8,17 @@ import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import type { Customer } from "shared";
 import { TagInput } from "../../components/TagInput";
-import { ProjectScopeSelect } from "../../components/ProjectScopeSelect";
+import { EnterpriseScopeSelect, ProjectScopeSelect } from "../../components/ProjectScopeSelect";
 
 export default function NewCustomerPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { workspace, refresh } = useWorkspace();
   const { showToast } = useToast();
-  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
+  const [enterpriseId, setEnterpriseId] = useState("");
+  const enterprises = user?.role === "admin"
+    ? workspace.enterprises
+    : workspace.enterprises.filter((enterprise) => enterprise.id === user?.enterpriseId);
   const projects = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
   const [projectId, setProjectId] = useState("");
   const [name, setName] = useState("");
@@ -27,6 +30,10 @@ export default function NewCustomerPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [status, setStatus] = useState<Customer["status"]>("active");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!enterpriseId && user?.enterpriseId) setEnterpriseId(user.enterpriseId);
+  }, [enterpriseId, user?.enterpriseId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -68,8 +75,10 @@ export default function NewCustomerPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="page-form-grid" style={{ maxWidth: 560 }}>
-          <label className="form-label" htmlFor="new-customer-project">所属项目 *</label>
-          <ProjectScopeSelect id="new-customer-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="客户所属项目" />
+          <label className="form-label" htmlFor="new-customer-enterprise">所属企业 *</label>
+          <EnterpriseScopeSelect id="new-customer-enterprise" enterprises={enterprises} value={enterpriseId} onChange={(value) => { setEnterpriseId(value); setProjectId(""); }} className="page-input" ariaLabel="客户所属企业" />
+          <label className="form-label" htmlFor="new-customer-project">业务子类 *</label>
+          <ProjectScopeSelect id="new-customer-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="客户业务子类" />
           <label className="form-label" htmlFor="new-customer-name">名称 *</label>
           <input id="new-customer-name" className="page-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="客户名称" required />
 
@@ -102,7 +111,7 @@ export default function NewCustomerPage() {
           </select>
 
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <button className="page-primary-button" type="submit" disabled={saving || !name.trim() || !projectId}>
+            <button className="page-primary-button" type="submit" disabled={saving || !name.trim() || !enterpriseId || !projectId}>
               {saving ? "保存中..." : "创建客户"}
             </button>
             <button className="page-secondary-button" type="button" onClick={() => router.back()}>取消</button>
