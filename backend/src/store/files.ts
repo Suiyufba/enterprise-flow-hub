@@ -1,15 +1,22 @@
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { mkdirSync, unlinkSync } from "node:fs";
 import { getDb } from "../db/index.js";
 import type { FileRecord, PaginatedList } from "shared";
 
 function db() { return getDb(); }
 
-const UPLOAD_DIR = join(process.cwd(), "data", "uploads");
+export function getUploadRoot(
+  env: { UPLOAD_DIR?: string; DB_PATH?: string } = process.env,
+  cwd = process.cwd(),
+): string {
+  if (env.UPLOAD_DIR) return env.UPLOAD_DIR;
+  if (env.DB_PATH) return join(dirname(env.DB_PATH), "uploads");
+  return join(cwd, "data", "uploads");
+}
 
-function ensureUploadDir(enterpriseId: string): string {
-  const dir = join(UPLOAD_DIR, enterpriseId);
+export function ensureUploadDir(enterpriseId: string): string {
+  const dir = join(getUploadRoot(), enterpriseId);
   mkdirSync(dir, { recursive: true });
   return dir;
 }

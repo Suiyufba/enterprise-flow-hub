@@ -7,6 +7,7 @@ services:
       HOST: 0.0.0.0
       PORT: 4000
       DB_PATH: /data/efh.db
+      UPLOAD_DIR: /data/uploads
       TZ: ${TZ:-Asia/Shanghai}
       AUTOMATION_TIMEZONE: ${AUTOMATION_TIMEZONE:-Asia/Shanghai}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://101.200.45.180}

@@ -15,7 +15,7 @@ const { businessQueryExecute } = await import("../src/tools/executors/business-q
 const { notifyExecute } = await import("../src/tools/executors/notify.js");
 const { browserCheckExecute } = await import("../src/tools/executors/browser-check.js");
 const { csvProfile } = await import("../src/tools/executors/csv-profile.js");
-const { createFile } = await import("../src/store/files.js");
+const { createFile, getUploadRoot } = await import("../src/store/files.js");
 const { registerTool } = await import("../src/tools/registry.js");
 const { createRule } = await import("../src/store/rules.js");
 const { emitEvent } = await import("../src/events/emitter.js");
@@ -134,6 +134,15 @@ test("table MCP reads a project upload and parses quoted CSV cells", async () =>
   assert.deepEqual(profile.headers, ["name", "phone", "note"]);
   assert.deepEqual(profile.sampleRows[0], ["Alice, A", "13800000000", "priority, lead"]);
   assert.equal(profile.totalRows, 2);
+});
+
+test("upload storage follows the persistent database volume", () => {
+  assert.equal(getUploadRoot({ DB_PATH: "/data/efh.db" }, "/app/backend"), "/data/uploads");
+  assert.equal(
+    getUploadRoot({ DB_PATH: "/data/efh.db", UPLOAD_DIR: "/mnt/files" }, "/app/backend"),
+    "/mnt/files",
+  );
+  assert.equal(getUploadRoot({}, "/app/backend"), "/app/backend/data/uploads");
 });
 
 test("tool errors are recorded as errors rather than successful runs", async () => {

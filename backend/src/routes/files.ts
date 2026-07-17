@@ -1,8 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { mkdirSync, createReadStream, existsSync } from "node:fs";
-import { listFiles, getFile, getFileInternal, createFile, deleteFile } from "../store/files.js";
+import { createReadStream, existsSync } from "node:fs";
+import { listFiles, getFileInternal, createFile, deleteFile, ensureUploadDir } from "../store/files.js";
 import { analyzeImageFile } from "../ai/ocr.js";
 import { canAccessEnterprise, requireRequestActor } from "./auth-context.js";
 import { triggerProjectAutomations } from "../automation/scheduler.js";
@@ -51,8 +51,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     const targetEnterpriseId = project.enterpriseId;
 
     const buf = await data.toBuffer();
-    const dir = join(process.cwd(), "data", "uploads", targetEnterpriseId);
-    mkdirSync(dir, { recursive: true });
+    const dir = ensureUploadDir(targetEnterpriseId);
     const storageId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const storagePath = join(dir, storageId);
     writeFileSync(storagePath, buf);
