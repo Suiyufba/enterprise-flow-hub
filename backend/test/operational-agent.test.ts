@@ -12,6 +12,7 @@ const store = await import("../src/store.js");
 const scheduler = await import("../src/automation/scheduler.js");
 const { businessActionExecute } = await import("../src/tools/executors/business-action.js");
 const { businessQueryExecute } = await import("../src/tools/executors/business-query.js");
+const { automationExecute } = await import("../src/tools/executors/automation-executor.js");
 const { buildToolLimitReply } = await import("../src/agent/run-fallback.js");
 const { notifyExecute } = await import("../src/tools/executors/notify.js");
 const { browserCheckExecute } = await import("../src/tools/executors/browser-check.js");
@@ -337,6 +338,27 @@ test("business action MCP updates customer profile by a unique phone", async () 
   }
 });
 
+test("automation MCP rejects cross-enterprise and unsupported tool actions", async () => {
+  const base = {
+    _enterpriseId: "ent-qihang",
+    _projectId: "proj-qihang-growth",
+    name: "MCP 自动化校验",
+    trigger: "手动执行",
+    triggerType: "manual",
+    action: "更新客户状态",
+    actionType: "tool_call",
+    actionInput: { operation: "update_customer_status" },
+  };
+  const unsupported = JSON.parse(await automationExecute({ ...base, actionToolId: "tool-does-not-exist" }));
+  assert.match(unsupported.error, /enabled tool with an executor/);
+  const crossEnterprise = JSON.parse(await automationExecute({
+    ...base,
+    _enterpriseId: "ent-yunshan",
+    actionToolId: "tool-business-action",
+  }));
+  assert.match(crossEnterprise.error, /不属于当前企业/);
+});
+
 test("business query MCP rejects a business subcategory from another enterprise", async () => {
   await assert.rejects(
     businessQueryExecute({
@@ -519,9 +541,10 @@ test("message and file triggers execute only matching project automations", asyn
     name: "失败不阻断后续任务",
     trigger: "收到项目消息",
     triggerType: "message",
-    action: "调用不存在的业务工具",
+    action: "调用无效业务操作",
     actionType: "tool_call",
-    actionToolId: "tool-does-not-exist",
+    actionToolId: "tool-business-action",
+    actionInput: { operation: "does-not-exist" },
   });
   const messageAutomation = store.createAutomation({
     projectId: "proj-qihang-growth",

@@ -642,6 +642,12 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
   if (input.actionType === "tool_call" && !input.actionToolId?.trim()) {
     throw new Error("Business tool action requires actionToolId");
   }
+  if (input.actionType === "tool_call") {
+    const tool = getTool(input.actionToolId!);
+    if (!tool || tool.status !== "enabled" || tool.risk === "admin" || !getExecutor(tool.id)) {
+      throw new Error("Business tool action must reference an enabled tool with an executor");
+    }
+  }
 
   const automation: Automation = {
     id: `auto-${randomUUID()}`,
@@ -719,6 +725,12 @@ export function updateAutomation(id: string, input: Partial<CreateAutomationRequ
   }
   if (nextActionType === "tool_call" && !nextActionToolId) {
     throw new Error("Business tool action requires actionToolId");
+  }
+  if (nextActionType === "tool_call") {
+    const tool = getTool(nextActionToolId!);
+    if (!tool || tool.status !== "enabled" || tool.risk === "admin" || !getExecutor(tool.id)) {
+      throw new Error("Business tool action must reference an enabled tool with an executor");
+    }
   }
   const next: Record<string, unknown> = {
     project_id: input.projectId ?? current.projectId,
