@@ -39,7 +39,7 @@ after(() => dbModule.closeDb());
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 16);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 17);
   assert.ok((db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).some((column) => column.name === "gender"));
   assert.ok((db.prepare("PRAGMA table_info(suppliers)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
@@ -306,6 +306,34 @@ test("business data and Agent tools are isolated by project", async () => {
     );
   } finally {
     db.prepare("DELETE FROM customers WHERE id=?").run(customerId);
+  }
+});
+
+test("business action MCP updates customer profile by a unique phone", async () => {
+  const created = JSON.parse(await businessActionExecute({
+    _enterpriseId: "ent-qihang",
+    _projectId: "proj-qihang-growth",
+    operation: "create_customer",
+    name: "待更新资料客户",
+    phone: "139-0000-1234",
+    gender: "unknown",
+  }));
+  try {
+    const updated = JSON.parse(await businessActionExecute({
+      _enterpriseId: "ent-qihang",
+      _projectId: "proj-qihang-growth",
+      operation: "update_customer",
+      phone: "13900001234",
+      gender: "female",
+      tags: ["重点客户"],
+      contact: "王顾问",
+    }));
+    assert.equal(updated.customer.id, created.customer.id);
+    assert.equal(updated.customer.gender, "female");
+    assert.equal(updated.customer.contact, "王顾问");
+    assert.deepEqual(JSON.parse(updated.customer.tags), ["重点客户"]);
+  } finally {
+    db.prepare("DELETE FROM customers WHERE id=?").run(created.customer.id);
   }
 });
 

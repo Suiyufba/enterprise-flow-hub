@@ -13,6 +13,55 @@ function text(input: Record<string, unknown>, key: string): string {
   return typeof input[key] === "string" ? input[key].trim() : "";
 }
 
+function normalizePhone(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function updateCustomer(input: Record<string, unknown>, enterpriseId: string, projectId: string) {
+  const db = getDb();
+  let id = text(input, "id");
+  if (!id) {
+    const phone = normalizePhone(text(input, "phone"));
+    if (!phone) throw new Error("更新客户资料需要客户 ID，或当前业务子类内唯一的 phone");
+    const matches = (db.prepare(
+      "SELECT id, phone FROM customers WHERE enterprise_id=? AND project_id=? AND phone<>''",
+    ).all(enterpriseId, projectId) as Array<{ id: string; phone: string }>)
+      .filter((customer) => normalizePhone(customer.phone) === phone);
+    if (matches.length === 0) throw new Error("未找到该手机号对应的客户");
+    if (matches.length > 1) throw new Error("该手机号匹配多个客户，请先查询并使用客户 ID 更新");
+    id = matches[0].id;
+  }
+
+  const updates: Array<[string, string]> = [];
+  for (const field of ["name", "contact", "phone", "email", "address"] as const) {
+    if (typeof input[field] === "string") updates.push([field, text(input, field)]);
+  }
+  if (typeof input.gender === "string") {
+    const gender = text(input, "gender");
+    if (!CUSTOMER_GENDERS.has(gender)) throw new Error("客户性别无效");
+    updates.push(["gender", gender]);
+  }
+  if (typeof input.status === "string") {
+    const status = text(input, "status");
+    if (!CUSTOMER_STATUSES.has(status)) throw new Error("客户状态无效");
+    updates.push(["status", status]);
+  }
+  if (Array.isArray(input.tags)) {
+    const tags = [...new Set(input.tags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean))].slice(0, 20);
+    updates.push(["tags", JSON.stringify(tags)]);
+  }
+  if (updates.length === 0) throw new Error("没有可更新的客户资料字段");
+
+  const result = db.prepare(
+    `UPDATE customers SET ${updates.map(([field]) => `${field}=?`).join(", ")}, updated_at=?
+     WHERE id=? AND enterprise_id=? AND project_id=?`,
+  ).run(...updates.map(([, value]) => value), new Date().toISOString(), id, enterpriseId, projectId);
+  if (result.changes !== 1) throw new Error("客户不存在或不属于当前业务子类");
+  return db.prepare(
+    "SELECT id,name,contact,phone,email,address,gender,tags,status,project_id FROM customers WHERE id=?",
+  ).get(id);
+}
+
 function updateStatus(table: string, id: string, enterpriseId: string, projectId: string, status: string, allowed: Set<string>) {
   if (!id || !allowed.has(status)) throw new Error(`无效的 ${table} ID 或状态`);
   const db = getDb();
@@ -105,6 +154,9 @@ export async function businessActionExecute(input: Record<string, unknown>): Pro
   }
   if (operation === "update_customer_status") {
     return JSON.stringify({ ok: true, operation, result: updateStatus("customers", text(input, "id"), enterpriseId, projectId, text(input, "status"), CUSTOMER_STATUSES) });
+  }
+  if (operation === "update_customer") {
+    return JSON.stringify({ ok: true, operation, customer: updateCustomer(input, enterpriseId, projectId) });
   }
   if (operation === "deduplicate_customers_by_phone") {
     return JSON.stringify({ ok: true, operation, result: deduplicateCustomers(enterpriseId, projectId) });
