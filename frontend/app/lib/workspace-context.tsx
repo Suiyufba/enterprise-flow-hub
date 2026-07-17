@@ -13,6 +13,7 @@ const defaultWorkspace: Workspace = {
   libraryItems: [],
   plugins: [],
   automations: [],
+  recentAutomationRuns: [],
   tools: [],
   recentToolRuns: [],
   skills: [],

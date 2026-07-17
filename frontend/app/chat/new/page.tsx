@@ -14,7 +14,7 @@ export default function Home() {
   const [need, setNeed] = useState("");
   const [enterpriseId, setEnterpriseId] = useState("");
   const [projectId, setProjectId] = useState("");
-  const { workspace, refresh } = useWorkspace();
+  const { workspace } = useWorkspace();
   const [personaId, setPersonaId] = useState("");
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();

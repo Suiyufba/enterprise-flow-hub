@@ -24,20 +24,15 @@ import {
   updateProduct,
   deleteProduct,
 } from "../store/crm.js";
-import { getCallerEnterprise } from "./auth-context.js";
+import { canAccessEnterprise } from "./auth-context.js";
+import { emitEvent } from "../events/emitter.js";
 
 function requireEnterpriseScope(
   request: FastifyRequest,
   reply: FastifyReply,
   recordEnterpriseId: string,
 ): boolean {
-  const actorEid = getCallerEnterprise(request, reply);
-  if (!actorEid) return false;
-  if (actorEid !== recordEnterpriseId) {
-    reply.status(403).send({ error: "无权操作其他企业的资源" });
-    return false;
-  }
-  return true;
+  return canAccessEnterprise(request, recordEnterpriseId, reply);
 }
 
 export async function crmRoutes(app: FastifyInstance): Promise<void> {
@@ -45,9 +40,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   app.get("/customers", async (request, reply) => {
     const { enterpriseId, status, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
+    if (!canAccessEnterprise(request, enterpriseId, reply)) return;
     return listCustomers(enterpriseId, {
       status, search,
       page: page ? Number(page) : undefined,
@@ -66,12 +59,9 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   app.post("/customers", async (request, reply) => {
     const parsed = CreateCustomerRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (parsed.data.enterpriseId !== actorEid) {
-      return reply.status(403).send({ error: "不能为其他企业创建客户" });
-    }
+    if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
     const customer = createCustomer(parsed.data);
+    emitEvent("create", "customer", customer.id, customer as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(customer);
   });
 
@@ -83,6 +73,10 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     const parsed = UpdateCustomerRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     const customer = updateCustomer(id, parsed.data);
+    emitEvent("update", "customer", id, customer as unknown as Record<string, unknown>, "api");
+    if (parsed.data.status && parsed.data.status !== existing.status) {
+      emitEvent("status_change", "customer", id, customer as unknown as Record<string, unknown>, "api");
+    }
     return reply.send(customer);
   });
 
@@ -92,6 +86,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!existing) return reply.status(404).send({ error: "客户不存在" });
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     deleteCustomer(id);
+    emitEvent("delete", "customer", id, existing as unknown as Record<string, unknown>, "api");
     return reply.status(204).send();
   });
 
@@ -99,9 +94,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   app.get("/suppliers", async (request, reply) => {
     const { enterpriseId, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
+    if (!canAccessEnterprise(request, enterpriseId, reply)) return;
     return listSuppliers(enterpriseId, { search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
@@ -116,12 +109,9 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   app.post("/suppliers", async (request, reply) => {
     const parsed = CreateSupplierRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (parsed.data.enterpriseId !== actorEid) {
-      return reply.status(403).send({ error: "不能为其他企业创建供应商" });
-    }
+    if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
     const supplier = createSupplier(parsed.data);
+    emitEvent("create", "supplier", supplier.id, supplier as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(supplier);
   });
 
@@ -133,6 +123,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     const parsed = UpdateSupplierRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     const supplier = updateSupplier(id, parsed.data);
+    emitEvent("update", "supplier", id, supplier as unknown as Record<string, unknown>, "api");
     return reply.send(supplier);
   });
 
@@ -142,6 +133,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!existing) return reply.status(404).send({ error: "供应商不存在" });
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     deleteSupplier(id);
+    emitEvent("delete", "supplier", id, existing as unknown as Record<string, unknown>, "api");
     return reply.status(204).send();
   });
 
@@ -149,9 +141,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   app.get("/products", async (request, reply) => {
     const { enterpriseId, category, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看其他企业数据" });
+    if (!canAccessEnterprise(request, enterpriseId, reply)) return;
     return listProducts(enterpriseId, { category, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
@@ -166,12 +156,9 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
   app.post("/products", async (request, reply) => {
     const parsed = CreateProductRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (parsed.data.enterpriseId !== actorEid) {
-      return reply.status(403).send({ error: "不能为其他企业创建商品" });
-    }
+    if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
     const product = createProduct(parsed.data);
+    emitEvent("create", "product", product.id, product as unknown as Record<string, unknown>, "api");
     return reply.status(201).send(product);
   });
 
@@ -183,6 +170,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     const parsed = UpdateProductRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     const product = updateProduct(id, parsed.data);
+    emitEvent("update", "product", id, product as unknown as Record<string, unknown>, "api");
     return reply.send(product);
   });
 
@@ -192,6 +180,7 @@ export async function crmRoutes(app: FastifyInstance): Promise<void> {
     if (!existing) return reply.status(404).send({ error: "商品不存在" });
     if (!requireEnterpriseScope(request, reply, existing.enterpriseId)) return;
     deleteProduct(id);
+    emitEvent("delete", "product", id, existing as unknown as Record<string, unknown>, "api");
     return reply.status(204).send();
   });
 }

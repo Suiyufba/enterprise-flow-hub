@@ -1,15 +1,11 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { User } from "shared";
-import { getUser } from "../store.js";
 
 type RequestWithActor = FastifyRequest & { actor?: User };
 
 export function getRequestActor(request: FastifyRequest): User | null {
   const actor = (request as RequestWithActor).actor;
-  if (actor) return actor;
-
-  const userId = request.headers["x-user-id"] as string | undefined;
-  return userId ? getUser(userId) ?? null : null;
+  return actor ?? null;
 }
 
 export function requireRequestActor(request: FastifyRequest, reply: FastifyReply): User | null {
@@ -24,6 +20,18 @@ export function requireRequestActor(request: FastifyRequest, reply: FastifyReply
 export function getCallerEnterprise(request: FastifyRequest, reply: FastifyReply): string | null {
   const actor = requireRequestActor(request, reply);
   return actor?.enterpriseId ?? null;
+}
+
+export function canAccessEnterprise(
+  request: FastifyRequest,
+  targetEnterpriseId: string,
+  reply: FastifyReply,
+): boolean {
+  const actor = requireRequestActor(request, reply);
+  if (!actor) return false;
+  if (actor.role === "admin" || actor.enterpriseId === targetEnterpriseId) return true;
+  reply.status(403).send({ error: "无权访问其他企业的数据" });
+  return false;
 }
 
 export function requireAdminActor(request: FastifyRequest, reply: FastifyReply): User | null {

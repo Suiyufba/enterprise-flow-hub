@@ -38,7 +38,6 @@ export function AnimateHeight({
       );
     } else {
       ref.current.style.overflow = "hidden";
-      const h = ref.current.offsetHeight;
       tweenRef.current = gsap.to(ref.current, {
         height: 0,
         opacity: 0,

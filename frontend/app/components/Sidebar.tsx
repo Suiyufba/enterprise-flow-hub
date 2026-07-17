@@ -10,7 +10,7 @@ import { useToast } from "../lib/toast-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SettingsModal } from "./SettingsModal";
 import { AnimateHeight } from "./AnimateHeight";
-import { animate, spring } from "../lib/anime";
+import { animate } from "../lib/anime";
 
 type SidebarIconName =
   | "dashboard" | "chat" | "search" | "library" | "plugins" | "automation" | "personas" | "check" | "x"
@@ -60,6 +60,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   const { user, logout } = useAuth();
   const { showToast } = useToast();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const [chatExpanded, setChatExpanded] = useState<Set<string>>(new Set());
   const [navGroups, setNavGroups] = useState<Set<string>>(() => {
@@ -72,8 +73,12 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
   });
 
   useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
     const next = new Set(navGroups);
-    if (pathname?.match(/^\/(customers|suppliers|products|orders|files|payments|invoices)/)) {
+    if (pathname?.match(/^\/(customers|suppliers|products|orders|files|payments|invoices|tasks)/)) {
       next.add("business");
     }
     if (pathname?.match(/^\/(rules|enterprise|audit)/)) {
@@ -252,7 +257,26 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
           )}
         </svg>
       </button>
-      <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+      <button
+        className="mobile-menu-toggle"
+        onClick={() => setMobileMenuOpen((open) => !open)}
+        type="button"
+        aria-label={mobileMenuOpen ? "关闭导航菜单" : "打开导航菜单"}
+        aria-expanded={mobileMenuOpen}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {mobileMenuOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+        </svg>
+      </button>
+      {mobileMenuOpen && (
+        <button
+          className="mobile-sidebar-backdrop"
+          aria-label="关闭导航菜单"
+          onClick={() => setMobileMenuOpen(false)}
+          type="button"
+        />
+      )}
+      <aside className={`sidebar ${collapsed ? "collapsed" : ""} ${mobileMenuOpen ? "mobile-open" : ""}`}>
         <div className="sidebar-scroll">
       <nav className="primary-nav" ref={navRef} aria-label="主导航">
           <div className="nav-indicator" />
@@ -323,6 +347,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             </Link>
             <Link href="/invoices" className={`nav-item ${pathname?.startsWith("/invoices") ? "active" : ""}`}>
               <SidebarIcon name="invoices" /> 发票
+            </Link>
+            <Link href="/tasks" className={`nav-item ${pathname?.startsWith("/tasks") ? "active" : ""}`}>
+              <SidebarIcon name="check" /> 待办
             </Link>
           </div>
         )}

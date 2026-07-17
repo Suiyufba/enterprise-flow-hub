@@ -1,8 +1,10 @@
 import { getDb } from "../db/index.js";
-import { onAnyEvent } from "../events/emitter.js";
+import { markProcessed, onAnyEvent } from "../events/emitter.js";
 import { evaluateCondition } from "../store/rules.js";
-import { getNotificationWebhook } from "../store.js";
 import { randomUUID } from "node:crypto";
+import { notifyExecute } from "../tools/executors/notify.js";
+import { runAutomationNow } from "../automation/scheduler.js";
+import type { BusinessEvent } from "../events/emitter.js";
 
 function db() { return getDb(); }
 
@@ -21,10 +23,12 @@ interface RuleRow {
 export function setupRulesExecutor(): void {
   onAnyEvent(async (event) => {
     if (!event.objectType) return;
+    const enterpriseId = typeof event.payload.enterpriseId === "string" ? event.payload.enterpriseId : "";
+    if (!enterpriseId) return;
 
     const rows = db()
-      .prepare("SELECT * FROM rules WHERE object_type = ? AND trigger_event = ? AND enabled = 1")
-      .all(event.objectType, event.eventType) as RuleRow[];
+      .prepare("SELECT * FROM rules WHERE enterprise_id = ? AND object_type = ? AND trigger_event = ? AND enabled = 1")
+      .all(enterpriseId, event.objectType, event.eventType) as RuleRow[];
 
     for (const row of rows) {
       const condition = JSON.parse(row.condition_expr || "{}");
@@ -36,56 +40,51 @@ export function setupRulesExecutor(): void {
       if (!matched) continue;
 
       try {
-        await executeAction(row, event.payload);
+        await executeAction(row, event);
         console.log(`[rules] Rule "${row.name}" matched event "${event.eventType}" — action executed`);
       } catch (e) {
         console.error(`[rules] Rule "${row.name}" action failed:`, e instanceof Error ? e.message : e);
       }
     }
+    markProcessed(event.id);
   });
 }
 
-async function executeAction(row: RuleRow, payload: Record<string, unknown>): Promise<void> {
+async function executeAction(row: RuleRow, event: BusinessEvent): Promise<void> {
+  const payload = event.payload;
   const config = JSON.parse(row.action_config || "{}");
 
   switch (row.action_type) {
     case "notify": {
       // Send notification via configured plugin
-      const webhook = getNotificationWebhook();
-      if (!webhook) { console.warn("[rules] No notification plugin configured"); return; }
       const message = (config.message as string) || `规则「${row.name}」被触发`;
-      await fetch(webhook.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          msg_type: "text",
-          content: { text: message },
-        }),
-      });
+      const output = await notifyExecute({ pluginId: config.pluginId, message });
+      const result = JSON.parse(output) as { ok?: boolean; error?: string };
+      if (!result.ok) throw new Error(result.error || "通知发送失败");
       break;
     }
 
     case "set_field": {
-      const { table, field, value, objectId } = config as Record<string, unknown>;
-      if (!table || !field || !objectId) return;
+      const { table, field, value } = config as Record<string, unknown>;
+      if (!table || !field) throw new Error("set_field 需要 table 和 field");
       // Allowlist: only known tables and their updatable columns
       const ALLOWED: Record<string, string[]> = {
-        orders: ["status", "notes"],
-        customers: ["status", "name", "contact", "phone", "email", "address"],
+        orders: ["status"],
+        customers: ["status"],
         invoices: ["status"],
         payments: ["status"],
-        tasks: ["status", "priority"],
       };
       const allowedFields = ALLOWED[table as string];
       if (!allowedFields || !allowedFields.includes(field as string)) {
-        console.warn(`[rules] Blocked set_field on table=${table} field=${field}`);
-        return;
+        throw new Error(`规则不允许更新 ${String(table)}.${String(field)}`);
       }
-      const targetId = objectId === "$event.objectId" ? payload.objectId ?? payload.id : objectId;
-      if (!targetId) return;
-      db()
-        .prepare(`UPDATE ${table} SET ${field} = ?, updated_at = ? WHERE id = ?`)
-        .run(value, new Date().toISOString(), targetId);
+      const targetId = event.objectId;
+      if (!targetId) throw new Error("事件缺少 objectId");
+      const hasUpdatedAt = !["invoices", "payments"].includes(table as string);
+      const result = hasUpdatedAt
+        ? db().prepare(`UPDATE ${table} SET ${field} = ?, updated_at = ? WHERE id = ? AND enterprise_id = ?`).run(value, new Date().toISOString(), targetId, row.enterprise_id)
+        : db().prepare(`UPDATE ${table} SET ${field} = ? WHERE id = ? AND enterprise_id = ?`).run(value, targetId, row.enterprise_id);
+      if (result.changes !== 1) throw new Error("规则目标记录不存在或越权");
       break;
     }
 
@@ -100,8 +99,8 @@ async function executeAction(row: RuleRow, payload: Record<string, unknown>): Pr
           (title as string) || `规则「${row.name}」自动创建`,
           "pending",
           (priority as string) || "medium",
-          payload.objectType || null,
-          (payload.objectId as string) || null,
+          event.objectType || null,
+          event.objectId || null,
           new Date().toISOString(),
           new Date().toISOString(),
         );
@@ -116,8 +115,8 @@ async function executeAction(row: RuleRow, payload: Record<string, unknown>): Pr
           `apr-${randomUUID()}`,
           row.enterprise_id,
           (approverId as string) || null,
-          (objectType as string) || payload.objectType || "unknown",
-          (objectId as string) || payload.objectId || "",
+          (objectType as string) || event.objectType || "unknown",
+          (objectId as string) || event.objectId || "",
           "pending",
           new Date().toISOString(),
         );
@@ -127,20 +126,15 @@ async function executeAction(row: RuleRow, payload: Record<string, unknown>): Pr
     case "trigger_automation": {
       const { automationId } = config as Record<string, unknown>;
       if (!automationId) return;
-      const auto = db().prepare("SELECT * FROM automations WHERE id = ? AND enabled = 1").get(automationId) as Record<string, unknown> | undefined;
-      if (!auto) return;
-      // Fire webhook or AI call based on automation config
-      if (auto.action_type === "api_call") {
-        fetch(auto.action_desc as string, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(30000),
-        }).catch(() => {});
-      }
-      db()
-        .prepare("UPDATE automations SET run_count = run_count + 1, last_run = ? WHERE id = ?")
-        .run(new Date().toISOString(), automationId);
+      const result = await runAutomationNow(automationId as string, {
+        source: "rule",
+        ruleId: row.id,
+        eventType: event.eventType,
+        objectType: event.objectType,
+        objectId: event.objectId,
+        payload,
+      });
+      if (!result) throw new Error("规则关联的自动化不存在或未启用");
       break;
     }
   }

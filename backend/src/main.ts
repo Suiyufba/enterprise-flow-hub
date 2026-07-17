@@ -6,25 +6,28 @@ import { createAuditLog } from "./auth/audit.js";
 import { getRuntime, resetRuntimeCache } from "./agent/runtime.js";
 import { startIntegrationScheduler } from "./integration/queue.js";
 import { setupRulesExecutor } from "./rules/executor.js";
-import { getUser } from "./store.js";
 import { validateSession } from "./auth/service.js";
 import { registerTool } from "./tools/registry.js";
 import { csvProfile } from "./tools/executors/csv-profile.js";
-import { bashExecute } from "./tools/executors/bash-executor.js";
 import { automationExecute } from "./tools/executors/automation-executor.js";
 import { libraryItemExecute } from "./tools/executors/library-item-executor.js";
 import { notifyExecute } from "./tools/executors/notify.js";
+import { companyContextExecute } from "./tools/executors/company-context.js";
+import { businessQueryExecute } from "./tools/executors/business-query.js";
+import { businessActionExecute } from "./tools/executors/business-action.js";
+import { browserCheckExecute } from "./tools/executors/browser-check.js";
 import { runAllPersonaSummaries } from "./store.js";
 import { startAutomationScheduler } from "./automation/scheduler.js";
 
 // Register tool executors so agent can actually execute tools
 registerTool("tool-csv-profile", csvProfile);
-registerTool("tool-bash", bashExecute);
 registerTool("tool-create-library-item", libraryItemExecute);
 registerTool("tool-create-automation", automationExecute);
 registerTool("tool-feishu-notify", notifyExecute);
-
-const API_KEY = process.env.API_KEY;
+registerTool("tool-mcp-company-context", companyContextExecute);
+registerTool("tool-business-query", businessQueryExecute);
+registerTool("tool-business-action", businessActionExecute);
+registerTool("tool-browser-check", browserCheckExecute);
 
 const app = Fastify({ logger: true });
 
@@ -34,20 +37,7 @@ await app.register(cors, {
     : ["http://localhost:3000", "http://localhost:3001"],
 });
 
-// API key auth hook — skipped when API_KEY is not configured (dev mode)
-app.addHook("onRequest", async (request, reply) => {
-  if (!API_KEY) return;
-  if (request.url === "/health") return;
-  if (request.method === "OPTIONS") return;
-
-  const header = request.headers.authorization;
-  const key = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
-  if (key !== API_KEY) {
-    return reply.status(401).send({ error: "Unauthorized" });
-  }
-});
-
-// User auth hook — resolve user from JWT token or x-user-id header
+// Resolve the signed browser session and attach its user to the request.
 // Attaches user to request for downstream middleware and routes
 app.addHook("onRequest", async (request) => {
   // Skip if already has user attached
@@ -67,14 +57,16 @@ app.addHook("onRequest", async (request) => {
     }
   }
 
-  // Fall back to x-user-id header (legacy)
-  const userId = request.headers["x-user-id"] as string | undefined;
-  if (userId) {
-    const user = getUser(userId);
-    if (user) {
-      (request as unknown as Record<string, unknown>).actor = user;
-    }
-  }
+});
+
+// The browser login page is the only public product surface. Webhooks use their own secret.
+app.addHook("onRequest", async (request, reply) => {
+  if (request.method === "OPTIONS") return;
+  const path = request.url.split("?")[0];
+  const isPublic = path === "/health" || path === "/auth/login" || /^\/automations\/[^/]+\/webhook$/.test(path);
+  if (isPublic) return;
+  const actor = (request as unknown as Record<string, unknown>).actor as { id?: string } | undefined;
+  if (!actor?.id) return reply.status(401).send({ error: "未登录或会话已过期" });
 });
 
 // Audit logging — log all write operations
@@ -115,8 +107,7 @@ app.get("/health", async () => {
   };
 });
 
-// Keep the read-only status payload free of secrets for browser health probes.
-// extensions or health monitors can query it without a session token.
+// The runtime status is secret-free but still belongs to the authenticated product surface.
 app.get("/agent/status", async () => {
   const runtime = await getRuntime();
   const runtimeHealth = await runtime.health();

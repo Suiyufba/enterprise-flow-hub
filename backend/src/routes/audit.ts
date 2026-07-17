@@ -13,7 +13,6 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
     if (!enterpriseId) return { items: [], total: 0 };
     const actorEid = getCallerEnterprise(request, reply);
     if (!actorEid) return;
-    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看" });
     return listAuditLogs(enterpriseId, { objectType, objectId, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 }

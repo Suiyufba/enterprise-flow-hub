@@ -11,6 +11,8 @@ import { exportRoutes } from "./export.js";
 import { settingsRoutes } from "./settings.js";
 import { toolRoutes } from "./tools.js";
 import { workspaceRoutes } from "./workspace.js";
+import { taskRoutes } from "./tasks.js";
+import { dashboardRoutes } from "./dashboard.js";
 
 export async function registerAllRoutes(app: FastifyInstance): Promise<void> {
   await app.register(analysisRoutes);
@@ -24,5 +26,7 @@ export async function registerAllRoutes(app: FastifyInstance): Promise<void> {
   await app.register(exportRoutes);
   await app.register(settingsRoutes);
   await app.register(toolRoutes);
+  await app.register(taskRoutes);
+  await app.register(dashboardRoutes);
   await app.register(workspaceRoutes);
 }

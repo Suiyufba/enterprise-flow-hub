@@ -32,7 +32,6 @@ export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming 
 
   if (planSteps.length === 0 && toolRuns.length === 0) return null;
 
-  const runningCount = planSteps.filter((s) => s.status === "running").length;
   const doneCount = planSteps.filter((s) => s.status === "done").length;
 
   return (

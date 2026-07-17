@@ -11,6 +11,7 @@ import type {
   AgentSkill,
   AnalysisResult,
   Automation,
+  AutomationRun,
   Conversation,
   ConversationDetail,
   CreateAutomationRequest,
@@ -368,6 +369,11 @@ function rowToLibraryItem(r: Record<string, unknown>): LibraryItem {
   };
 }
 
+export function getLibraryItem(id: string): LibraryItem | undefined {
+  const row = db().prepare("SELECT * FROM library_items WHERE id=?").get(id) as Record<string, unknown> | undefined;
+  return row ? rowToLibraryItem(row) : undefined;
+}
+
 export function createLibraryItem(input: CreateLibraryItemRequest): LibraryItem | undefined {
   const project = getProject(input.projectId);
   if (!project || project.enterpriseId !== input.enterpriseId) return undefined;
@@ -425,12 +431,12 @@ export function deleteLibraryItem(id: string): boolean {
 const pluginRequirements: Record<string, { requiredFields: string[]; hint: string; notification: boolean }> = {
   "plugin-feishu": {
     requiredFields: ["webhookUrl"],
-    hint: "填写飞书自定义机器人 Webhook 地址；如果要读多维表格，后续可再补 App ID / App Secret。",
+    hint: "填写飞书群自定义机器人的 Webhook 地址，保存后可发送测试消息。",
     notification: true,
   },
   "plugin-wecom": {
-    requiredFields: ["botId", "secret"],
-    hint: "开启企业微信智能机器人长连接 API 模式后，填写 BotID 和 Secret。BotID 是机器人唯一标识，Secret 用于长连接身份校验。",
+    requiredFields: ["webhookUrl"],
+    hint: "填写企业微信群机器人的 Webhook 地址，保存后可发送测试消息。",
     notification: true,
   },
 };
@@ -538,7 +544,7 @@ export function listConfiguredNotificationPlugins(): Plugin[] {
     .filter((plugin) => getPluginRequirement(plugin.id).notification && plugin.configured && plugin.enabled);
 }
 
-export function getNotificationWebhook(pluginId?: string): { pluginId: string; url: string } | undefined {
+export function getNotificationWebhook(pluginId?: string): { pluginId: string; url: string; kind: "feishu" | "wecom" } | undefined {
   const candidates = pluginId
     ? [pluginId]
     : listConfiguredNotificationPlugins().map((plugin) => plugin.id);
@@ -549,7 +555,7 @@ export function getNotificationWebhook(pluginId?: string): { pluginId: string; u
     if (!plugin.enabled || !getPluginRequirement(id).notification) continue;
     const fields = getPluginConfigFields(id);
     if (fields.webhookUrl?.trim()) {
-      return { pluginId: id, url: fields.webhookUrl.trim() };
+      return { pluginId: id, url: fields.webhookUrl.trim(), kind: id === "plugin-wecom" ? "wecom" : "feishu" };
     }
   }
   return undefined;
@@ -574,15 +580,39 @@ function rowToAutomation(r: Record<string, unknown>): Automation {
     actionType: r.action_type as Automation["actionType"],
     agentModel: (r.agent_model as string) || undefined,
     actionPluginId: (r.action_plugin_id as string) || undefined,
+    actionToolId: (r.action_tool_id as string) || undefined,
+    actionInput: jsonParse<Record<string, unknown>>(r.action_input as string, {}),
     systemPrompt: (r.system_prompt as string) || undefined,
+    webhookSecret: (r.webhook_secret as string) || undefined,
     enabled: (r.enabled as number) === 1,
     runCount: r.run_count as number,
     lastRun: (r.last_run as string) || undefined,
+    lastStatus: (r.last_status as Automation["lastStatus"]) || undefined,
+    lastOutput: (r.last_output as string) || undefined,
+    lastError: (r.last_error as string) || undefined,
+    lastDurationMs: typeof r.last_duration_ms === "number" ? r.last_duration_ms : undefined,
+  };
+}
+
+function rowToAutomationRun(r: Record<string, unknown>): AutomationRun {
+  return {
+    id: r.id as string,
+    automationId: r.automation_id as string,
+    status: r.status as AutomationRun["status"],
+    triggerEvent: jsonParse<Record<string, unknown>>(r.trigger_event as string, {}),
+    output: (r.output as string) || "",
+    errorMessage: (r.error_message as string) || "",
+    durationMs: (r.duration_ms as number) || 0,
+    createdAt: r.created_at as string,
   };
 }
 
 export function createAutomation(input: CreateAutomationRequest): Automation | undefined {
   if (!getProject(input.projectId)) return undefined;
+  if (input.triggerType === "email") throw new Error("邮件触发尚未接入，请改用 Webhook");
+  if (!["call_ai", "notify", "tool_call"].includes(input.actionType)) {
+    throw new Error("该自动化动作尚未接入执行器");
+  }
   if (input.agentModel && !isProviderUsable(input.agentModel)) {
     throw new Error("Selected model account is not configured");
   }
@@ -592,6 +622,9 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
     if (!pluginId || !available.some((plugin) => plugin.id === pluginId)) {
       throw new Error("Notification action requires a configured Feishu or WeCom plugin");
     }
+  }
+  if (input.actionType === "tool_call" && !input.actionToolId?.trim()) {
+    throw new Error("Business tool action requires actionToolId");
   }
 
   const automation: Automation = {
@@ -604,7 +637,10 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
     actionType: input.actionType,
     agentModel: input.agentModel?.trim() || undefined,
     actionPluginId: input.actionPluginId?.trim() || undefined,
+    actionToolId: input.actionToolId?.trim() || undefined,
+    actionInput: input.actionInput ?? {},
     systemPrompt: input.systemPrompt?.trim() || undefined,
+    webhookSecret: input.triggerType === "webhook" ? randomBytes(24).toString("hex") : undefined,
     enabled: true,
     runCount: 0,
   };
@@ -612,14 +648,15 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
   db()
     .prepare(
       `INSERT INTO automations
-       (id, project_id, name, trigger_desc, trigger_type, action_desc, action_type, agent_model, action_plugin_id, system_prompt, enabled, run_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, project_id, name, trigger_desc, trigger_type, action_desc, action_type, agent_model, action_plugin_id, action_tool_id, action_input, system_prompt, webhook_secret, enabled, run_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       automation.id, automation.projectId, automation.name,
       automation.trigger, automation.triggerType,
       automation.action, automation.actionType,
-      automation.agentModel ?? null, automation.actionPluginId ?? null, automation.systemPrompt ?? null,
+      automation.agentModel ?? null, automation.actionPluginId ?? null, automation.actionToolId ?? null,
+      JSON.stringify(automation.actionInput), automation.systemPrompt ?? null, automation.webhookSecret ?? null,
       1, 0,
     );
 
@@ -629,8 +666,12 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
 export function setAutomationEnabled(id: string, enabled: boolean): Automation | undefined {
   const row = db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!row) return undefined;
+  const automation = rowToAutomation(row);
+  if (enabled && (automation.triggerType === "email" || !["call_ai", "notify", "tool_call"].includes(automation.actionType))) {
+    throw new Error("该旧自动化尚未接入真实执行器，请先编辑后再启用");
+  }
   db().prepare("UPDATE automations SET enabled = ? WHERE id = ?").run(enabled ? 1 : 0, id);
-  return { ...rowToAutomation(row), enabled };
+  return { ...automation, enabled };
 }
 
 export function getAutomation(id: string): Automation | undefined {
@@ -644,7 +685,13 @@ export function updateAutomation(id: string, input: Partial<CreateAutomationRequ
   const current = rowToAutomation(row);
   const nextAgentModel = input.agentModel !== undefined ? (input.agentModel?.trim() || undefined) : current.agentModel;
   const nextActionType = input.actionType ?? current.actionType;
+  const nextTriggerType = input.triggerType ?? current.triggerType;
+  if (nextTriggerType === "email") throw new Error("邮件触发尚未接入，请改用 Webhook");
+  if (!["call_ai", "notify", "tool_call"].includes(nextActionType)) {
+    throw new Error("该自动化动作尚未接入执行器");
+  }
   const nextActionPluginId = input.actionPluginId !== undefined ? (input.actionPluginId?.trim() || undefined) : current.actionPluginId;
+  const nextActionToolId = input.actionToolId !== undefined ? (input.actionToolId?.trim() || undefined) : current.actionToolId;
   if (nextAgentModel && !isProviderUsable(nextAgentModel)) {
     throw new Error("Selected model account is not configured");
   }
@@ -654,21 +701,29 @@ export function updateAutomation(id: string, input: Partial<CreateAutomationRequ
       throw new Error("Notification action requires a configured Feishu or WeCom plugin");
     }
   }
+  if (nextActionType === "tool_call" && !nextActionToolId) {
+    throw new Error("Business tool action requires actionToolId");
+  }
   const next: Record<string, unknown> = {
     project_id: input.projectId ?? current.projectId,
     name: input.name?.trim() ?? current.name,
     trigger_desc: input.trigger?.trim() ?? current.trigger,
-    trigger_type: input.triggerType ?? current.triggerType,
+    trigger_type: nextTriggerType,
     action_desc: input.action?.trim() ?? current.action,
     action_type: nextActionType,
     agent_model: nextAgentModel ?? null,
     action_plugin_id: nextActionPluginId ?? null,
+    action_tool_id: nextActionToolId ?? null,
+    action_input: JSON.stringify(input.actionInput ?? current.actionInput),
     system_prompt: input.systemPrompt !== undefined ? (input.systemPrompt?.trim() || null) : (current.systemPrompt ?? null),
+    webhook_secret: nextTriggerType === "webhook"
+      ? (current.webhookSecret ?? randomBytes(24).toString("hex"))
+      : null,
     enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : (current.enabled ? 1 : 0),
   };
   db()
-    .prepare("UPDATE automations SET project_id=?, name=?, trigger_desc=?, trigger_type=?, action_desc=?, action_type=?, agent_model=?, action_plugin_id=?, system_prompt=?, enabled=? WHERE id=?")
-    .run(next.project_id, next.name, next.trigger_desc, next.trigger_type, next.action_desc, next.action_type, next.agent_model, next.action_plugin_id, next.system_prompt, next.enabled, id);
+    .prepare("UPDATE automations SET project_id=?, name=?, trigger_desc=?, trigger_type=?, action_desc=?, action_type=?, agent_model=?, action_plugin_id=?, action_tool_id=?, action_input=?, system_prompt=?, webhook_secret=?, enabled=? WHERE id=?")
+    .run(next.project_id, next.name, next.trigger_desc, next.trigger_type, next.action_desc, next.action_type, next.agent_model, next.action_plugin_id, next.action_tool_id, next.action_input, next.system_prompt, next.webhook_secret, next.enabled, id);
   return rowToAutomation(db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -696,15 +751,34 @@ export function listEnabledAutomationsByTrigger(triggerType: Automation["trigger
   return (rows as Record<string, unknown>[]).map(rowToAutomation);
 }
 
-export function markAutomationRun(id: string, when = new Date()): Automation | undefined {
+export function recordAutomationRun(
+  id: string,
+  result: { status: "success" | "error"; event?: Record<string, unknown>; output?: string; error?: string; durationMs: number },
+  when = new Date(),
+): Automation | undefined {
   const row = db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!row) return undefined;
 
   db()
-    .prepare("UPDATE automations SET run_count = run_count + 1, last_run = ? WHERE id = ?")
-    .run(when.toISOString(), id);
+    .prepare(`UPDATE automations
+      SET run_count = run_count + ?, last_run = ?, last_status = ?, last_output = ?, last_error = ?, last_duration_ms = ?
+      WHERE id = ?`)
+    .run(1, when.toISOString(), result.status, result.output ?? "", result.error ?? "", result.durationMs, id);
+
+  db().prepare(
+    `INSERT INTO automation_runs (id,automation_id,status,trigger_event,output,error_message,duration_ms,created_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+  ).run(
+    `arun-${randomUUID()}`, id, result.status, JSON.stringify(result.event ?? {}), result.output ?? "",
+    result.error ?? "", result.durationMs, when.toISOString(),
+  );
 
   return rowToAutomation(db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function listRecentAutomationRuns(limit = 30): AutomationRun[] {
+  return (db().prepare("SELECT * FROM automation_runs ORDER BY created_at DESC LIMIT ?").all(limit) as Record<string, unknown>[])
+    .map(rowToAutomationRun);
 }
 
 // ---- AI Tool Registry ----
@@ -740,12 +814,13 @@ export function listTools(): ToolDefinition[] {
   return (db().prepare("SELECT * FROM ai_tools ORDER BY kind, id").all() as Record<string, unknown>[]).map(rowToTool);
 }
 
-export function listRecentToolRuns(limit = 12): ToolRun[] {
-  return (
+export function listRecentToolRuns(limit = 12, enterpriseId?: string): ToolRun[] {
+  const rows = (
     db()
       .prepare("SELECT * FROM tool_runs ORDER BY created_at DESC LIMIT ?")
-      .all(limit) as Record<string, unknown>[]
+      .all(enterpriseId ? Math.max(limit * 10, 100) : limit) as Record<string, unknown>[]
   ).map(rowToToolRun);
+  return (enterpriseId ? rows.filter((run) => run.input._enterpriseId === enterpriseId) : rows).slice(0, limit);
 }
 
 export function getTool(id: string): ToolDefinition | undefined {
@@ -809,10 +884,18 @@ export async function runTool(toolId: string, input: RunToolRequest): Promise<To
   const id = `run-${randomUUID()}`;
   const createdAt = new Date().toISOString();
   const dryRun = input.dryRun ?? true;
-  const status: ToolRun["status"] = tool.status === "disabled" ? "error" : "success";
   const output = tool.status === "disabled"
     ? `Tool ${tool.name} is disabled.`
     : await simulateToolOutput(tool, input.input, dryRun);
+  let status: ToolRun["status"] = tool.status === "disabled" ? "error" : "success";
+  if (status === "success") {
+    try {
+      const parsed = JSON.parse(output) as { ok?: boolean; error?: unknown };
+      if (parsed.ok === false || parsed.error) status = "error";
+    } catch {
+      // Plain text output is a valid success result.
+    }
+  }
 
   db()
     .prepare("INSERT INTO tool_runs (id, tool_id, status, input, output, created_at) VALUES (?, ?, ?, ?, ?, ?)")
@@ -1250,6 +1333,9 @@ export function buildProjectContext(enterpriseId: string, projectIds: string[]):
   const conversations = db()
     .prepare(`SELECT * FROM conversations WHERE project_id IN (${allowedPlaceholders}) ORDER BY created_at DESC LIMIT 12`)
     .all(...allowedProjectIds) as Record<string, unknown>[];
+  const files = db()
+    .prepare(`SELECT id, filename, mime_type, size, related_id, created_at FROM files WHERE related_type = 'project' AND related_id IN (${allowedPlaceholders}) ORDER BY created_at DESC LIMIT 20`)
+    .all(...allowedProjectIds) as Record<string, unknown>[];
 
   const projectLines = projects.map((project) => {
     return `- ${project.name}: ${(project.description as string | null) || "无描述"} (id: ${project.id})`;
@@ -1264,11 +1350,15 @@ export function buildProjectContext(enterpriseId: string, projectIds: string[]):
   const conversationLines = conversations.map((conversation) => {
     return `- ${conversation.title}: tags ${conversation.tags}`;
   });
+  const fileLines = files.map((file) => {
+    return `- ${file.filename} (${file.mime_type}, ${file.size} bytes, fileId: ${file.id}, projectId: ${file.related_id})`;
+  });
 
   return [
     `Projects:\n${projectLines.join("\n") || "- 无"}`,
     `Library:\n${libraryLines.join("\n") || "- 无"}`,
     `Automations:\n${automationLines.join("\n") || "- 无"}`,
+    `Files:\n${fileLines.join("\n") || "- 无"}`,
     `Recent conversations:\n${conversationLines.join("\n") || "- 无"}`,
   ].join("\n\n");
 }
@@ -1426,21 +1516,33 @@ export async function addMessage(conversationId: string, input: AddMessageReques
 
 // ---- Workspace (aggregate query) ----
 
-export function getWorkspace(): Workspace {
+export function getWorkspace(enterpriseId?: string): Workspace {
   const d = db();
 
-  const enterprises = (d.prepare("SELECT * FROM enterprises ORDER BY id").all() as Record<string, unknown>[]).map(rowToEnterprise);
-  const users = listUsers();
-  const projects = (d.prepare("SELECT * FROM projects ORDER BY created_at ASC").all() as Record<string, unknown>[]).map(rowToProject);
-  const conversations = (d.prepare("SELECT * FROM conversations ORDER BY created_at ASC").all() as Record<string, unknown>[]).map(rowToConversation);
-  const libraryItems = (d.prepare("SELECT * FROM library_items ORDER BY created_at ASC").all() as Record<string, unknown>[]).map(rowToLibraryItem);
+  const enterprises = ((enterpriseId
+    ? d.prepare("SELECT * FROM enterprises WHERE id=? ORDER BY id").all(enterpriseId)
+    : d.prepare("SELECT * FROM enterprises ORDER BY id").all()) as Record<string, unknown>[]).map(rowToEnterprise);
+  const users = listUsers(enterpriseId);
+  const projects = ((enterpriseId
+    ? d.prepare("SELECT * FROM projects WHERE enterprise_id=? ORDER BY created_at ASC").all(enterpriseId)
+    : d.prepare("SELECT * FROM projects ORDER BY created_at ASC").all()) as Record<string, unknown>[]).map(rowToProject);
+  const conversations = ((enterpriseId
+    ? d.prepare("SELECT * FROM conversations WHERE enterprise_id=? ORDER BY created_at ASC").all(enterpriseId)
+    : d.prepare("SELECT * FROM conversations ORDER BY created_at ASC").all()) as Record<string, unknown>[]).map(rowToConversation);
+  const libraryItems = ((enterpriseId
+    ? d.prepare("SELECT * FROM library_items WHERE enterprise_id=? ORDER BY created_at ASC").all(enterpriseId)
+    : d.prepare("SELECT * FROM library_items ORDER BY created_at ASC").all()) as Record<string, unknown>[]).map(rowToLibraryItem);
   const plugins = (d.prepare("SELECT * FROM plugins ORDER BY id").all() as Record<string, unknown>[]).map(rowToPlugin);
-  const automations = (d.prepare("SELECT * FROM automations ORDER BY run_count DESC").all() as Record<string, unknown>[]).map(rowToAutomation);
+  const automations = ((enterpriseId
+    ? d.prepare("SELECT a.* FROM automations a JOIN projects p ON p.id=a.project_id WHERE p.enterprise_id=? ORDER BY a.run_count DESC").all(enterpriseId)
+    : d.prepare("SELECT * FROM automations ORDER BY run_count DESC").all()) as Record<string, unknown>[]).map(rowToAutomation);
+  const automationIds = new Set(automations.map((automation) => automation.id));
+  const recentAutomationRuns = listRecentAutomationRuns().filter((run) => automationIds.has(run.automationId));
   const tools = listTools();
-  const recentToolRuns = listRecentToolRuns();
+  const recentToolRuns = listRecentToolRuns(12, enterpriseId);
   const skills = listSkills();
   const personas = listPersonas();
   const providers = listProviders();
 
-  return { enterprises, users, projects, conversations, libraryItems, plugins, automations, tools, recentToolRuns, skills, personas, providers };
+  return { enterprises, users, projects, conversations, libraryItems, plugins, automations, recentAutomationRuns, tools, recentToolRuns, skills, personas, providers };
 }

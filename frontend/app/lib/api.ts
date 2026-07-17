@@ -1,5 +1,4 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 export const API = API_URL;
 
@@ -23,8 +22,14 @@ export function setStoredUser(user: { id: string; enterpriseId: string; username
   if (typeof window === "undefined") return;
   if (user) {
     if (user.token) localStorage.setItem(TOKEN_KEY, user.token);
-    const { token, ...rest } = user;
-    localStorage.setItem(AUTH_KEY, JSON.stringify(rest));
+    localStorage.setItem(AUTH_KEY, JSON.stringify({
+      id: user.id,
+      enterpriseId: user.enterpriseId,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      createdAt: user.createdAt,
+    }));
   } else {
     localStorage.removeItem(AUTH_KEY);
     localStorage.removeItem(TOKEN_KEY);
@@ -51,11 +56,10 @@ export async function fetchJson<T>(path: string, init?: RequestInit & { adminUse
   if ((fetchInit as RequestInit)?.body) {
     headers["Content-Type"] = "application/json";
   }
-  // Send JWT session token (or API key) in Authorization header
+  // Product APIs only accept the signed browser session. Never ship a shared
+  // backend key in the frontend bundle.
   const sessionToken = getStoredToken();
-  if (API_KEY) {
-    headers["Authorization"] = `Bearer ${API_KEY}`;
-  } else if (sessionToken) {
+  if (sessionToken) {
     headers["Authorization"] = `Bearer ${sessionToken}`;
   }
   if (adminUserId) {

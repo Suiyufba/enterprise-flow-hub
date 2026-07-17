@@ -221,6 +221,11 @@ export function listInvoices(
   return { items: rows.map(rowToInvoice), total, page, limit };
 }
 
+export function getInvoice(id: string): Invoice | undefined {
+  const row = db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  return row ? rowToInvoice(row) : undefined;
+}
+
 export function createInvoice(input: CreateInvoiceRequest): Invoice {
   const now = new Date().toISOString();
   const taxAmount = input.taxAmount ?? (input.taxRate != null ? Math.round(input.amount * input.taxRate * 100) / 100 : 0);

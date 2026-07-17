@@ -93,7 +93,7 @@ export default function ChatPage() {
       ]);
       setDetail(d);
       setWorkspace(w);
-      setLocalMessages(d.messages);
+      setLocalMessages((current) => current.length > 0 ? current : d.messages);
       if (w.personas[0]) setPersonaId(w.personas[0].id);
       const currentProject = w.projects.find((project) => project.id === d.projectId);
       if (currentProject) {
@@ -237,7 +237,7 @@ export default function ChatPage() {
         setStreamingMsgId(null);
       }
     })();
-  }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds]);
+  }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds, id, showToast]);
 
   useEffect(() => {
     if (!streamingMsgId) {

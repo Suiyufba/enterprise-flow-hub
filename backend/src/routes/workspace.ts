@@ -26,6 +26,7 @@ import {
   deleteSkill,
   getAutomation,
   getConversation,
+  getLibraryItem,
   getPluginConfig,
   getProject,
   getWorkspace,
@@ -45,12 +46,34 @@ import {
 } from "../store.js";
 import { runAutomationNow, triggerProjectAutomations } from "../automation/scheduler.js";
 import { getRuntime } from "../agent/runtime.js";
-import { randomUUID } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
+import { notifyExecute } from "../tools/executors/notify.js";
+import { emitEvent } from "../events/emitter.js";
+import { canAccessEnterprise, getRequestActor, requireAdminActor } from "./auth-context.js";
 
 const activeRuns = new Map<string, { abort: () => void }>();
+const allowedCorsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3001")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+function sseCorsHeaders(origin: string | undefined): Record<string, string> {
+  if (!origin || (!allowedCorsOrigins.includes(origin) && !allowedCorsOrigins.includes("*"))) return {};
+  return {
+    "Access-Control-Allow-Origin": allowedCorsOrigins.includes("*") ? "*" : origin,
+    Vary: "Origin",
+  };
+}
+
+async function requireAdmin(request: Parameters<typeof requireAdminActor>[0], reply: Parameters<typeof requireAdminActor>[1]) {
+  requireAdminActor(request, reply);
+}
 
 export async function workspaceRoutes(app: FastifyInstance) {
-  app.get("/workspace", async () => getWorkspace());
+  app.get("/workspace", async (request) => {
+    const actor = getRequestActor(request);
+    return getWorkspace(actor?.role === "admin" ? undefined : actor?.enterpriseId);
+  });
 
   app.get("/projects/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -59,6 +82,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!project) {
       return reply.status(404).send({ error: "Project not found" });
     }
+    if (!canAccessEnterprise(request, project.enterpriseId, reply)) return;
     return {
       project,
       enterprise: workspace.enterprises.find((item) => item.id === project.enterpriseId),
@@ -73,11 +97,19 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
-    return reply.status(201).send(createProject(parsed.data));
+    const actor = getRequestActor(request);
+    if (parsed.data.enterpriseId && !canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
+    if (!parsed.data.enterpriseId && actor?.role !== "admin") return reply.status(403).send({ error: "仅管理员可创建新企业" });
+    const project = createProject(parsed.data);
+    emitEvent("create", "project", project.id, project as unknown as Record<string, unknown>, "api");
+    return reply.status(201).send(project);
   });
 
   app.patch("/projects/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = getProject(id);
+    if (!existing) return reply.status(404).send({ error: "Project not found" });
+    if (!canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     const parsed = UpdateProjectRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
@@ -86,15 +118,19 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!project) {
       return reply.status(404).send({ error: "Project not found" });
     }
+    emitEvent("update", "project", project.id, project as unknown as Record<string, unknown>, "api");
     return project;
   });
 
   app.delete("/projects/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = getProject(id);
+    if (existing && !canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     const ok = deleteProject(id);
     if (!ok) {
       return reply.status(404).send({ error: "Project not found" });
     }
+    if (existing) emitEvent("delete", "project", id, existing as unknown as Record<string, unknown>, "api");
     return reply.status(204).send();
   });
 
@@ -103,6 +139,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
+    if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
     const item = createLibraryItem(parsed.data);
     if (!item) {
       return reply.status(404).send({ error: "Project not found" });
@@ -112,6 +149,9 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.patch("/library/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = getLibraryItem(id);
+    if (!existing) return reply.status(404).send({ error: "Library item not found" });
+    if (!canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     const parsed = UpdateLibraryItemRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
@@ -125,6 +165,9 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.delete("/library/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = getLibraryItem(id);
+    if (!existing) return reply.status(404).send({ error: "Library item not found" });
+    if (!canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     const ok = deleteLibraryItem(id);
     if (!ok) {
       return reply.status(404).send({ error: "Library item not found" });
@@ -132,7 +175,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return reply.status(204).send();
   });
 
-  app.patch("/plugins/:id", async (request, reply) => {
+  app.patch("/plugins/:id", { preHandler: [requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const { enabled } = request.body as { enabled?: boolean };
     if (typeof enabled !== "boolean") {
@@ -150,7 +193,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return plugin;
   });
 
-  app.get("/plugins/:id/config", async (request, reply) => {
+  app.get("/plugins/:id/config", { preHandler: [requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const config = getPluginConfig(id);
     if (!config) {
@@ -159,7 +202,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return config;
   });
 
-  app.patch("/plugins/:id/config", async (request, reply) => {
+  app.patch("/plugins/:id/config", { preHandler: [requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = PluginConfigRequestSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -172,11 +215,26 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return config;
   });
 
+  app.post("/plugins/:id/test", { preHandler: [requireAdmin] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      const output = await notifyExecute({ pluginId: id, message: "Enterprise Flow Hub 通知连接测试成功。" });
+      const parsed = JSON.parse(output) as { ok?: boolean; error?: string };
+      if (!parsed.ok) return reply.status(400).send(parsed);
+      return parsed;
+    } catch (error) {
+      return reply.status(502).send({ error: error instanceof Error ? error.message : "通知测试失败" });
+    }
+  });
+
   app.post("/automations", async (request, reply) => {
     const parsed = CreateAutomationRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
+    const project = getProject(parsed.data.projectId);
+    if (!project) return reply.status(404).send({ error: "Project not found" });
+    if (!canAccessEnterprise(request, project.enterpriseId, reply)) return;
     let automation;
     try {
       automation = createAutomation(parsed.data);
@@ -191,16 +249,29 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.patch("/automations/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const current = getAutomation(id);
+    const currentProject = current ? getProject(current.projectId) : undefined;
+    if (!current || !currentProject) return reply.status(404).send({ error: "Automation not found" });
+    if (!canAccessEnterprise(request, currentProject.enterpriseId, reply)) return;
     const body = request.body as Record<string, unknown>;
     // Toggle-only mode (backwards compatible)
     if (typeof body.enabled === "boolean" && Object.keys(body).length === 1) {
-      const automation = setAutomationEnabled(id, body.enabled);
+      let automation;
+      try {
+        automation = setAutomationEnabled(id, body.enabled);
+      } catch (error) {
+        return reply.status(400).send({ error: error instanceof Error ? error.message : "Automation is not ready" });
+      }
       if (!automation) return reply.status(404).send({ error: "Automation not found" });
       return automation;
     }
     // Full update mode
     const parsed = CreateAutomationRequestSchema.partial().safeParse(body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    if (parsed.data.projectId) {
+      const nextProject = getProject(parsed.data.projectId);
+      if (!nextProject || !canAccessEnterprise(request, nextProject.enterpriseId, reply)) return;
+    }
     let automation;
     try {
       automation = updateAutomation(id, parsed.data);
@@ -213,6 +284,10 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.post("/automations/:id/run", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const current = getAutomation(id);
+    const project = current ? getProject(current.projectId) : undefined;
+    if (!current || !project) return reply.status(404).send({ error: "Automation not found" });
+    if (!canAccessEnterprise(request, project.enterpriseId, reply)) return;
     try {
       const automation = await runAutomationNow(id, { source: "manual", body: request.body ?? {} }, app.log);
       if (!automation) return reply.status(404).send({ error: "Automation not found or disabled" });
@@ -229,6 +304,12 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (current.triggerType !== "webhook") {
       return reply.status(400).send({ error: "Automation is not a webhook trigger" });
     }
+    const suppliedSecret = request.headers["x-efh-webhook-secret"];
+    const expectedSecret = current.webhookSecret ?? "";
+    const supplied = typeof suppliedSecret === "string" ? suppliedSecret : "";
+    const validSecret = supplied.length === expectedSecret.length && supplied.length > 0 &&
+      timingSafeEqual(Buffer.from(supplied), Buffer.from(expectedSecret));
+    if (!validSecret) return reply.status(401).send({ error: "Webhook secret is missing or invalid" });
     try {
       const automation = await runAutomationNow(id, { source: "webhook", body: request.body ?? {} }, app.log);
       if (!automation) return reply.status(400).send({ error: "Automation is disabled" });
@@ -240,11 +321,13 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.post("/automations/:id/events/:type", async (request, reply) => {
     const { id, type } = request.params as { id: string; type: string };
-    if (!["email", "file"].includes(type)) {
+    if (type !== "file") {
       return reply.status(400).send({ error: "Unsupported event type" });
     }
     const current = getAutomation(id);
     if (!current) return reply.status(404).send({ error: "Automation not found" });
+    const project = getProject(current.projectId);
+    if (!project || !canAccessEnterprise(request, project.enterpriseId, reply)) return;
     if (current.triggerType !== type) {
       return reply.status(400).send({ error: `Automation is not a ${type} trigger` });
     }
@@ -259,6 +342,10 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.delete("/automations/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const current = getAutomation(id);
+    const project = current ? getProject(current.projectId) : undefined;
+    if (!current || !project) return reply.status(404).send({ error: "Automation not found" });
+    if (!canAccessEnterprise(request, project.enterpriseId, reply)) return;
     const ok = deleteAutomation(id);
     if (!ok) {
       return reply.status(404).send({ error: "Automation not found" });
@@ -272,11 +359,15 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!detail) {
       return reply.status(404).send({ error: "Conversation not found" });
     }
+    if (!canAccessEnterprise(request, detail.enterpriseId, reply)) return;
     return detail;
   });
 
   app.patch("/conversations/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = getConversation(id);
+    if (!existing) return reply.status(404).send({ error: "Conversation not found" });
+    if (!canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     const parsed = UpdateConversationRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
@@ -293,6 +384,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
+    if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
     const detail = createConversation(parsed.data);
     if (!detail) {
       return reply.status(400).send({ error: "Project does not belong to enterprise" });
@@ -300,7 +392,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return reply.status(201).send(detail);
   });
 
-  app.post("/skills", async (request, reply) => {
+  app.post("/skills", { preHandler: [requireAdmin] }, async (request, reply) => {
     const parsed = CreateSkillRequestSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.flatten() });
@@ -308,7 +400,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return reply.status(201).send(createSkill(parsed.data));
   });
 
-  app.patch("/skills/:id", async (request, reply) => {
+  app.patch("/skills/:id", { preHandler: [requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = UpdateSkillRequestSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -321,7 +413,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     return skill;
   });
 
-  app.delete("/skills/:id", async (request, reply) => {
+  app.delete("/skills/:id", { preHandler: [requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const ok = deleteSkill(id);
     if (!ok) {
@@ -332,6 +424,9 @@ export async function workspaceRoutes(app: FastifyInstance) {
 
   app.delete("/conversations/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const existing = getConversation(id);
+    if (!existing) return reply.status(404).send({ error: "Conversation not found" });
+    if (!canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     const ok = deleteConversation(id);
     if (!ok) {
       return reply.status(404).send({ error: "Conversation not found" });
@@ -342,7 +437,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
   // Stop an active agent run for this conversation
   app.post("/conversations/:id/stop", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const actor = (request as unknown as Record<string, unknown>).actor as { id: string; enterpriseId: string } | undefined;
+    const actor = (request as unknown as Record<string, unknown>).actor as { id: string; enterpriseId: string; role: "admin" | "member" } | undefined;
     if (!actor?.id) {
       return reply.status(401).send({ error: "Authentication required" });
     }
@@ -351,7 +446,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!conv) {
       return reply.status(404).send({ error: "Conversation not found" });
     }
-    if (conv.enterpriseId !== actor.enterpriseId) {
+    if (actor.role !== "admin" && conv.enterpriseId !== actor.enterpriseId) {
       return reply.status(403).send({ error: "Access denied: enterprise mismatch" });
     }
     const entry = activeRuns.get(id);
@@ -371,6 +466,8 @@ export async function workspaceRoutes(app: FastifyInstance) {
     }
     try {
       const before = getConversation(id);
+      if (!before) return reply.status(404).send({ error: "Conversation not found" });
+      if (!canAccessEnterprise(request, before.enterpriseId, reply)) return;
       const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
       const result = await addMessage(id, parsed.data, actor?.id);
       if (!result) {
@@ -382,7 +479,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
           before.projectId,
           { source: "message", conversationId: id, content: parsed.data.content },
           app.log,
-        );
+        ).catch((error) => app.log.error({ err: error, conversationId: id }, "Message automation failed"));
       }
       return reply.status(201).send(result);
     } catch (e) {
@@ -412,9 +509,9 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (!before) {
       return reply.status(404).send({ error: "Conversation not found" });
     }
-    const actor = (request as unknown as Record<string, unknown>).actor as { id: string; enterpriseId: string } | undefined;
+    const actor = (request as unknown as Record<string, unknown>).actor as { id: string; enterpriseId: string; role: "admin" | "member" } | undefined;
     // Enterprise isolation: actor must belong to the conversation's enterprise
-    if (actor && actor.enterpriseId && actor.enterpriseId !== before.enterpriseId) {
+    if (actor && actor.role !== "admin" && actor.enterpriseId && actor.enterpriseId !== before.enterpriseId) {
       return reply.status(403).send({ error: "Access denied: enterprise mismatch" });
     }
 
@@ -466,6 +563,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
+      ...sseCorsHeaders(request.headers.origin),
     });
 
     const sendSSE = (event: string, data: unknown) => {
@@ -561,7 +659,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
         before.projectId,
         { source: "message", conversationId: id, content: parsed.data.content },
         app.log,
-      );
+      ).catch((error) => app.log.error({ err: error, conversationId: id }, "Message automation failed"));
     }
   });
 }

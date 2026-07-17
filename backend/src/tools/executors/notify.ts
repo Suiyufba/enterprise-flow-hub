@@ -11,10 +11,9 @@ export async function notifyExecute(input: Record<string, unknown>): Promise<str
     });
   }
 
-  const payload = {
-    msg_type: "text",
-    text: { content: message },
-  };
+  const payload = webhook.kind === "wecom"
+    ? { msgtype: "text", text: { content: message } }
+    : { msg_type: "text", content: { text: message } };
 
   const response = await fetch(webhook.url, {
     method: "POST",
@@ -27,6 +26,16 @@ export async function notifyExecute(input: Record<string, unknown>): Promise<str
   if (!response.ok) {
     return JSON.stringify({ error: `HTTP ${response.status}`, body: text.slice(0, 500) });
   }
+
+  let providerAccepted = true;
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const code = parsed.code ?? parsed.StatusCode ?? parsed.errcode;
+    providerAccepted = code === undefined || code === 0 || code === "0";
+  } catch {
+    providerAccepted = true;
+  }
+  if (!providerAccepted) throw new Error(`通知平台拒绝了请求：${text.slice(0, 300)}`);
 
   return JSON.stringify({
     ok: true,

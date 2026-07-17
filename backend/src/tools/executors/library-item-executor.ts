@@ -1,8 +1,8 @@
 import { createLibraryItem } from "../../store.js";
 
 export async function libraryItemExecute(input: Record<string, unknown>): Promise<string> {
-  const enterpriseId = typeof input.enterpriseId === "string" ? input.enterpriseId : "";
-  const projectId = typeof input.projectId === "string" ? input.projectId : "";
+  const enterpriseId = typeof input._enterpriseId === "string" ? input._enterpriseId : (typeof input.enterpriseId === "string" ? input.enterpriseId : "");
+  const projectId = typeof input._projectId === "string" ? input._projectId : (typeof input.projectId === "string" ? input.projectId : "");
   const name = typeof input.name === "string" ? input.name : "";
   const type = (typeof input.type === "string" && ["screenshot", "spreadsheet", "document", "note"].includes(input.type))
     ? input.type as "screenshot" | "spreadsheet" | "document" | "note"

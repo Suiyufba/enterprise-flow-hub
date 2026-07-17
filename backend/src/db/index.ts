@@ -172,11 +172,32 @@ export function getDb(): Database.Database {
     } catch {
       // migrations directory might not exist yet
     }
-    for (const file of migrationFiles) {
-      if (applied.has(file)) continue;
+    const applyMigration = (file: string) => {
+      if (applied.has(file)) return;
       const sql = readFileSync(join(migrationDir, file), "utf-8");
-      db.exec(sql);
-      db.prepare("INSERT INTO _migrations (id) VALUES (?)").run(file);
+      db!.exec(sql);
+      db!.prepare("INSERT INTO _migrations (id) VALUES (?)").run(file);
+      applied.add(file);
+    };
+    const freshDatabase = (db.prepare("SELECT COUNT(*) as cnt FROM enterprises").get() as { cnt: number }).cnt === 0;
+    const deferredFreshMigrations = new Set([
+      "003-business-demo-data.sql",
+      "008-operational-agent.sql",
+      "009-operational-defaults.sql",
+    ]);
+
+    // A fresh database needs CRM/order tables before seed.sql, while data and
+    // Agent migrations must run after seed.sql so they can update seeded rows.
+    for (const file of migrationFiles) {
+      if (freshDatabase && deferredFreshMigrations.has(file)) continue;
+      applyMigration(file);
+    }
+    if (freshDatabase) {
+      const seed = readFileSync(join(__dirname, "seed.sql"), "utf-8");
+      db.exec(seed);
+      for (const file of migrationFiles) {
+        if (deferredFreshMigrations.has(file)) applyMigration(file);
+      }
     }
 
     // Ensure tool-create-automation exists (added after initial seed)
@@ -197,7 +218,7 @@ export function getDb(): Database.Database {
         '帮我记录一个新客户张三，联系方式是...', '2026-05-26T00:00:00.000Z')`).run();
     }
 
-    // Seed baseline workspace data only if this is a fresh database.
+    // Repair partially initialized databases without overwriting user data.
     const count = db.prepare("SELECT COUNT(*) as cnt FROM enterprises").get() as { cnt: number };
     if (count.cnt === 0) {
       const seed = readFileSync(join(__dirname, "seed.sql"), "utf-8");

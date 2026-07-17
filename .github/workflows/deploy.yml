@@ -223,7 +223,8 @@ jobs:
           done
           docker compose ps
           # Verify backend health
-          curl -fsS http://127.0.0.1:4000/health && echo "Backend OK"
-          curl -fsS http://127.0.0.1:4000/agent/status | grep -q '"activeRuntime":"claude-code"' && echo "Claude Code runtime OK"
+          HEALTH_PAYLOAD="$(curl -fsS http://127.0.0.1:4000/health)"
+          printf '%s\n' "${HEALTH_PAYLOAD}"
+          printf '%s' "${HEALTH_PAYLOAD}" | grep -q '"activeRuntime":"claude-code"' && echo "Backend and Claude Code runtime OK"
           echo "::endgroup::"
           EOF

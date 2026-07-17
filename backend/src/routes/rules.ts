@@ -1,14 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { listRules, getRule, createRule, setRuleEnabled, deleteRule, evaluateRulesForObject } from "../store/rules.js";
-import { getCallerEnterprise } from "./auth-context.js";
+import { canAccessEnterprise } from "./auth-context.js";
+import { getAutomation, getProject, listConfiguredNotificationPlugins } from "../store.js";
 
 export async function rulesRoutes(app: FastifyInstance): Promise<void> {
   app.get("/rules", async (request, reply) => {
     const { enterpriseId } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return [];
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权查看" });
+    if (!canAccessEnterprise(request, enterpriseId, reply)) return;
     return listRules(enterpriseId);
   });
 
@@ -17,9 +16,43 @@ export async function rulesRoutes(app: FastifyInstance): Promise<void> {
     if (!enterpriseId || !name || !objectType || !triggerEvent || !actionType) {
       return reply.status(400).send({ error: "缺少必填字段" });
     }
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (enterpriseId !== actorEid) return reply.status(403).send({ error: "不能为其他企业创建规则" });
+    const allowedObjects = new Set(["customer", "supplier", "product", "order", "payment", "invoice", "file", "project"]);
+    const allowedEvents = new Set(["create", "update", "delete", "status_change"]);
+    const allowedActions = new Set(["notify", "set_field", "create_task", "trigger_approval", "trigger_automation"]);
+    if (!allowedObjects.has(objectType as string) || !allowedEvents.has(triggerEvent as string) || !allowedActions.has(actionType as string)) {
+      return reply.status(400).send({ error: "对象、事件或动作类型不受支持" });
+    }
+    if (!canAccessEnterprise(request, enterpriseId as string, reply)) return;
+    const config = actionConfig && typeof actionConfig === "object" ? actionConfig as Record<string, unknown> : {};
+    const tableByObject: Record<string, string> = {
+      customer: "customers", order: "orders", payment: "payments", invoice: "invoices",
+    };
+    if (actionType === "set_field") {
+      const statusValues: Record<string, string[]> = {
+        customer: ["active", "inactive", "lead", "lost"],
+        order: ["draft", "confirmed", "processing", "shipped", "delivered", "cancelled"],
+        payment: ["pending", "completed", "failed", "refunded"],
+        invoice: ["draft", "issued", "paid", "overdue", "cancelled"],
+      };
+      const values = statusValues[objectType as string];
+      if (config.table !== tableByObject[objectType as string] || config.field !== "status" || !values?.includes(config.value as string)) {
+        return reply.status(400).send({ error: "该对象不支持这个状态值" });
+      }
+    }
+    if (actionType === "notify") {
+      const pluginId = typeof config.pluginId === "string" ? config.pluginId : "";
+      if (!listConfiguredNotificationPlugins().some((plugin) => plugin.id === pluginId)) {
+        return reply.status(400).send({ error: "通知动作需要已绑定并启用的飞书或企业微信插件" });
+      }
+    }
+    if (actionType === "trigger_automation") {
+      const automationId = typeof config.automationId === "string" ? config.automationId : "";
+      const automation = getAutomation(automationId);
+      const project = automation ? getProject(automation.projectId) : undefined;
+      if (!automation || !project || project.enterpriseId !== enterpriseId) {
+        return reply.status(400).send({ error: "关联自动化不存在或不属于当前企业" });
+      }
+    }
     const rule = createRule({
       enterpriseId: enterpriseId as string,
       name: name as string,
@@ -28,7 +61,7 @@ export async function rulesRoutes(app: FastifyInstance): Promise<void> {
       triggerEvent: triggerEvent as string,
       conditionExpr: (conditionExpr as any) ?? { logic: "and", conditions: [] },
       actionType: actionType as any,
-      actionConfig: actionConfig as Record<string, unknown> | undefined,
+      actionConfig: config,
     });
     return reply.status(201).send(rule);
   });
@@ -37,9 +70,7 @@ export async function rulesRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const existing = getRule(id);
     if (!existing) return reply.status(404).send({ error: "规则不存在" });
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (existing.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权操作" });
+    if (!canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     const rule = setRuleEnabled(id, !existing.enabled);
     return reply.send(rule);
   });
@@ -48,9 +79,7 @@ export async function rulesRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const existing = getRule(id);
     if (!existing) return reply.status(404).send({ error: "规则不存在" });
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (existing.enterpriseId !== actorEid) return reply.status(403).send({ error: "无权操作" });
+    if (!canAccessEnterprise(request, existing.enterpriseId, reply)) return;
     deleteRule(id);
     return reply.status(204).send();
   });
@@ -60,9 +89,7 @@ export async function rulesRoutes(app: FastifyInstance): Promise<void> {
     if (!enterpriseId || !objectType || !objectData) {
       return reply.status(400).send({ error: "缺少必填字段" });
     }
-    const actorEid = getCallerEnterprise(request, reply);
-    if (!actorEid) return;
-    if (actorEid !== enterpriseId) return reply.status(403).send({ error: "无权操作其他企业数据" });
+    if (!canAccessEnterprise(request, enterpriseId as string, reply)) return;
     return evaluateRulesForObject(objectType as string, objectData as Record<string, unknown>, enterpriseId as string);
   });
 }

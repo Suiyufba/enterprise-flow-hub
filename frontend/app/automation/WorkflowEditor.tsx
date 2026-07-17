@@ -114,93 +114,6 @@ function createEdge(id: string, source: string, target: string, label?: string):
   };
 }
 
-function buildComplexScenarioGraph(providerId?: string): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = [
-    createNode("trigger", 20, 60, {
-      title: "Webhook/企微/邮件",
-      triggerType: "webhook",
-      desc: "官网表单、企微消息、邮件、CRM 新客、付款回调、投诉工单",
-    }, "trigger-intake"),
-    createNode("trigger", 20, 210, {
-      title: "文件上传",
-      triggerType: "file",
-      desc: "合同、报价单、聊天截图、客户 Excel、发票附件",
-    }, "trigger-file"),
-    createNode("trigger", 20, 360, {
-      title: "定时/人工扫描",
-      triggerType: "schedule",
-      desc: "每 30 分钟扫描 SLA，也支持人工触发巡检",
-    }, "trigger-schedule"),
-    createNode("agent", 190, 210, {
-      title: "轻量分类模型",
-      model: providerId ?? "",
-      prompt: "去重、分类、风险分级，输出事件类型、难度等级、下一节点和 SLA。",
-    }, "agent-router"),
-    createNode("condition", 360, 210, {
-      title: "风险/难度判断",
-      expression: "risk in P0/P1 OR taskDifficulty === 'complex'",
-      trueBranch: "进入深度推理和主管升级",
-      falseBranch: "进入资料补全或普通日报",
-    }, "condition-risk"),
-    createNode("agent", 530, 60, {
-      title: "OCR/表格模型",
-      model: providerId ?? "",
-      prompt: "从截图、合同、报价单、Excel 中提取客户、金额、付款、合同截止日和缺失字段。",
-    }, "agent-ocr"),
-    createNode("agent", 530, 210, {
-      title: "深度推理模型",
-      model: providerId ?? "",
-      prompt: "综合客户价值、投诉、退款、合同临期、付款异常和顾问负载，给出决策路径。",
-    }, "agent-reasoning"),
-    createNode("loop", 700, 210, {
-      title: "逐客户循环",
-      source: "P0/P1 客户、逾期报价、合同临期、付款异常清单",
-      body: "逐条生成责任人、下一步、截止时间、升级条件和写回字段。",
-    }, "loop-customers"),
-    createNode("condition", 700, 360, {
-      title: "是否需要后台核验",
-      expression: "missingEvidence OR noApiSystemRequired",
-      trueBranch: "浏览器巡检 CRM/付款/合同后台",
-      falseBranch: "直接通知闭环",
-    }, "condition-browser"),
-    createNode("action", 870, 210, {
-      title: "浏览器巡检",
-      actionType: "browser",
-      desc: "只读打开 CRM、付款、合同后台，核验未分配、逾期、付款失败和重复客户。",
-    }, "action-browser"),
-    createNode("action", 870, 360, {
-      title: "HTTP 推送/写回",
-      actionType: "api_call",
-      desc: "HTTP POST 推送飞书/企微/老板看板，并写回风险、责任人、截止时间。",
-    }, "action-push"),
-    createNode("condition", 870, 510, {
-      title: "去重与升级策略",
-      expression: "sameRiskWithin2h ? skipNotify : notifyNow",
-      trueBranch: "跳过重复通知，只更新看板",
-      falseBranch: "P0 立即推送，普通事件进日报",
-    }, "condition-dedupe"),
-  ];
-
-  const edges: Edge[] = [
-    createEdge("e-intake-router", "trigger-intake", "agent-router"),
-    createEdge("e-file-ocr", "trigger-file", "agent-ocr"),
-    createEdge("e-schedule-router", "trigger-schedule", "agent-router"),
-    createEdge("e-router-risk", "agent-router", "condition-risk"),
-    createEdge("e-risk-ocr", "condition-risk", "agent-ocr", "资料缺口"),
-    createEdge("e-risk-reasoning", "condition-risk", "agent-reasoning", "高风险/复杂"),
-    createEdge("e-ocr-reasoning", "agent-ocr", "agent-reasoning"),
-    createEdge("e-reasoning-loop", "agent-reasoning", "loop-customers"),
-    createEdge("e-loop-browser-check", "loop-customers", "condition-browser"),
-    createEdge("e-browser-action", "condition-browser", "action-browser", "需要核验"),
-    createEdge("e-browser-push", "action-browser", "action-push"),
-    createEdge("e-no-browser-push", "condition-browser", "action-push", "证据完整"),
-    createEdge("e-push-dedupe", "action-push", "condition-dedupe"),
-    createEdge("e-dedupe-loop", "condition-dedupe", "loop-customers", "继续下一客户"),
-  ];
-
-  return { nodes, edges };
-}
-
 function collectConfigsByType(nodes: Node[], type: NodeType) {
   return nodes
     .filter((node) => node.data?.nodeType === type)
@@ -249,6 +162,10 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
     () => notificationPlugins.filter((plugin) => plugin.enabled && plugin.configured),
     [notificationPlugins],
   );
+  const configuredActionTools = useMemo(
+    () => workspace.tools.filter((tool) => tool.status === "enabled" && tool.id === "tool-business-action"),
+    [workspace.tools],
+  );
 
   useEffect(() => {
     if (workspace.projects[0] && !existingId) setSelectedProjectId(workspace.projects[0].id);
@@ -262,47 +179,6 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
     setWorkflowName(auto.name);
     setSelectedProjectId(auto.projectId);
 
-    if (auto.name.includes("复杂综合任务")) {
-      const { nodes: complexNodes, edges: complexEdges } = buildComplexScenarioGraph(auto.agentModel);
-      const triggerNode = complexNodes.find((node) => node.id === "trigger-intake");
-      const pushNode = complexNodes.find((node) => node.id === "action-push");
-      const reasoningNode = complexNodes.find((node) => node.id === "agent-reasoning");
-      if (triggerNode) {
-        triggerNode.data = {
-          ...triggerNode.data,
-          config: {
-            ...triggerNode.data.config as Record<string, string>,
-            triggerType: auto.triggerType,
-            desc: auto.trigger,
-          },
-        };
-      }
-      if (pushNode) {
-        pushNode.data = {
-          ...pushNode.data,
-          config: {
-            ...pushNode.data.config as Record<string, string>,
-            actionType: auto.actionType,
-            desc: auto.action,
-            pluginId: auto.actionPluginId ?? "",
-          },
-        };
-      }
-      if (reasoningNode) {
-        reasoningNode.data = {
-          ...reasoningNode.data,
-          config: {
-            ...reasoningNode.data.config as Record<string, string>,
-            model: auto.agentModel ?? "",
-            prompt: auto.systemPrompt ?? "",
-          },
-        };
-      }
-      setNodes(complexNodes);
-      setEdges(complexEdges);
-      return;
-    }
-
     const trigCfg: Record<string, string> = {
       triggerType: auto.triggerType,
       desc: auto.trigger,
@@ -315,12 +191,27 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       desc: auto.action,
     };
     if (auto.actionPluginId) actionCfg.pluginId = auto.actionPluginId;
+    if (auto.actionToolId) actionCfg.toolId = auto.actionToolId;
+    if (Object.keys(auto.actionInput).length > 0) actionCfg.input = JSON.stringify(auto.actionInput, null, 2);
 
-    setNodes([
-      createNode("trigger", 100, 80, trigCfg, "trigger-1"),
-      createNode("agent", 100, 240, agentCfg, "agent-2"),
-      createNode("action", 100, 400, actionCfg, "action-3"),
-    ]);
+    const hasAgentStep = Boolean(auto.agentModel || auto.systemPrompt || auto.actionType === "call_ai");
+    if (hasAgentStep) {
+      setNodes([
+        createNode("trigger", 100, 80, trigCfg, "trigger-1"),
+        createNode("agent", 100, 240, agentCfg, "agent-2"),
+        createNode("action", 100, 400, actionCfg, "action-3"),
+      ]);
+      setEdges([
+        createEdge("e-t-a", "trigger-1", "agent-2"),
+        createEdge("e-a-ac", "agent-2", "action-3"),
+      ]);
+    } else {
+      setNodes([
+        createNode("trigger", 100, 120, trigCfg, "trigger-1"),
+        createNode("action", 100, 340, actionCfg, "action-3"),
+      ]);
+      setEdges([createEdge("e-t-ac", "trigger-1", "action-3")]);
+    }
   }, [existingId, workspace.automations, setEdges, setNodes]);
 
   async function saveWorkflow() {
@@ -338,20 +229,48 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       const primaryTrigger = triggerConfigs[0] ?? {};
       const primaryAgent = agentConfigs.find((config) => config.model) ?? agentConfigs[0] ?? {};
       const primaryAction = actionConfigs.find((config) => config.actionType) ?? actionConfigs[0] ?? {};
+      const resolvedTriggerType = primaryTrigger.triggerType || "manual";
+      const resolvedActionType = primaryAction.actionType || "notify";
+
+      if (resolvedTriggerType === "email") {
+        setSavedMessage("邮件触发尚未接入，请改用 Webhook 或其他已接通触发器");
+        setSaving(false);
+        return;
+      }
+      if (!["notify", "call_ai", "tool_call"].includes(resolvedActionType)) {
+        setSavedMessage("旧动作尚未接入，请重新选择通知、AI 或业务工具");
+        setSaving(false);
+        return;
+      }
 
       const selectedProvider = configuredProviders.find((provider) => provider.id === primaryAgent.model);
-      if (agentConfigs.length > 0 && !selectedProvider) {
+      if ((resolvedActionType === "call_ai" || Boolean(primaryAgent.model)) && !selectedProvider) {
         setSavedMessage(configuredProviders.length === 0 ? "请先在设置里配置可用模型账号" : "请选择已配置的模型账号");
         setSaving(false);
         return;
       }
 
-      const resolvedActionType = primaryAction.actionType || "notify";
       const selectedNotificationPlugin = configuredNotificationPlugins.find((plugin) => plugin.id === primaryAction.pluginId);
       if (resolvedActionType === "notify" && !selectedNotificationPlugin) {
         setSavedMessage(configuredNotificationPlugins.length === 0 ? "请先在插件页绑定飞书/企业微信通知" : "请选择通知插件");
         setSaving(false);
         return;
+      }
+      const selectedActionTool = configuredActionTools.find((tool) => tool.id === primaryAction.toolId);
+      if (resolvedActionType === "tool_call" && !selectedActionTool) {
+        setSavedMessage("请选择一个已启用的业务工具");
+        setSaving(false);
+        return;
+      }
+      let actionInput: Record<string, unknown> | undefined;
+      if (resolvedActionType === "tool_call") {
+        try {
+          actionInput = primaryAction.input?.trim() ? JSON.parse(primaryAction.input) as Record<string, unknown> : {};
+        } catch {
+          setSavedMessage("工具参数必须是有效的 JSON 对象");
+          setSaving(false);
+          return;
+        }
       }
 
       const triggerSummary = joinConfigDescriptions(triggerConfigs, "手动触发");
@@ -376,11 +295,13 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
         projectId: selectedProjectId,
         name: workflowName.trim(),
         trigger: triggerSummary.slice(0, 200),
-        triggerType: primaryTrigger.triggerType || "manual",
+        triggerType: resolvedTriggerType,
         action: actionSummary.slice(0, 200),
         actionType: resolvedActionType,
         agentModel: primaryAgent.model || undefined,
         actionPluginId: resolvedActionType === "notify" ? primaryAction.pluginId || undefined : undefined,
+        actionToolId: resolvedActionType === "tool_call" ? primaryAction.toolId || undefined : undefined,
+        actionInput,
         systemPrompt: promptSummary.slice(0, 500) || undefined,
       };
 
@@ -480,7 +401,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       Object.entries(nodeTypes).map(([key, def]) => ({
         key,
         ...def,
-      })),
+      })).filter((option) => ["trigger", "agent", "action"].includes(option.key)),
     [],
   );
 
@@ -553,7 +474,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
             fitView
             deleteKeyCode={["Backspace", "Delete"]}
             multiSelectionKeyCode="Shift"
-            fitViewOptions={{ padding: 0.12, maxZoom: workflowName.includes("复杂综合任务") ? 0.7 : 1.2 }}
+            fitViewOptions={{ padding: 0.12, maxZoom: 1.2 }}
           >
             <Controls />
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#303030" />
@@ -590,12 +511,15 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                     <option value="schedule">定时执行</option>
                     <option value="webhook">Webhook</option>
                     <option value="message">消息触发</option>
-                    <option value="email">邮件事件接入</option>
+                    <option value="email" disabled>邮件事件（未接入）</option>
                     <option value="file">文件事件接入</option>
                     <option value="manual">手动触发</option>
                   </select>
-                  {["email", "file"].includes(cfgValue("triggerType") ?? "") && (
-                    <p className="wf-config-warning">这个触发器需要外部系统调用事件接口；当前不会自动监听邮箱或服务器文件夹。</p>
+                  {cfgValue("triggerType") === "email" && (
+                    <p className="wf-config-warning">邮箱连接器尚未接入，保存后不会自动监听邮箱。建议先使用 Webhook。</p>
+                  )}
+                  {cfgValue("triggerType") === "file" && (
+                    <p className="wf-config-warning">在「文件管理」选择此项目并上传文件后会自动触发。</p>
                   )}
                   {cfgValue("triggerType") === "webhook" && (
                     <p className="wf-config-warning">保存后可通过 /api/automations/&lt;id&gt;/webhook 触发。</p>
@@ -683,10 +607,10 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                     <option value="">选择...</option>
                     <option value="notify">发送通知</option>
                     <option value="call_ai">调用 AI</option>
-                    <option value="send_email">发送邮件</option>
-                    <option value="api_call">API 调用</option>
-                    <option value="shell">Shell 命令</option>
-                    <option value="browser">浏览器操作</option>
+                    <option value="tool_call">调用业务工具</option>
+                    {cfgValue("actionType") && !["notify", "call_ai", "tool_call"].includes(cfgValue("actionType")) && (
+                      <option value={cfgValue("actionType")} disabled>旧动作：{cfgValue("actionType")}（未接入）</option>
+                    )}
                   </select>
                   {(cfgValue("actionType") || "notify") === "notify" && (
                     <>
@@ -707,6 +631,23 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                       {configuredNotificationPlugins.length === 0 && (
                         <p className="wf-config-warning">飞书/企业微信通知还没绑定 Webhook，请先到插件页配置后再保存。</p>
                       )}
+                    </>
+                  )}
+                  {cfgValue("actionType") === "tool_call" && (
+                    <>
+                      <label className="wf-props-label">业务工具</label>
+                      <select className="page-input wf-props-input" value={cfgValue("toolId")} onChange={(e) => updateNodeConfig("toolId", e.target.value)}>
+                        <option value="">选择业务工具...</option>
+                        {configuredActionTools.map((tool) => <option key={tool.id} value={tool.id}>{tool.name}</option>)}
+                      </select>
+                      <label className="wf-props-label">工具参数 JSON</label>
+                      <textarea
+                        className="page-textarea wf-props-input"
+                        rows={5}
+                        value={cfgValue("input")}
+                        onChange={(e) => updateNodeConfig("input", e.target.value)}
+                        placeholder={'{"operation":"create_task","title":"跟进客户"}'}
+                      />
                     </>
                   )}
                   <label className="wf-props-label">描述</label>

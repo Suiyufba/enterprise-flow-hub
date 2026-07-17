@@ -29,11 +29,11 @@ function inputShape(definition: ToolDefinition): Record<string, z.ZodTypeAny> {
   try {
     const example = JSON.parse(definition.inputSchema) as Record<string, unknown>;
     return Object.fromEntries(Object.entries(example).map(([key, value]) => {
-      if (typeof value === "number") return [key, z.number()];
-      if (typeof value === "boolean") return [key, z.boolean()];
-      if (Array.isArray(value)) return [key, z.array(z.unknown())];
-      if (value && typeof value === "object") return [key, z.record(z.string(), z.unknown())];
-      return [key, z.string()];
+      if (typeof value === "number") return [key, z.number().optional()];
+      if (typeof value === "boolean") return [key, z.boolean().optional()];
+      if (Array.isArray(value)) return [key, z.array(z.unknown()).optional()];
+      if (value && typeof value === "object") return [key, z.record(z.string(), z.unknown()).optional()];
+      return [key, z.string().optional()];
     }));
   } catch {
     return {};
@@ -88,13 +88,27 @@ export class ClaudeCodeRuntime implements AgentRuntime {
 
     const toolRuns: ToolRun[] = [];
     const pendingEvents: AgentRunEvent[] = [];
-    const enabledTools = input.tools.filter((definition) => definition.status === "enabled");
+    const permittedToolIds = new Set([
+      "tool-business-query",
+      "tool-mcp-company-context",
+      "tool-create-library-item",
+      "tool-create-automation",
+      ...input.skills.flatMap((skill) => skill.toolIds),
+    ]);
+    const enabledTools = input.tools.filter((definition) =>
+      definition.status === "enabled" && definition.risk !== "admin" && permittedToolIds.has(definition.id),
+    );
     const mcpTools: SdkMcpToolDefinition[] = enabledTools.map((definition) => ({
       name: definition.id,
       description: definition.description,
       inputSchema: inputShape(definition),
       handler: async (args) => {
-        const toolInput = args as Record<string, unknown>;
+        const toolInput = {
+          ...(args as Record<string, unknown>),
+          _enterpriseId: input.context.enterpriseId,
+          _projectId: input.context.projectId,
+          _conversationId: input.sessionId,
+        };
         pendingEvents.push({
           type: "tool_call",
           toolId: definition.id,

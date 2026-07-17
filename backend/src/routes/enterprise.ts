@@ -16,7 +16,7 @@ import {
   updateDepartment,
   updateUser,
 } from "../store.js";
-import { getRequestActor, requireAdminActor } from "./auth-context.js";
+import { canAccessEnterprise, getRequestActor, requireAdminActor } from "./auth-context.js";
 
 async function requireAdmin(
   request: FastifyRequest,
@@ -27,12 +27,7 @@ async function requireAdmin(
 }
 
 function ensureEnterpriseScope(request: FastifyRequest, targetEnterpriseId: string, reply: FastifyReply): boolean {
-  const actor = (request as unknown as Record<string, unknown>).actor as { enterpriseId: string } | undefined;
-  if (!actor || actor.enterpriseId !== targetEnterpriseId) {
-    reply.status(403).send({ error: "无权操作其他企业的资源" });
-    return false;
-  }
-  return true;
+  return canAccessEnterprise(request, targetEnterpriseId, reply);
 }
 
 export function enterpriseRoutes(app: FastifyInstance): void {
@@ -42,7 +37,7 @@ export function enterpriseRoutes(app: FastifyInstance): void {
     const { enterpriseId } = request.query as { enterpriseId?: string };
     if (!enterpriseId) return [];
     const actor = getRequestActor(request);
-    if (actor && actor.enterpriseId !== enterpriseId) {
+    if (actor && actor.role !== "admin" && actor.enterpriseId !== enterpriseId) {
       return reply.status(403).send({ error: "无权查看其他企业的数据" });
     }
     return listDepartments(enterpriseId);
@@ -81,6 +76,7 @@ export function enterpriseRoutes(app: FastifyInstance): void {
   app.post("/users", { preHandler: [requireAdmin] }, async (request, reply) => {
     const parsed = CreateUserRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    if (!ensureEnterpriseScope(request, parsed.data.enterpriseId, reply)) return;
     const user = createUser(parsed.data);
     if (!user) return reply.status(400).send({ error: "企业不存在或用户名已被使用" });
     return reply.status(201).send(user);
@@ -95,5 +91,16 @@ export function enterpriseRoutes(app: FastifyInstance): void {
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
     const user = updateUser(id, parsed.data);
     return reply.send(user);
+  });
+
+  app.delete("/users/:id", { preHandler: [requireAdmin] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const actor = getRequestActor(request);
+    if (actor?.id === id) return reply.status(400).send({ error: "不能删除当前登录账号" });
+    const existing = getUser(id);
+    if (!existing) return reply.status(404).send({ error: "用户不存在" });
+    if (!ensureEnterpriseScope(request, existing.enterpriseId, reply)) return;
+    deleteUser(id);
+    return reply.status(204).send();
   });
 }

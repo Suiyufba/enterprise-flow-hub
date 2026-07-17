@@ -55,10 +55,10 @@ JSON 必须包含这些字段：
         createdAt: new Date().toISOString(),
       };
     } catch (e) {
-      console.error("AI analysis failed:", e);
-      // Fallback to mock
-      const { generateMockAnalysis } = await import("../ai/mock.js");
-      result = generateMockAnalysis(parseResult.data);
+      request.log.error({ err: e }, "AI analysis failed");
+      return reply.status(502).send({
+        error: "模型分析失败，请检查模型账号配置后重试。系统没有生成模拟结果。",
+      });
     }
 
     saveAnalysis(result);

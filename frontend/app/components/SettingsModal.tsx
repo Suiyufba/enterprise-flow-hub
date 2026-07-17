@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AgentPersona, ModelProvider } from "shared";
+import type { ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
 import { animate, spring } from "../lib/anime";
 import "./SettingsModal.css";
 
-type Tab = "providers" | "personas" | "agent";
+type Tab = "providers" | "agent";
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { showToast } = useToast();
@@ -32,7 +32,6 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const [tab, setTab] = useState<Tab>("providers");
   const [providers, setProviders] = useState<ModelProvider[]>([]);
-  const [personas, setPersonas] = useState<AgentPersona[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Provider form
@@ -58,24 +57,6 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [editModels, setEditModels] = useState<string[]>([]);
   const [editFetchingModels, setEditFetchingModels] = useState(false);
   const [editShowDropdown, setEditShowDropdown] = useState(false);
-
-  // Persona form
-  const [pRole, setPRole] = useState("");
-  const [pDesc, setPDesc] = useState("");
-  const [pPrompt, setPPrompt] = useState("");
-  const [pProviderId, setPProviderId] = useState("");
-  const [pThinkingProviderId, setPThinkingProviderId] = useState("");
-  const [generatingPrompt, setGeneratingPrompt] = useState(false);
-
-  // Persona edit state
-  const [editingPersonaId, setEditingPersonaId] = useState<string | null>(null);
-  const [epName, setEpName] = useState("");
-  const [epRole, setEpRole] = useState("");
-  const [epDesc, setEpDesc] = useState("");
-  const [epPrompt, setEpPrompt] = useState("");
-  const [epProviderId, setEpProviderId] = useState("");
-  const [epThinkingProviderId, setEpThinkingProviderId] = useState("");
-  const [epSaving, setEpSaving] = useState(false);
 
   // Agent kernel status
   const [agentStatus, setAgentStatus] = useState<{
@@ -105,12 +86,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   async function refresh() {
-    const [p, per] = await Promise.all([
-      fetchJson<{ providers: ModelProvider[] }>("/settings/providers"),
-      fetchJson<{ personas: AgentPersona[] }>("/settings/personas"),
-    ]);
+    const p = await fetchJson<{ providers: ModelProvider[] }>("/settings/providers");
     setProviders(p.providers);
-    setPersonas(per.personas);
   }
 
   useEffect(() => {
@@ -216,76 +193,6 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       showToast(e instanceof Error ? e.message : "获取模型列表失败", "error");
     }
     setEditFetchingModels(false);
-  }
-
-  // ---- Personas ----
-  async function addPersona() {
-    if (!pRole.trim() || !pDesc.trim() || !pPrompt.trim() || !pProviderId) return;
-    try {
-      const body: Record<string, string> = {
-        name: pRole, role: pRole, description: pDesc, systemPrompt: pPrompt, providerId: pProviderId,
-      };
-      if (pThinkingProviderId) body.thinkingProviderId = pThinkingProviderId;
-      await fetchJson("/settings/personas", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      setPRole(""); setPDesc(""); setPPrompt(""); setPProviderId(""); setPThinkingProviderId("");
-      await refresh();
-    } catch { showToast("添加角色失败", "error"); }
-  }
-
-  async function deletePersona(id: string) {
-    await fetchJson(`/settings/personas/${id}`, { method: "DELETE" });
-    await refresh();
-  }
-
-  function startEditPersona(p: AgentPersona) {
-    setEditingPersonaId(p.id);
-    setEpName(p.name);
-    setEpRole(p.role);
-    setEpDesc(p.description);
-    setEpPrompt(p.systemPrompt);
-    setEpProviderId(p.providerId);
-    setEpThinkingProviderId(p.thinkingProviderId || "");
-  }
-
-  function cancelEditPersona() {
-    setEditingPersonaId(null);
-  }
-
-  async function saveEditPersona() {
-    if (!epName.trim() || !epRole.trim() || !epPrompt.trim() || !epProviderId) return;
-    setEpSaving(true);
-    try {
-      const body: Record<string, string> = {
-        name: epName, role: epRole, description: epDesc, systemPrompt: epPrompt, providerId: epProviderId,
-      };
-      if (epThinkingProviderId) body.thinkingProviderId = epThinkingProviderId;
-      await fetchJson(`/settings/personas/${editingPersonaId}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-      setEditingPersonaId(null);
-      await refresh();
-      showToast("保存成功", "success");
-    } catch { showToast("保存失败", "error"); }
-    setEpSaving(false);
-  }
-
-  async function generatePrompt() {
-    if (!pDesc.trim()) return;
-    setGeneratingPrompt(true);
-    try {
-      const res = await fetchJson<{ prompt: string }>("/settings/generate-prompt", {
-        method: "POST",
-        body: JSON.stringify({ description: pDesc }),
-      });
-      setPPrompt(res.prompt);
-    } catch {
-      setPPrompt("生成失败，请手动填写。");
-    }
-    setGeneratingPrompt(false);
   }
 
   if (!open) return null;

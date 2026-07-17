@@ -120,13 +120,53 @@ export const AutomationSchema = z.object({
   trigger: z.string(),
   triggerType: z.enum(["schedule", "message", "webhook", "email", "file", "manual"]),
   action: z.string(),
-  actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser"]),
+  actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser", "tool_call"]),
   agentModel: z.string().optional(),
   actionPluginId: z.string().optional(),
+  actionToolId: z.string().optional(),
+  actionInput: z.record(z.string(), z.unknown()).default({}),
   systemPrompt: z.string().optional(),
+  webhookSecret: z.string().optional(),
   enabled: z.boolean(),
   runCount: z.number(),
   lastRun: z.string().optional(),
+  lastStatus: z.enum(["success", "error"]).optional(),
+  lastOutput: z.string().optional(),
+  lastError: z.string().optional(),
+  lastDurationMs: z.number().optional(),
+});
+
+export const AutomationRunSchema = z.object({
+  id: z.string(),
+  automationId: z.string(),
+  status: z.enum(["success", "error"]),
+  triggerEvent: z.record(z.string(), z.unknown()),
+  output: z.string(),
+  errorMessage: z.string(),
+  durationMs: z.number(),
+  createdAt: z.string(),
+});
+
+export const TaskSchema = z.object({
+  id: z.string(),
+  enterpriseId: z.string(),
+  assigneeId: z.string().nullable(),
+  title: z.string(),
+  description: z.string(),
+  status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
+  priority: z.enum(["low", "medium", "high", "urgent"]),
+  dueDate: z.string().nullable(),
+  sourceType: z.string().nullable(),
+  sourceId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const UpdateTaskRequestSchema = z.object({
+  status: z.enum(["pending", "in_progress", "completed", "cancelled"]).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  assigneeId: z.string().nullable().optional(),
+  dueDate: z.string().nullable().optional(),
 });
 
 export const ToolDefinitionSchema = z.object({
@@ -211,6 +251,7 @@ export const WorkspaceSchema = z.object({
   libraryItems: z.array(LibraryItemSchema),
   plugins: z.array(PluginSchema),
   automations: z.array(AutomationSchema),
+  recentAutomationRuns: z.array(AutomationRunSchema),
   tools: z.array(ToolDefinitionSchema),
   recentToolRuns: z.array(ToolRunSchema),
   skills: z.array(AgentSkillSchema),
@@ -240,9 +281,11 @@ export const CreateAutomationRequestSchema = z.object({
   trigger: z.string().min(1).max(200),
   triggerType: z.enum(["schedule", "message", "webhook", "email", "file", "manual"]),
   action: z.string().min(1).max(200),
-  actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser"]),
+  actionType: z.enum(["send_email", "call_ai", "shell", "api_call", "notify", "browser", "tool_call"]),
   agentModel: z.string().optional(),
   actionPluginId: z.string().optional(),
+  actionToolId: z.string().optional(),
+  actionInput: z.record(z.string(), z.unknown()).optional(),
   systemPrompt: z.string().max(500).optional(),
 });
 
@@ -332,6 +375,9 @@ export type Plugin = z.infer<typeof PluginSchema>;
 export type PluginConfigRequest = z.infer<typeof PluginConfigRequestSchema>;
 export type PluginConfigResponse = z.infer<typeof PluginConfigResponseSchema>;
 export type Automation = z.infer<typeof AutomationSchema>;
+export type AutomationRun = z.infer<typeof AutomationRunSchema>;
+export type Task = z.infer<typeof TaskSchema>;
+export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>;
 export type ToolDefinition = z.infer<typeof ToolDefinitionSchema>;
 export type ToolRun = z.infer<typeof ToolRunSchema>;
 export type AgentPlanStep = z.infer<typeof AgentPlanStepSchema>;

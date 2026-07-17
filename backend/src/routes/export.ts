@@ -16,14 +16,14 @@ function toMarkdown(a: NonNullable<ReturnType<typeof getAnalysis>>): string {
     `## Fields`,
     ...a.fields.map(
       (f) =>
-        `- **${f.name}** (${f.type}): ${f.label}${f.missing ? " ⚠ missing" : ""}`,
+        `- **${f.name}** (${f.type}): ${f.label}${f.missing ? " [missing]" : ""}`,
     ),
     ``,
     `## Workflow Stages`,
     a.workflowStages.join(" → "),
     ``,
     `## Problems`,
-    ...a.problems.map((p) => `- ⚠ ${p}`),
+    ...a.problems.map((p) => `- [problem] ${p}`),
     ``,
     `## Automation Rules`,
     ...a.automationRules.map(

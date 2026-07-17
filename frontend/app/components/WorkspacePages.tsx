@@ -21,6 +21,7 @@ import type {
 import { fetchJson } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
+import { useToast } from "../lib/toast-context";
 
 import { animate, stagger, spring } from "../lib/anime";
 
@@ -702,6 +703,17 @@ export function PluginsPage() {
     }
   }
 
+  async function testPluginConfig() {
+    if (!configPlugin) return;
+    setPluginMessage("正在发送测试消息...");
+    try {
+      await fetchJson(`/plugins/${configPlugin.id}/test`, { method: "POST" });
+      setPluginMessage("测试消息已发送，请到对应群聊确认");
+    } catch (error) {
+      setPluginMessage(error instanceof Error ? `测试失败：${error.message.slice(0, 120)}` : "测试失败");
+    }
+  }
+
   async function toggleTool(tool: ToolDefinition) {
     const nextStatus = tool.status === "enabled" ? "disabled" : "enabled";
     try {
@@ -952,6 +964,7 @@ export function PluginsPage() {
               ))}
               <div className="settings-card-actions">
                 <button className="page-primary-button" onClick={savePluginConfig} type="button">保存配置</button>
+                <button className="page-secondary-button" onClick={testPluginConfig} disabled={!pluginConfig.configured} type="button">发送测试</button>
                 <button className="page-secondary-button" onClick={() => setConfigPlugin(null)} type="button">关闭</button>
               </div>
               {pluginMessage && <div className="settings-test-result">{pluginMessage}</div>}
@@ -966,6 +979,7 @@ export function PluginsPage() {
 export function AutomationPage() {
   const router = useRouter();
   const { workspace, refresh } = useWorkspace();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [enterpriseFilter, setEnterpriseFilter] = useState("全部");
   const [statusFilter, setStatusFilter] = useState("全部");
@@ -1020,8 +1034,10 @@ export function AutomationPage() {
         body: JSON.stringify({ source: "ui" }),
       });
       await refresh();
-    } catch (e) {
-      console.error("运行自动化失败", e);
+      showToast("自动化测试运行成功", "success");
+    } catch {
+      await refresh();
+      showToast("自动化执行失败，请查看卡片上的失败原因", "error");
     }
   }
 
@@ -1041,6 +1057,7 @@ export function AutomationPage() {
     api_call: "API 调用",
     notify: "通知",
     browser: "浏览器",
+    tool_call: "业务工具",
   };
 
   function modelLabel(id: string) {
@@ -1134,11 +1151,9 @@ export function AutomationPage() {
                   >
                     编辑
                   </button>
-                  {automation.triggerType === "manual" && (
-                    <button className="page-secondary-button" onClick={() => runAutomation(automation.id)} type="button">
-                      运行
-                    </button>
-                  )}
+                  <button className="page-secondary-button" onClick={() => runAutomation(automation.id)} disabled={!automation.enabled} title={automation.enabled ? "执行一次并记录结果" : "请先启用工作流"} type="button">
+                    测试运行
+                  </button>
                   <button className="page-secondary-button" onClick={() => toggle(automation)} type="button">
                     {automation.enabled ? "暂停" : "启用"}
                   </button>
@@ -1183,6 +1198,13 @@ export function AutomationPage() {
                 </div>
               )}
 
+              {automation.triggerType === "webhook" && automation.webhookSecret && (
+                <div className="workflow-webhook-info">
+                  <code>POST /api/automations/{automation.id}/webhook</code>
+                  <code>x-efh-webhook-secret: {automation.webhookSecret}</code>
+                </div>
+              )}
+
               <div className="workflow-card-footer">
                 <span className="workflow-stat">
                   运行 <strong>{automation.runCount}</strong> 次
@@ -1190,6 +1212,12 @@ export function AutomationPage() {
                 <span className="workflow-stat">
                   上次 {formatLastRun(automation.lastRun)}
                 </span>
+                {automation.lastStatus && (
+                  <span className={`workflow-run-result ${automation.lastStatus}`} title={automation.lastError || automation.lastOutput}>
+                    {automation.lastStatus === "success" ? "成功" : `失败：${automation.lastError?.slice(0, 80) || "执行器返回错误"}`}
+                    {automation.lastDurationMs !== undefined ? ` · ${automation.lastDurationMs}ms` : ""}
+                  </span>
+                )}
               </div>
             </div>
           );

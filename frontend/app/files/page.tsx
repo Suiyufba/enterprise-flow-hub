@@ -28,7 +28,13 @@ export default function FilesPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const projectOptions = workspace.projects.filter((project) => project.enterpriseId === enterpriseId);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!selectedProjectId && projectOptions[0]) setSelectedProjectId(projectOptions[0].id);
+  }, [projectOptions, selectedProjectId]);
   const load = useCallback(async () => {
     if (!enterpriseId) return;
     setLoading(true);
@@ -47,16 +53,20 @@ export default function FilesPage() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!selectedProjectId) {
+      showToast("请先选择文件所属项目", "error");
+      e.target.value = "";
+      return;
+    }
     setUploading(true);
     try {
       const form = new FormData();
+      form.append("relatedType", "project");
+      form.append("relatedId", selectedProjectId);
       form.append("file", file);
-      form.append("enterpriseId", enterpriseId!);
-      const headers: Record<string, string> = { "x-user-id": user?.id ?? "" };
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+      const headers: Record<string, string> = {};
       const storedToken = typeof window !== "undefined" ? localStorage.getItem("efh_token") : null;
-      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-      else if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
+      if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
       const res = await fetch(`${apiUrl}/files/upload`, {
         method: "POST",
         body: form,
@@ -69,16 +79,15 @@ export default function FilesPage() {
       showToast("上传失败", "error");
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
   }
 
   async function handleDownload(fileId: string, filename: string) {
     try {
-      const headers: Record<string, string> = { "x-user-id": user?.id ?? "" };
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY;
+      const headers: Record<string, string> = {};
       const storedToken = typeof window !== "undefined" ? localStorage.getItem("efh_token") : null;
-      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
-      else if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
+      if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
       const res = await fetch(`${apiUrl}/files/${fileId}/download`, { headers });
       if (!res.ok) { showToast("下载失败", "error"); return; }
       const blob = await res.blob();
@@ -97,6 +106,7 @@ export default function FilesPage() {
     { key: "filename", label: "文件名" },
     { key: "mimeType", label: "类型" },
     { key: "size", label: "大小", render: (f: FileRecord) => formatSize(f.size) },
+    { key: "relatedId", label: "所属项目", render: (f: FileRecord) => workspace.projects.find((project) => project.id === f.relatedId)?.name || "未归档" },
     { key: "createdAt", label: "上传时间" },
     {
       key: "actions",
@@ -119,17 +129,15 @@ export default function FilesPage() {
         <PageHeader
           title="文件管理"
           description="上传和管理企业文件"
-          actions={
-            <button
-              className="page-primary-button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              type="button"
-              style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)" }}
-            >
-              {uploading ? "上传中..." : "+ 上传文件"}
+          actions={<div className="page-header-controls">
+            <select className="page-input compact-select" value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} aria-label="文件所属项目">
+              <option value="">选择所属项目</option>
+              {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+            <button className="page-primary-button" onClick={() => fileInputRef.current?.click()} disabled={uploading || !selectedProjectId} type="button">
+              {uploading ? "上传中..." : "上传文件"}
             </button>
-          }
+          </div>}
         />
         <input
           ref={fileInputRef}

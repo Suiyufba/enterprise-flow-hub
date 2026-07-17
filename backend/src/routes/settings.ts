@@ -16,6 +16,7 @@ import {
   updatePersona,
   updateProvider,
 } from "../store.js";
+import { requireAdminActor } from "./auth-context.js";
 
 const CreateProviderSchema = z.object({
   name: z.string().min(1).max(60),
@@ -62,6 +63,9 @@ const GeneratePromptSchema = z.object({
 });
 
 export async function settingsRoutes(app: FastifyInstance) {
+  app.addHook("preHandler", async (request, reply) => {
+    requireAdminActor(request, reply);
+  });
   // Providers
   app.get("/settings/providers", async () => ({ providers: listProviders() }));
 

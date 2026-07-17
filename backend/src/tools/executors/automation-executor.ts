@@ -1,7 +1,7 @@
 import { createAutomation } from "../../store.js";
 
 export async function automationExecute(input: Record<string, unknown>): Promise<string> {
-  const projectId = typeof input.projectId === "string" ? input.projectId : "";
+  const projectId = typeof input._projectId === "string" ? input._projectId : (typeof input.projectId === "string" ? input.projectId : "");
   const name = typeof input.name === "string" ? input.name : "";
   const trigger = typeof input.trigger === "string" ? input.trigger : "";
   const triggerType = typeof input.triggerType === "string" &&
@@ -10,11 +10,13 @@ export async function automationExecute(input: Record<string, unknown>): Promise
     : "schedule";
   const action = typeof input.action === "string" ? input.action : "";
   const actionType = typeof input.actionType === "string" &&
-    ["send_email", "call_ai", "shell", "api_call", "notify", "browser"].includes(input.actionType)
-    ? input.actionType as "send_email" | "call_ai" | "shell" | "api_call" | "notify" | "browser"
+    ["call_ai", "notify", "tool_call"].includes(input.actionType)
+    ? input.actionType as "call_ai" | "notify" | "tool_call"
     : "call_ai";
   const agentModel = typeof input.agentModel === "string" ? input.agentModel : undefined;
   const actionPluginId = typeof input.actionPluginId === "string" ? input.actionPluginId : undefined;
+  const actionToolId = typeof input.actionToolId === "string" ? input.actionToolId : undefined;
+  const actionInput = input.actionInput && typeof input.actionInput === "object" ? input.actionInput as Record<string, unknown> : undefined;
   const systemPrompt = typeof input.systemPrompt === "string" ? input.systemPrompt : undefined;
 
   if (!projectId || !name.trim() || !trigger.trim() || !action.trim()) {
@@ -28,7 +30,7 @@ export async function automationExecute(input: Record<string, unknown>): Promise
   try {
     const automation = createAutomation({
       projectId, name, trigger, triggerType, action, actionType,
-      agentModel, actionPluginId, systemPrompt,
+      agentModel, actionPluginId, actionToolId, actionInput, systemPrompt,
     });
     if (!automation) {
       return JSON.stringify({ error: "创建失败，项目不存在" });

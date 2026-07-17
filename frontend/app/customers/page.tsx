@@ -42,7 +42,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [enterpriseId, page, search, statusFilter, showToast]);
+  }, [enterpriseId, page, search, statusFilter, showToast, user?.id]);
 
   useEffect(() => { load(); }, [load]);
 

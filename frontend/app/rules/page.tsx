@@ -19,15 +19,40 @@ type RuleRow = {
   enabled: boolean;
 };
 
-const objectTypes = ["customer", "supplier", "product", "order", "file", "project"];
+const objectTypes = ["customer", "supplier", "product", "order", "payment", "invoice", "file", "project"];
 const triggerEvents = ["create", "update", "delete", "status_change"];
-const actionTypes = ["notify", "send_email", "call_ai", "api_call", "shell", "update_status"];
+const actionTypes = ["notify", "create_task", "set_field", "trigger_automation"];
+const tableByObject: Record<string, string> = {
+  customer: "customers", order: "orders", payment: "payments", invoice: "invoices",
+};
+const statusOptionsByObject: Record<string, Array<{ value: string; label: string }>> = {
+  customer: [
+    { value: "lead", label: "潜在线索" }, { value: "active", label: "活跃客户" },
+    { value: "inactive", label: "非活跃" }, { value: "lost", label: "已流失" },
+  ],
+  order: [
+    { value: "draft", label: "草稿" }, { value: "confirmed", label: "已确认" },
+    { value: "processing", label: "处理中" }, { value: "shipped", label: "已发货" },
+    { value: "delivered", label: "已交付" }, { value: "cancelled", label: "已取消" },
+  ],
+  payment: [
+    { value: "pending", label: "待收款" }, { value: "completed", label: "已到账" },
+    { value: "failed", label: "失败" }, { value: "refunded", label: "已退款" },
+  ],
+  invoice: [
+    { value: "draft", label: "草稿" }, { value: "issued", label: "已开具" },
+    { value: "paid", label: "已支付" }, { value: "overdue", label: "已逾期" },
+    { value: "cancelled", label: "已作废" },
+  ],
+};
 
 const objectTypeLabels: Record<string, string> = {
   customer: "客户",
   supplier: "供应商",
   product: "商品",
   order: "订单",
+  payment: "付款",
+  invoice: "发票",
   file: "文件",
   project: "项目",
 };
@@ -41,11 +66,10 @@ const triggerEventLabels: Record<string, string> = {
 
 const actionTypeLabels: Record<string, string> = {
   notify: "发送通知",
-  send_email: "发送邮件",
-  call_ai: "AI 分析",
-  api_call: "调用 API",
-  shell: "执行脚本",
-  update_status: "更新状态",
+  create_task: "创建待办",
+  set_field: "更新状态字段",
+  trigger_approval: "发起审批",
+  trigger_automation: "触发自动化",
 };
 
 export default function RulesPage() {
@@ -86,11 +110,28 @@ export default function RulesPage() {
   const [actionType, setActionType] = useState("notify");
   const [actionConfig, setActionConfig] = useState("");
   const [saving, setSaving] = useState(false);
+  const configuredNotificationPlugins = workspace.plugins.filter((plugin) =>
+    ["plugin-feishu", "plugin-wecom"].includes(plugin.id) && plugin.enabled && plugin.configured,
+  );
+  const enterpriseAutomations = workspace.automations.filter((automation) =>
+    workspace.projects.some((project) => project.id === automation.projectId && project.enterpriseId === enterpriseId),
+  );
 
   async function createRule() {
     if (!name.trim() || !enterpriseId) return;
     setSaving(true);
     try {
+      if (actionType === "notify" && configuredNotificationPlugins.length === 0) {
+        showToast("请先在插件页绑定并启用飞书或企业微信", "error");
+        return;
+      }
+      const config = actionType === "notify"
+        ? { message: actionConfig.trim() || `规则「${name.trim()}」已触发`, pluginId: configuredNotificationPlugins[0].id }
+        : actionType === "create_task"
+          ? { title: actionConfig.trim() || name.trim(), priority: "high" }
+          : actionType === "set_field"
+            ? { table: tableByObject[objectType], field: "status", value: actionConfig.trim() }
+            : { automationId: actionConfig.trim() };
       await fetchJson("/rules", {
         method: "POST",
         body: JSON.stringify({
@@ -100,7 +141,7 @@ export default function RulesPage() {
           objectType,
           triggerEvent,
           actionType,
-          actionConfig: actionConfig.trim() ? { message: actionConfig.trim() } : undefined,
+          actionConfig: config,
         }),
         adminUserId: user?.id,
       });
@@ -166,7 +207,13 @@ export default function RulesPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <div>
                   <label className="form-label" style={{ fontSize: 12, color: "var(--c-8c8c8c)" }}>对象类型</label>
-                  <select className="page-input" value={objectType} onChange={(e) => setObjectType(e.target.value)}>
+                  <select className="page-input" value={objectType} onChange={(e) => {
+                    setObjectType(e.target.value);
+                    if (actionType === "set_field") {
+                      setActionConfig("");
+                      if (!tableByObject[e.target.value]) setActionType("notify");
+                    }
+                  }}>
                     {objectTypes.map((t) => <option key={t} value={t}>{objectTypeLabels[t] ?? t}</option>)}
                   </select>
                 </div>
@@ -180,14 +227,37 @@ export default function RulesPage() {
 
               <div>
                 <label className="form-label" style={{ fontSize: 12, color: "var(--c-8c8c8c)" }}>动作类型</label>
-                <select className="page-input" value={actionType} onChange={(e) => setActionType(e.target.value)}>
-                  {actionTypes.map((t) => <option key={t} value={t}>{actionTypeLabels[t] ?? t}</option>)}
+                <select className="page-input" value={actionType} onChange={(e) => { setActionType(e.target.value); setActionConfig(""); }}>
+                  {actionTypes.filter((type) => type !== "set_field" || Boolean(tableByObject[objectType])).map((t) => <option key={t} value={t}>{actionTypeLabels[t] ?? t}</option>)}
                 </select>
               </div>
 
-              <input className="page-input" value={actionConfig} onChange={(e) => setActionConfig(e.target.value)} placeholder="动作参数，如通知内容" />
+              {actionType === "trigger_automation" ? (
+                <select className="page-input" value={actionConfig} onChange={(e) => setActionConfig(e.target.value)}>
+                  <option value="">选择要触发的自动化...</option>
+                  {enterpriseAutomations.map((automation) => <option key={automation.id} value={automation.id}>{automation.name}</option>)}
+                </select>
+              ) : actionType === "set_field" ? (
+                <select className="page-input" value={actionConfig} onChange={(e) => setActionConfig(e.target.value)}>
+                  <option value="">选择目标状态...</option>
+                  {(statusOptionsByObject[objectType] ?? []).map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="page-input"
+                  value={actionConfig}
+                  onChange={(e) => setActionConfig(e.target.value)}
+                  placeholder={actionType === "notify" ? "通知内容" : actionType === "create_task" ? "待办标题" : "目标状态值"}
+                />
+              )}
 
-              <button className="page-primary-button" onClick={createRule} disabled={saving || !name.trim()} type="button">
+              {actionType === "notify" && configuredNotificationPlugins.length === 0 && (
+                <p className="wf-config-warning">通知规则需要先在插件页绑定并启用飞书或企业微信群机器人。</p>
+              )}
+
+              <button className="page-primary-button" onClick={createRule} disabled={saving || !name.trim() || (["trigger_automation", "set_field"].includes(actionType) && !actionConfig)} type="button">
                 {saving ? "创建中..." : "确认创建"}
               </button>
             </div>
