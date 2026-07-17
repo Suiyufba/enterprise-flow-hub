@@ -26,6 +26,7 @@ const { dashboardRoutes } = await import("../src/routes/dashboard.js");
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
 registerTool("tool-business-query", businessQueryExecute);
+registerTool("tool-csv-profile", csvProfile);
 
 after(() => dbModule.closeDb());
 
@@ -124,12 +125,16 @@ test("table MCP reads a project upload and parses quoted CSV cells", async () =>
     relatedType: "project",
     relatedId: "proj-qihang-growth",
   });
-  const profile = JSON.parse(await csvProfile({
-    _enterpriseId: "ent-qihang",
-    _projectId: "proj-qihang-growth",
-    fileId: file.id,
-    sampleRows: 10,
-  }));
+  const run = await store.runTool("tool-csv-profile", {
+    input: {
+      _enterpriseId: "ent-qihang",
+      _projectId: "proj-qihang-growth",
+      fileId: file.id,
+      sampleRows: 10,
+    },
+  });
+  assert.equal(run?.status, "success");
+  const profile = JSON.parse(run?.output ?? "{}");
   assert.equal(profile.ok, true);
   assert.deepEqual(profile.headers, ["name", "phone", "note"]);
   assert.deepEqual(profile.sampleRows[0], ["Alice, A", "13800000000", "priority, lead"]);
@@ -143,6 +148,33 @@ test("upload storage follows the persistent database volume", () => {
     "/mnt/files",
   );
   assert.equal(getUploadRoot({}, "/app/backend"), "/app/backend/data/uploads");
+});
+
+test("write tools never mutate data during a default dry run", async () => {
+  const before = (db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n;
+  const run = await store.runTool("tool-business-action", {
+    input: { _enterpriseId: "ent-qihang", operation: "create_task", title: "不应创建" },
+  });
+  assert.equal(run?.status, "success");
+  assert.deepEqual(JSON.parse(run?.output ?? "{}"), {
+    ok: true,
+    dryRun: true,
+    toolId: "tool-business-action",
+    message: "预览已通过，未执行任何写入或外部通知",
+  });
+  const after = (db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n;
+  assert.equal(after, before);
+});
+
+test("tools without an executor fail instead of generating simulated output", async () => {
+  const run = await store.runTool("tool-mcp-company-context", {
+    input: { _enterpriseId: "ent-qihang", _projectId: "proj-qihang-growth" },
+  });
+  assert.equal(run?.status, "error");
+  assert.deepEqual(JSON.parse(run?.output ?? "{}"), {
+    ok: false,
+    error: "工具 项目上下文 MCP 尚未接入执行器",
+  });
 });
 
 test("tool errors are recorded as errors rather than successful runs", async () => {

@@ -1,7 +1,6 @@
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { runAgentKernel, type AgentRuntimeProvider } from "./agent/kernel.js";
 import { getRuntime } from "./agent/runtime.js";
-import { aiChat } from "./ai/client.js";
 import { getExecutor } from "./tools/registry.js";
 import type {
   AddMessageRequest,
@@ -835,45 +834,25 @@ export function setToolStatus(id: string, status: ToolDefinition["status"]): Too
   return { ...tool, status };
 }
 
-async function simulateToolOutput(tool: ToolDefinition, input: Record<string, unknown>, dryRun: boolean): Promise<string> {
-  const mode = dryRun ? "dry-run" : "live";
-
-  // Try real executor first (live mode)
-  if (!dryRun) {
-    const executor = getExecutor(tool.id);
-    if (executor) {
-      try {
-        const output = await executor(input);
-        return output;
-      } catch (e) {
-        return JSON.stringify({ error: e instanceof Error ? e.message : "Executor failed" });
-      }
-    }
+async function executeToolOutput(tool: ToolDefinition, input: Record<string, unknown>, dryRun: boolean): Promise<string> {
+  const executor = getExecutor(tool.id);
+  if (!executor) {
+    return JSON.stringify({ ok: false, error: `工具 ${tool.name} 尚未接入执行器` });
   }
 
-  // Fallback: AI-simulated output
-  try {
-    const prompt = typeof input.prompt === "string" ? input.prompt : JSON.stringify(input);
-    const result = await aiChat({
-      systemPrompt: `你是工具执行 Agent，负责模拟工具 ${tool.name}（${tool.kind}）的执行结果。根据用户输入给出具体、有用的输出，不要只说"已执行"。
-工具描述：${tool.description}
-示例提示：${tool.examplePrompt}`,
-      userMessage: prompt,
-      temperature: 0.5,
-      maxTokens: 1024,
+  if (dryRun && tool.risk !== "read_only") {
+    return JSON.stringify({
+      ok: true,
+      dryRun: true,
+      toolId: tool.id,
+      message: "预览已通过，未执行任何写入或外部通知",
     });
-    return `[${mode}] ${result}`;
-  } catch {
-    if (tool.kind === "cli") {
-      return `[${mode}] CLI adapter would run a sandboxed parser for ${tool.name}.`;
-    }
-    if (tool.kind === "mcp") {
-      return `[${mode}] MCP adapter would expose scoped enterprise context through tool ${tool.id}.`;
-    }
-    if (tool.kind === "browser") {
-      return `[${mode}] Browser adapter would open the target page and return structured observations.`;
-    }
-    return `[${mode}] HTTP adapter would call a configured webhook with a signed payload.`;
+  }
+
+  try {
+    return await executor(input);
+  } catch (error) {
+    return JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "工具执行失败" });
   }
 }
 
@@ -886,7 +865,7 @@ export async function runTool(toolId: string, input: RunToolRequest): Promise<To
   const dryRun = input.dryRun ?? true;
   const output = tool.status === "disabled"
     ? `Tool ${tool.name} is disabled.`
-    : await simulateToolOutput(tool, input.input, dryRun);
+    : await executeToolOutput(tool, input.input, dryRun);
   let status: ToolRun["status"] = tool.status === "disabled" ? "error" : "success";
   if (status === "success") {
     try {
