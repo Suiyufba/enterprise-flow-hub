@@ -13,7 +13,6 @@ const scheduler = await import("../src/automation/scheduler.js");
 const { businessActionExecute } = await import("../src/tools/executors/business-action.js");
 const { businessQueryExecute } = await import("../src/tools/executors/business-query.js");
 const { automationExecute } = await import("../src/tools/executors/automation-executor.js");
-const { buildToolLimitReply } = await import("../src/agent/run-fallback.js");
 const { notifyExecute } = await import("../src/tools/executors/notify.js");
 const { browserCheckExecute } = await import("../src/tools/executors/browser-check.js");
 const { csvProfile } = await import("../src/tools/executors/csv-profile.js");
@@ -242,17 +241,6 @@ test("business MCP queries are enterprise scoped and writes are persisted", asyn
       || (previous.completed_payment_amount === current.completed_payment_amount && previous.order_amount >= current.order_amount),
     );
   }
-  const limitReply = buildToolLimitReply("找一下客户里最有价值的", [{
-    id: "run-customer-value",
-    toolId: "tool-business-query",
-    status: "success",
-    input: { resource: "customer_value" },
-    output: JSON.stringify(customerValue),
-    createdAt: new Date().toISOString(),
-  }]);
-  assert.match(limitReply, /当前最有价值的客户/);
-  assert.match(limitReply, /全.*客户完成聚合/);
-
   const customer = JSON.parse(await businessActionExecute({
     _enterpriseId: "ent-qihang", operation: "create_customer", name: "测试客户", phone: "13812345678", gender: "female", tags: ["重点", "重点", "已联系"], status: "lead",
   }));

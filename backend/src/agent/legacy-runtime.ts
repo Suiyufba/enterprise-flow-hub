@@ -31,7 +31,6 @@ export class LegacyAgentRuntime implements AgentRuntime {
           dryRun: options.dryRun,
         });
       },
-      maxTurns: 10,
     });
 
     return {

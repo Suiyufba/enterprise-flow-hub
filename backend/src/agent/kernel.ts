@@ -48,7 +48,6 @@ export type AgentKernelInput = {
     input: Record<string, unknown>,
     options: { dryRun: boolean; reason: string },
   ) => Promise<ToolRun | undefined>;
-  maxTurns?: number;
 };
 
 export type AgentKernelResult = {
@@ -139,7 +138,7 @@ export function buildSystemPrompt(input: AgentKernelInput): string {
     "- 统计总量时把 limit 设为 1 并只读取 total，不要为了计数分页拉取明细。查询逾期发票必须使用 resource=invoices、status=overdue、limit=1，total 就是精确逾期数；禁止按返回的明细自行估算。",
     "- 用户询问客户是否重复时，必须使用 resource=customer_duplicates。summary.scannedCustomers 是当前项目完整扫描数，重复组总数不受 limit 影响；禁止从 customers 的分页 items 判断项目内无重复。电话/邮箱是强重复证据，同名只能报告为待确认候选。",
     "- 用户询问最有价值客户、重点客户、最大客户或客户排名时，必须使用 resource=customer_value（通常 limit=10）。该资源在数据库内对当前项目客户、订单、已回款和应收完成聚合；禁止分页拉取 customers 和 orders 后自行拼接。",
-    "- 同一个参数完全相同的工具调用只允许执行一次。通常 1-3 次查询就应形成回答，最多使用 6 次工具；拿到足够证据后立即给出最终结论，不要用过程说明结束回复。",
+    "- 同一个参数完全相同的工具调用只允许执行一次；拿到足够证据后立即给出最终结论，不要用过程说明结束回复。",
     "",
     "### tool-business-action（业务操作 MCP）",
     "- 用途：创建客户或待办，更新客户资料或客户/订单/发票状态，按电话安全合并重复客户。",
@@ -210,7 +209,7 @@ export function buildSystemPrompt(input: AgentKernelInput): string {
     "- 只能使用当前 Skill 授权的工具；不要建议或假装调用未出现在工具列表中的能力。",
     "- 不要操作 settings、login、auth 相关路径。",
     "- 飞书通知工具未配置时不要强行使用，告诉用户去插件页配置。",
-    "- 单次对话最多 10 轮工具调用，若未完成则总结进度并建议缩小范围。",
+    "- 工具调用次数不设预算。持续执行到任务完成、模型自然结束、用户取消或服务超时为止。",
   ].filter(Boolean).join("\n");
 }
 
@@ -243,9 +242,7 @@ export async function runAgentKernel(input: AgentKernelInput): Promise<AgentKern
   const thinkProvider = input.thinkingProvider
     ? toProviderOptions(input.thinkingProvider)
     : undefined;
-  const maxTurns = input.maxTurns ?? 10;
-
-  for (let turn = 0; turn < maxTurns; turn += 1) {
+  for (let turn = 0; ; turn += 1) {
     // Use thinking provider for the first turn (planning/reasoning), then switch to default
     const activeProvider = turn === 0 && thinkProvider ? thinkProvider : defaultProvider;
     const resp = await aiChatMessages(messages, {
@@ -317,8 +314,4 @@ export async function runAgentKernel(input: AgentKernelInput): Promise<AgentKern
     }
   }
 
-  return {
-    content: "已执行多轮工具调用，任务可能未完全完成。请缩小范围后重试。",
-    toolRuns,
-  };
 }
