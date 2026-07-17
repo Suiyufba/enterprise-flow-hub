@@ -20,7 +20,14 @@ export class LegacyAgentRuntime implements AgentRuntime {
         // Import dynamically to avoid circular deps at module level
         const { runTool } = await import("../store.js");
         return runTool(toolId, {
-          input: { ...toolInput, _agentReason: options.reason },
+          // Match the Claude Code runtime: the conversation scope is authoritative.
+          input: {
+            ...toolInput,
+            _enterpriseId: input.context.enterpriseId,
+            _projectId: input.context.projectId,
+            _conversationId: input.sessionId,
+            _agentReason: options.reason,
+          },
           dryRun: options.dryRun,
         });
       },
