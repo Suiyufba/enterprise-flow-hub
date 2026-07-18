@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { format } from "node:util";
 import {
   defaultToolNames,
   LarkMcpTool,
@@ -9,6 +10,14 @@ import {
   TokenMode,
   type ToolName,
 } from "@larksuiteoapi/lark-mcp/dist/mcp-tool/index.js";
+
+// The MCP stdio transport reserves stdout for JSON-RPC frames. The official
+// SDK emits startup diagnostics through console.*, so route those diagnostics
+// to stderr before it is initialized; otherwise Claude Code rejects the MCP
+// server as a malformed protocol stream.
+for (const method of ["log", "info", "warn", "error"] as const) {
+  console[method] = (...args: unknown[]) => process.stderr.write(`${format(...args)}\n`);
+}
 
 const appId = process.env.FEISHU_APP_ID?.trim();
 const appSecret = process.env.FEISHU_APP_SECRET?.trim();
