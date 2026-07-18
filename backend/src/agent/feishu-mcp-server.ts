@@ -1,6 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { AllToolsZh, LarkMcpTool, type ToolName, TokenMode } from "@larksuiteoapi/lark-mcp/dist/mcp-tool/index.js";
+import {
+  defaultToolNames,
+  LarkMcpTool,
+  presetBaseRecordBatchToolNames,
+  presetCalendarToolNames,
+  presetTaskToolNames,
+  TokenMode,
+  type ToolName,
+} from "@larksuiteoapi/lark-mcp/dist/mcp-tool/index.js";
 
 const appId = process.env.FEISHU_APP_ID?.trim();
 const appSecret = process.env.FEISHU_APP_SECRET?.trim();
@@ -11,6 +19,12 @@ if (!appId || !appSecret) {
 
 const userAccessToken = process.env.FEISHU_USER_ACCESS_TOKEN?.trim();
 const tokenMode = userAccessToken ? TokenMode.USER_ACCESS_TOKEN : TokenMode.AUTO;
+const enabledTools = Array.from(new Set([
+  ...defaultToolNames,
+  ...presetBaseRecordBatchToolNames,
+  ...presetTaskToolNames,
+  ...presetCalendarToolNames,
+]));
 const larkTool = new LarkMcpTool({
   appId,
   appSecret,
@@ -18,8 +32,8 @@ const larkTool = new LarkMcpTool({
   tokenMode,
   toolsOptions: {
     language: "zh",
-    // The official MCP has no preset.all; expose its complete generated tool list.
-    allowTools: AllToolsZh.map((tool) => tool.name as ToolName),
+    // Keep the app's granted scopes intact while avoiding 1,291 schemas in every chat context.
+    allowTools: enabledTools as ToolName[],
   },
 });
 
