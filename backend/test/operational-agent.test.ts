@@ -15,6 +15,7 @@ const { businessQueryExecute } = await import("../src/tools/executors/business-q
 const { automationExecute } = await import("../src/tools/executors/automation-executor.js");
 const { notifyExecute } = await import("../src/tools/executors/notify.js");
 const { browserCheckExecute } = await import("../src/tools/executors/browser-check.js");
+const { companyContextExecute } = await import("../src/tools/executors/company-context.js");
 const { csvProfile } = await import("../src/tools/executors/csv-profile.js");
 const { createFile, getUploadRoot } = await import("../src/store/files.js");
 const { registerTool } = await import("../src/tools/registry.js");
@@ -32,6 +33,7 @@ const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
 registerTool("tool-business-query", businessQueryExecute);
+registerTool("tool-mcp-company-context", companyContextExecute);
 registerTool("tool-csv-profile", csvProfile);
 
 after(() => dbModule.closeDb());
@@ -501,14 +503,39 @@ test("write tools never mutate data during a default dry run", async () => {
   assert.equal(after, before);
 });
 
-test("tools without an executor fail instead of generating simulated output", async () => {
-  const run = await store.runTool("tool-mcp-company-context", {
-    input: { _enterpriseId: "ent-qihang", _projectId: "proj-qihang-growth" },
-  });
-  assert.equal(run?.status, "error");
-  assert.deepEqual(JSON.parse(run?.output ?? "{}"), {
-    ok: false,
-    error: "工具 项目上下文 MCP 尚未接入执行器",
+test("company context searches the current project then same-enterprise public library items", async () => {
+  const now = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO library_items (id,enterprise_id,project_id,name,type,summary,visibility,created_at) VALUES (?,?,?,?,?,?,?,?)",
+  ).run("lib-context-public", "ent-qihang", "proj-qihang-daily", "王师傅", "note", "电话：11211110000", "public", now);
+  db.prepare(
+    "INSERT INTO library_items (id,enterprise_id,project_id,name,type,summary,visibility,created_at) VALUES (?,?,?,?,?,?,?,?)",
+  ).run("lib-context-private", "ent-qihang", "proj-qihang-daily", "王师傅私密", "note", "电话：13000000000", "private", now);
+  db.prepare(
+    "INSERT INTO library_items (id,enterprise_id,project_id,name,type,summary,visibility,created_at) VALUES (?,?,?,?,?,?,?,?)",
+  ).run("lib-context-other-enterprise", "ent-yunshan", "proj-yunshan-orders", "王师傅跨企业", "note", "电话：13900000000", "public", now);
+
+  const output = JSON.parse(await companyContextExecute({
+    _enterpriseId: "ent-qihang",
+    _projectId: "proj-qihang-growth",
+    query: "王师傅",
+  }));
+
+  assert.equal(output.ok, true);
+  assert.deepEqual(
+    output.libraryItems.map((item: { id: string }) => item.id),
+    ["lib-context-public"],
+  );
+  assert.deepEqual(output.libraryItems[0], {
+    id: "lib-context-public",
+    projectId: "proj-qihang-daily",
+    projectName: "顾问日报",
+    name: "王师傅",
+    type: "note",
+    summary: "电话：11211110000",
+    visibility: "public",
+    scope: "enterprise_public",
+    createdAt: now,
   });
 });
 
