@@ -170,6 +170,10 @@ export function buildSystemPrompt(input: AgentKernelInput): string {
     "- 用途：推送消息到飞书/企业微信群。",
     "- 限制：需要先在「插件」页面配置 Webhook 才能使用。如果未配置，告诉用户去设置。",
     "",
+    "### 飞书官方 MCP（已配置时可用）",
+    "- 飞书官方 OpenAPI MCP 配置完成后，可直接查询和操作飞书消息、文档、多维表格、任务、日历、审批与组织信息。它以 mcp__feishu__ 前缀暴露工具，不需要把飞书数据复制进 EFH。",
+    "- 先根据用户请求选择具体飞书工具；涉及删除、发送、修改权限、审批、人员或财务数据时，调用前必须在本轮清楚复述目标和影响范围。",
+    "",
     // ── Persona ──
     input.persona?.systemPrompt
       ? `## 当前角色\n${input.persona.systemPrompt}`

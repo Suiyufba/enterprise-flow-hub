@@ -17,6 +17,10 @@ services:
       AGENT_RUNTIME: ${AGENT_RUNTIME:-claude-code}
       AGENT_FALLBACK_RUNTIME: ${AGENT_FALLBACK_RUNTIME:-legacy}
       CLAUDE_CODE_WORKDIR: /data/claude-workdir
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      FEISHU_USER_ACCESS_TOKEN: ${FEISHU_USER_ACCESS_TOKEN:-}
+      FEISHU_DOMAIN: ${FEISHU_DOMAIN:-https://open.feishu.cn}
     volumes:
       - backend-data:/data
     ports:

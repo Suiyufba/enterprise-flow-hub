@@ -6,6 +6,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { ToolDefinition, ToolRun } from "shared";
 import { buildSystemPrompt, type AgentKernelInput } from "./kernel.js";
 import type { AgentRunEvent, AgentRunInput, AgentRunResult, AgentRuntime } from "./runtime.js";
@@ -88,6 +89,22 @@ function claudeEnvironment(baseUrl: string, apiKey: string, model: string): Node
     CLAUDE_CODE_SUBAGENT_MODEL: model,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
     DISABLE_TELEMETRY: "1",
+  };
+}
+
+function feishuMcpServer() {
+  const appId = process.env.FEISHU_APP_ID?.trim();
+  const appSecret = process.env.FEISHU_APP_SECRET?.trim();
+  if (!appId || !appSecret) return undefined;
+
+  const environment = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
+  return {
+    type: "stdio" as const,
+    command: process.execPath,
+    args: ["--import", "tsx", fileURLToPath(new URL("./feishu-mcp-server.ts", import.meta.url))],
+    env: environment,
   };
 }
 
@@ -184,7 +201,11 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       },
     }));
     const mcpServer = createSdkMcpServer({ name: "efh", version: "1.0.0", tools: mcpTools });
-    const allowedTools = enabledTools.map((definition) => `mcp__efh__${definition.id}`);
+    const feishuServer = feishuMcpServer();
+    const allowedTools = [
+      ...enabledTools.map((definition) => `mcp__efh__${definition.id}`),
+      ...(feishuServer ? ["mcp__feishu__*"] : []),
+    ];
     const model = input.provider.model;
     const baseUrl = providerBaseUrl(input.provider.baseUrl);
     const cwd = process.env.CLAUDE_CODE_WORKDIR ?? "/tmp/efh-agent";
@@ -200,7 +221,7 @@ export class ClaudeCodeRuntime implements AgentRuntime {
         cwd,
         env: claudeEnvironment(baseUrl, input.provider.apiKey, model),
         includePartialMessages: true,
-        mcpServers: { efh: mcpServer },
+        mcpServers: { efh: mcpServer, ...(feishuServer ? { feishu: feishuServer } : {}) },
         model,
         pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE || undefined,
         permissionMode: "dontAsk",
