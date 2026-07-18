@@ -31,6 +31,7 @@ const { crmRoutes } = await import("../src/routes/crm.js");
 const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
+const { isExplicitFeishuRequest, requiresFeishuGroupLookup } = await import("../src/agent/claude-code-runtime.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -60,6 +61,14 @@ test("agent kernel prioritizes the Feishu MCP for group-chat questions", () => {
   assert.match(prompt, /mcp__feishu__im_v1_chat_list/);
   assert.match(prompt, /mcp__feishu__im_v1_message_list/);
   assert.match(prompt, /资料库仅用于补充已归档的项目资料/);
+  assert.match(prompt, /飞书功能路由/);
+});
+
+test("Feishu group-chat requests activate the live Feishu lookup guard", () => {
+  assert.equal(isExplicitFeishuRequest("找一下飞书文档"), true);
+  assert.equal(requiresFeishuGroupLookup("飞书群里的大家在聊什么"), true);
+  assert.equal(requiresFeishuGroupLookup("看一下群聊记录"), true);
+  assert.equal(requiresFeishuGroupLookup("查询当前项目客户"), false);
 });
 
 test("fresh database applies all migrations and operational MCP definitions", () => {

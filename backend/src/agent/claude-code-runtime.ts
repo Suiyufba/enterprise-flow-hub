@@ -47,9 +47,21 @@ function historyPrompt(input: AgentRunInput): string {
     .map((message) => `${message.role === "user" ? "用户" : "Agent"}: ${message.content}`)
     .join("\n\n");
   return [
+    isExplicitFeishuRequest(input.userContent)
+      ? "硬性数据源规则：本轮用户明确要飞书数据。先调用对应的 mcp__feishu__ 工具，禁止以 EFH 资料库、历史对话或业务数据库的空结果替代飞书查询；只有飞书 MCP 实际返回空结果或错误后才能下结论。"
+      : "",
     history ? `以下是此前的站内对话记录：\n\n${history}` : "",
     `用户当前请求：\n${input.userContent}`,
   ].filter(Boolean).join("\n\n---\n\n");
+}
+
+export function isExplicitFeishuRequest(content: string): boolean {
+  return /飞书|lark/i.test(content);
+}
+
+export function requiresFeishuGroupLookup(content: string): boolean {
+  const normalized = content.toLocaleLowerCase();
+  return /飞书.*(?:群|群聊|群消息|聊天|聊天记录|消息)|(?:飞书群|飞书群聊|群里|群聊|群消息|聊天记录).*(?:聊什么|在聊|消息|记录|讨论|内容|飞书)/.test(normalized);
 }
 
 function kernelInput(input: AgentRunInput): AgentKernelInput {
@@ -140,8 +152,14 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       "tool-create-automation",
       ...input.skills.flatMap((skill) => skill.toolIds),
     ]);
+    const feishuGroupLookup = requiresFeishuGroupLookup(input.userContent);
     const enabledTools = input.tools.filter((definition) =>
-      definition.status === "enabled" && definition.risk !== "admin" && permittedToolIds.has(definition.id),
+      definition.status === "enabled"
+      && definition.risk !== "admin"
+      && permittedToolIds.has(definition.id)
+      // A request for live Feishu group content must not silently fall back to
+      // EFH's database or library. Those sources are not a replica of Feishu.
+      && (!feishuGroupLookup || !["tool-business-query", "tool-mcp-company-context"].includes(definition.id)),
     );
     const mcpTools: SdkMcpToolDefinition[] = enabledTools.map((definition) => ({
       name: definition.id,

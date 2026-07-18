@@ -20,12 +20,27 @@ if (!appId || !appSecret) {
 const userAccessToken = process.env.FEISHU_USER_ACCESS_TOKEN?.trim();
 const tokenMode = userAccessToken ? TokenMode.USER_ACCESS_TOKEN : TokenMode.AUTO;
 const requiredReadTools: ToolName[] = ["tenant.v2.tenant.query"];
+// Keep the interactive MCP focused, but cover the normal read paths a business
+// agent needs. The full official surface is intentionally not injected into
+// every chat because its generated schemas are far too large for reliable use.
+const collaborationReadTools: ToolName[] = [
+  "im.v1.chat.get", "im.v1.chat.search", "im.v1.message.get", "im.v1.messageReaction.list",
+  "drive.v1.file.list", "drive.v1.meta.batchQuery",
+  "contact.v3.user.get", "contact.v3.user.list", "contact.v3.user.findByDepartment",
+  "contact.v3.department.get", "contact.v3.department.list", "contact.v3.department.search",
+  "task.v2.task.get", "task.v2.task.list", "task.v2.tasklist.get", "task.v2.tasklist.list",
+  "task.v2.tasklist.tasks", "task.v2.comment.list",
+  "calendar.v4.calendar.get", "calendar.v4.calendar.list", "calendar.v4.calendarEvent.list", "calendar.v4.calendarEvent.search",
+  "approval.v4.instance.get", "approval.v4.instance.list", "approval.v4.instance.query",
+  "approval.v4.task.query", "approval.v4.task.search",
+];
 const enabledTools = Array.from(new Set([
   ...defaultToolNames,
   ...presetBaseRecordBatchToolNames,
   ...presetTaskToolNames,
   ...presetCalendarToolNames,
   ...requiredReadTools,
+  ...collaborationReadTools,
 ]));
 const larkTool = new LarkMcpTool({
   appId,
