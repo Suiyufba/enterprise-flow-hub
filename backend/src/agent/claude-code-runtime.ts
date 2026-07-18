@@ -9,6 +9,7 @@ import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ToolDefinition, ToolRun } from "shared";
 import { buildSystemPrompt, type AgentKernelInput } from "./kernel.js";
+import { formatFeishuGroupActivity, readFeishuGroupActivity } from "./feishu-chat.js";
 import type { AgentRunEvent, AgentRunInput, AgentRunResult, AgentRuntime } from "./runtime.js";
 
 const CLAUDE_CODE_VERSION = "2.1.87";
@@ -142,6 +143,45 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       return;
     }
 
+    const feishuGroupLookup = requiresFeishuGroupLookup(input.userContent);
+    if (feishuGroupLookup) {
+      yield { type: "thinking", message: "正在读取飞书群聊的实时消息..." };
+      const activity = await readFeishuGroupActivity(input.userContent);
+      const content = formatFeishuGroupActivity(activity);
+      const toolRuns: ToolRun[] = [];
+      if (activity.status !== "not_configured") {
+        yield {
+          type: "tool_call",
+          toolId: "mcp__feishu__im_v1_chat_list",
+          toolName: "飞书群列表",
+          input: {},
+        };
+        yield {
+          type: "tool_result",
+          toolId: "mcp__feishu__im_v1_chat_list",
+          status: activity.status === "error" ? "error" : "success",
+          output: activity.status === "error" ? activity.message : "已读取飞书可访问群列表",
+        };
+      }
+      if (activity.status === "ready") {
+        yield {
+          type: "tool_call",
+          toolId: "mcp__feishu__im_v1_message_list",
+          toolName: "飞书群消息",
+          input: { chat_id: activity.chat.chatId, page_size: activity.messages.length },
+        };
+        yield {
+          type: "tool_result",
+          toolId: "mcp__feishu__im_v1_message_list",
+          status: "success",
+          output: `已读取群「${activity.chat.name}」${activity.messages.length} 条消息`,
+        };
+      }
+      yield { type: "content_chunk", delta: content };
+      yield { type: "done", content, toolRuns, planSteps: [] };
+      return;
+    }
+
     const toolRuns: ToolRun[] = [];
     const pendingEvents: AgentRunEvent[] = [];
     const toolOutputCache = new Map<string, Promise<{ output: string; isError: boolean }>>();
@@ -152,7 +192,6 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       "tool-create-automation",
       ...input.skills.flatMap((skill) => skill.toolIds),
     ]);
-    const feishuGroupLookup = requiresFeishuGroupLookup(input.userContent);
     const enabledTools = input.tools.filter((definition) =>
       definition.status === "enabled"
       && definition.risk !== "admin"

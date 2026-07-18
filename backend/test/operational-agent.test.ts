@@ -32,6 +32,7 @@ const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 const { isExplicitFeishuRequest, requiresFeishuGroupLookup } = await import("../src/agent/claude-code-runtime.js");
+const { selectFeishuChat } = await import("../src/agent/feishu-chat.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -69,6 +70,16 @@ test("Feishu group-chat requests activate the live Feishu lookup guard", () => {
   assert.equal(requiresFeishuGroupLookup("飞书群里的大家在聊什么"), true);
   assert.equal(requiresFeishuGroupLookup("看一下群聊记录"), true);
   assert.equal(requiresFeishuGroupLookup("查询当前项目客户"), false);
+});
+
+test("Feishu group selection only chooses an explicit name unless there is one visible chat", () => {
+  const chats = [
+    { chatId: "chat-a", name: "启航留学咨询群" },
+    { chatId: "chat-b", name: "云杉贸易订单群" },
+  ];
+  assert.equal(selectFeishuChat(chats, "看看云杉贸易订单群里的消息")?.chatId, "chat-b");
+  assert.equal(selectFeishuChat(chats, "飞书群里的大家在聊什么"), undefined);
+  assert.equal(selectFeishuChat([chats[0]], "飞书群里的大家在聊什么")?.chatId, "chat-a");
 });
 
 test("fresh database applies all migrations and operational MCP definitions", () => {
