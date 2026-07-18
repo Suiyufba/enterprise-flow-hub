@@ -77,7 +77,6 @@ jobs:
           fi
           chmod 600 ~/.ssh/deploy_key
           ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
-          ssh-keyscan -H "${SSH_HOST}" >> ~/.ssh/known_hosts
 
       - name: Verify SSH connection
         env:
@@ -89,12 +88,25 @@ jobs:
             -i "$HOME/.ssh/deploy_key"
             -o IdentitiesOnly=yes
             -o BatchMode=yes
-            -o StrictHostKeyChecking=yes
-            -o ConnectTimeout=20
+            -o StrictHostKeyChecking=accept-new
+            -o ConnectTimeout=15
             -o ServerAliveInterval=15
             -o ServerAliveCountMax=3
           )
-          ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" "echo ssh-ready"
+          # A rebooting instance can accept TCP while sshd is still unavailable.
+          # Keep this release queued until it has fully recovered instead of
+          # wasting a freshly built image on the first failed handshake.
+          for attempt in $(seq 1 40); do
+            if ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" "echo ssh-ready"; then
+              exit 0
+            fi
+            if [ "${attempt}" -eq 40 ]; then
+              echo "SSH did not recover within 20 minutes" >&2
+              exit 1
+            fi
+            echo "SSH unavailable (attempt ${attempt}/40); retrying in 15 seconds..."
+            sleep 15
+          done
 
       - name: Transfer images to server
         env:
@@ -106,7 +118,7 @@ jobs:
             -i "$HOME/.ssh/deploy_key"
             -o IdentitiesOnly=yes
             -o BatchMode=yes
-            -o StrictHostKeyChecking=yes
+            -o StrictHostKeyChecking=accept-new
             -o ConnectTimeout=20
             -o ServerAliveInterval=15
             -o ServerAliveCountMax=3
@@ -135,7 +147,7 @@ jobs:
             -i "$HOME/.ssh/deploy_key"
             -o IdentitiesOnly=yes
             -o BatchMode=yes
-            -o StrictHostKeyChecking=yes
+            -o StrictHostKeyChecking=accept-new
             -o ConnectTimeout=20
             -o ServerAliveInterval=15
             -o ServerAliveCountMax=3
@@ -159,7 +171,7 @@ jobs:
             -i "$HOME/.ssh/deploy_key"
             -o IdentitiesOnly=yes
             -o BatchMode=yes
-            -o StrictHostKeyChecking=yes
+            -o StrictHostKeyChecking=accept-new
             -o ConnectTimeout=20
             -o ServerAliveInterval=15
             -o ServerAliveCountMax=3
