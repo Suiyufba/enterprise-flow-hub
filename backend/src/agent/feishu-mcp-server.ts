@@ -19,11 +19,13 @@ if (!appId || !appSecret) {
 
 const userAccessToken = process.env.FEISHU_USER_ACCESS_TOKEN?.trim();
 const tokenMode = userAccessToken ? TokenMode.USER_ACCESS_TOKEN : TokenMode.AUTO;
+const requiredReadTools: ToolName[] = ["tenant.v2.tenant.query"];
 const enabledTools = Array.from(new Set([
   ...defaultToolNames,
   ...presetBaseRecordBatchToolNames,
   ...presetTaskToolNames,
   ...presetCalendarToolNames,
+  ...requiredReadTools,
 ]));
 const larkTool = new LarkMcpTool({
   appId,
