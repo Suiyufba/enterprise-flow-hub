@@ -147,7 +147,7 @@ export class ClaudeCodeRuntime implements AgentRuntime {
     if (feishuGroupLookup) {
       yield { type: "thinking", message: "正在读取飞书群聊的实时消息..." };
       const activity = await readFeishuGroupActivity(input.userContent);
-      const content = formatFeishuGroupActivity(activity);
+      const content = await formatFeishuGroupActivity(activity, input.provider, input.userContent);
       const toolRuns: ToolRun[] = [];
       if (activity.status !== "not_configured") {
         yield {

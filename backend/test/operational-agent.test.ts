@@ -32,7 +32,7 @@ const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 const { isExplicitFeishuRequest, requiresFeishuGroupLookup } = await import("../src/agent/claude-code-runtime.js");
-const { selectFeishuChat } = await import("../src/agent/feishu-chat.js");
+const { formatFeishuGroupActivity, selectFeishuChat } = await import("../src/agent/feishu-chat.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -80,6 +80,17 @@ test("Feishu group selection only chooses an explicit name unless there is one v
   assert.equal(selectFeishuChat(chats, "看看云杉贸易订单群里的消息")?.chatId, "chat-b");
   assert.equal(selectFeishuChat(chats, "飞书群里的大家在聊什么"), undefined);
   assert.equal(selectFeishuChat([chats[0]], "飞书群里的大家在聊什么")?.chatId, "chat-a");
+});
+
+test("Feishu raw timelines are only shown when the user explicitly requests the original messages", async () => {
+  const activity = {
+    status: "ready" as const,
+    chat: { chatId: "chat-a", name: "测试群" },
+    messages: [{ createdAt: "07/18 16:00", sender: "王师傅", text: "请今天确认报价。" }],
+  };
+  const output = await formatFeishuGroupActivity(activity, undefined, "展开原文");
+  assert.match(output, /王师傅/);
+  assert.match(output, /07\/18 16:00/);
 });
 
 test("fresh database applies all migrations and operational MCP definitions", () => {
