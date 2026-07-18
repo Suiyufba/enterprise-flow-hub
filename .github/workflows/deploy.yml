@@ -129,13 +129,14 @@ jobs:
           FRONTEND_PULL_PID=$!
           wait "${BACKEND_PULL_PID}"
           wait "${FRONTEND_PULL_PID}"
-          # Reclaim layers from superseded releases before streaming the next
-          # images. Images used by the running containers are kept by Docker.
+          # Keep the current release online while importing the next images.
+          # On the 1.6GB production host, aggressive all-image/builder pruning
+          # can saturate disk I/O and make the whole instance unresponsive.
           ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" \
-            "docker container prune -f >/dev/null && docker image prune -af >/dev/null && docker builder prune -af >/dev/null"
+            "docker container prune -f >/dev/null && docker image prune -f >/dev/null"
           docker save "${BACKEND_IMAGE}" "${FRONTEND_IMAGE}" \
             | gzip -1 \
-            | ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" "gzip -d | docker load"
+            | ssh "${SSH_OPTS[@]}" "${SSH_USER}@${SSH_HOST}" "nice -n 19 ionice -c3 gzip -d | nice -n 19 ionice -c3 docker load"
 
       - name: Upload deployment files
         env:
@@ -191,6 +192,12 @@ jobs:
             'bash -s' <<'EOF'
           set -euo pipefail
           cd /opt/enterprise-flow-hub
+          AVAILABLE_MEM_KB="$(awk '/MemAvailable/ {print $2}' /proc/meminfo)"
+          if [ "${AVAILABLE_MEM_KB:-0}" -lt 262144 ]; then
+            echo "Refusing deployment: less than 256MB memory is available before replacement." >&2
+            free -h >&2
+            exit 1
+          fi
           chmod +x /opt/enterprise-flow-hub/backup-db.sh
           chmod +x /opt/enterprise-flow-hub/cleanup-docker-images.sh
 
@@ -214,23 +221,14 @@ jobs:
           docker image inspect "${BACKEND_IMAGE}" >/dev/null
           docker image inspect "${FRONTEND_IMAGE}" >/dev/null
 
-          # Stop the previous release without touching the named data volume,
-          # then remove its large images before extracting the new containers.
-          docker compose down --remove-orphans || true
-          while IFS= read -r IMAGE; do
-            case "${IMAGE}" in
-              "${BACKEND_IMAGE}"|"${FRONTEND_IMAGE}") ;;
-              ghcr.io/*/enterprise-flow-hub-backend:*|ghcr.io/*/enterprise-flow-hub-frontend:*)
-                docker image rm -f "${IMAGE}" >/dev/null || true
-                ;;
-            esac
-          done < <(docker images --format '{{.Repository}}:{{.Tag}}')
-          docker container prune -f >/dev/null
-          docker builder prune -af >/dev/null
+          # Let Compose replace only changed containers. Keeping the previous
+          # images until the replacement is healthy avoids a host-wide stop and
+          # gives Docker a chance to reuse existing layers.
           docker compose up -d --remove-orphans
 
-          # Remove any remaining unreferenced layers after the new release is up.
-          docker image prune -af
+          # Remove only dangling layers. Full pruning runs weekly, outside the
+          # deployment window, via cleanup-docker-images.sh.
+          docker image prune -f
 
           sudo cp /opt/enterprise-flow-hub/nginx.conf /etc/nginx/sites-available/enterprise-flow-hub
           sudo ln -sf /etc/nginx/sites-available/enterprise-flow-hub /etc/nginx/sites-enabled/enterprise-flow-hub

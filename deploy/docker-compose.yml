@@ -27,6 +27,9 @@ services:
       - backend-data:/data
     ports:
       - "127.0.0.1:4000:4000"
+    mem_limit: 750m
+    mem_reservation: 350m
+    cpus: "0.75"
     healthcheck:
       test:
         - CMD
@@ -46,6 +49,9 @@ services:
       PORT: 3000
     ports:
       - "127.0.0.1:3000:3000"
+    mem_limit: 350m
+    mem_reservation: 150m
+    cpus: "0.35"
     depends_on:
       - backend
 
