@@ -116,7 +116,7 @@ export function feishuMcpScope(content: string): string {
   return "general";
 }
 
-function feishuMcpServer(scope: string) {
+function feishuMcpServer(_scope: string) {
   const appId = process.env.FEISHU_APP_ID?.trim();
   const appSecret = process.env.FEISHU_APP_SECRET?.trim();
   if (!appId || !appSecret) return undefined;
@@ -124,11 +124,10 @@ function feishuMcpServer(scope: string) {
   const environment = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
-  environment.FEISHU_MCP_SCOPE = scope;
   return {
     type: "stdio" as const,
     command: process.execPath,
-    args: ["--import", "tsx", fileURLToPath(new URL("./feishu-mcp-server.ts", import.meta.url))],
+    args: ["--import", "tsx", fileURLToPath(new URL("./feishu-lightweight-mcp-server.ts", import.meta.url))],
     env: environment,
   };
 }

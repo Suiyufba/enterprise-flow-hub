@@ -60,10 +60,10 @@ test("agent kernel prioritizes the Feishu MCP for group-chat questions", () => {
   });
 
   assert.match(prompt, /飞书群聊强制路径/);
-  assert.match(prompt, /mcp__feishu__im_v1_chat_list/);
-  assert.match(prompt, /mcp__feishu__im_v1_message_list/);
+  assert.match(prompt, /mcp__feishu__calendar_create_event/);
+  assert.match(prompt, /mcp__feishu__api_call/);
   assert.match(prompt, /资料库仅用于补充已归档的项目资料/);
-  assert.match(prompt, /飞书功能路由/);
+  assert.match(prompt, /飞书轻量 MCP/);
 });
 
 test("Feishu group-chat requests activate the live Feishu lookup guard", () => {
