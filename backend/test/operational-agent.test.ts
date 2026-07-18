@@ -32,7 +32,7 @@ const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 const { isExplicitFeishuRequest, requiresFeishuGroupLookup } = await import("../src/agent/claude-code-runtime.js");
-const { formatFeishuGroupActivity, selectFeishuChat } = await import("../src/agent/feishu-chat.js");
+const { ensureFeishuSummarySections, formatFeishuGroupActivity, selectFeishuChat } = await import("../src/agent/feishu-chat.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -91,6 +91,17 @@ test("Feishu raw timelines are only shown when the user explicitly requests the 
   const output = await formatFeishuGroupActivity(activity, undefined, "展开原文");
   assert.match(output, /王师傅/);
   assert.match(output, /07\/18 16:00/);
+});
+
+test("Feishu summaries retain action and question sections when the model omits them", () => {
+  const output = ensureFeishuSummarySections("## 讨论概览\n测试", [
+    { createdAt: "07/18 16:00", sender: "王师傅", text: "请今天确认报价。" },
+    { createdAt: "07/18 16:02", sender: "李经理", text: "我们怎么安排后续？" },
+  ]);
+  assert.match(output, /## 明确要求与待办/);
+  assert.match(output, /确认报价/);
+  assert.match(output, /## 待确认/);
+  assert.match(output, /怎么安排后续/);
 });
 
 test("fresh database applies all migrations and operational MCP definitions", () => {
