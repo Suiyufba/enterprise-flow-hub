@@ -168,6 +168,9 @@ jobs:
             BACKEND_IMAGE="${BACKEND_IMAGE}" \
             FRONTEND_IMAGE="${FRONTEND_IMAGE}" \
             DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
+            FEISHU_APP_ID="${FEISHU_APP_ID}" \
+            FEISHU_APP_SECRET="${FEISHU_APP_SECRET}" \
+            FEISHU_USER_ACCESS_TOKEN="${FEISHU_USER_ACCESS_TOKEN}" \
             DEPLOY_HOST="${SSH_HOST}" \
             'bash -s' <<'EOF'
           set -euo pipefail
