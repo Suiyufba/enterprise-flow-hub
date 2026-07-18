@@ -150,7 +150,9 @@ export async function readFeishuGroupActivity(request: string): Promise<FeishuGr
       params: {
         container_id_type: "chat",
         container_id: chat.chatId,
-        page_size: 100,
+        // Feishu caps a single history request at 50 messages. We summarize the
+        // latest page instead of issuing an invalid request that fails the run.
+        page_size: 50,
         sort_type: "ByCreateTimeDesc",
       },
     });
