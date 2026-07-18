@@ -32,4 +32,5 @@ COPY --from=dependencies /app/shared shared
 
 EXPOSE 4000
 
-CMD ["node", "--import", "tsx", "backend/src/main.ts"]
+WORKDIR /app/backend
+CMD ["node", "--import", "tsx", "src/main.ts"]
