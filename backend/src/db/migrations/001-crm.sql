@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS customers (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+  enterprise_id TEXT NOT NULL,
   name          TEXT NOT NULL,
   contact       TEXT NOT NULL DEFAULT '',
   phone         TEXT NOT NULL DEFAULT '',
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS customers (
 
 CREATE TABLE IF NOT EXISTS suppliers (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+  enterprise_id TEXT NOT NULL,
   name          TEXT NOT NULL,
   contact       TEXT NOT NULL DEFAULT '',
   phone         TEXT NOT NULL DEFAULT '',
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
 
 CREATE TABLE IF NOT EXISTS products (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+  enterprise_id TEXT NOT NULL,
   name          TEXT NOT NULL,
   sku           TEXT NOT NULL DEFAULT '',
   category      TEXT NOT NULL DEFAULT '',

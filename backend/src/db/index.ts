@@ -105,6 +105,63 @@ function ensureFinanceSkills(database: Database.Database) {
   tx();
 }
 
+function quoteIdentifier(value: string): string {
+  return `"${value.replaceAll("\"", "\"\"")}"`;
+}
+
+function removeForeignKeyConstraints(database: Database.Database) {
+  const tables = database.prepare(`
+    SELECT name, sql
+    FROM sqlite_master
+    WHERE type = 'table'
+      AND name NOT LIKE 'sqlite_%'
+      AND name NOT IN ('_migrations')
+      AND sql IS NOT NULL
+    ORDER BY name
+  `).all() as Array<{ name: string; sql: string }>;
+  const withForeignKeys = tables.filter((table) =>
+    (database.prepare(`PRAGMA foreign_key_list(${quoteIdentifier(table.name)})`).all() as unknown[]).length > 0,
+  );
+  if (withForeignKeys.length === 0) return;
+
+  const tableNames = withForeignKeys.map((table) => table.name);
+  const placeholders = tableNames.map(() => "?").join(",");
+  const indexes = database.prepare(`
+    SELECT sql
+    FROM sqlite_master
+    WHERE type = 'index'
+      AND tbl_name IN (${placeholders})
+      AND sql IS NOT NULL
+  `).all(...tableNames) as Array<{ sql: string }>;
+  const withoutReferences = (sql: string) => sql.replace(
+    /\s+REFERENCES\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\([^)]*\))?(?:\s+ON\s+(?:DELETE|UPDATE)\s+(?:SET\s+NULL|SET\s+DEFAULT|CASCADE|RESTRICT|NO\s+ACTION))*/gi,
+    "",
+  );
+
+  database.pragma("foreign_keys = OFF");
+  database.exec("BEGIN IMMEDIATE");
+  try {
+    for (const table of withForeignKeys) {
+      const temporaryName = `__no_fk_${table.name}`;
+      database.exec(`ALTER TABLE ${quoteIdentifier(table.name)} RENAME TO ${quoteIdentifier(temporaryName)}`);
+      database.exec(withoutReferences(table.sql));
+      const columns = database.prepare(`PRAGMA table_info(${quoteIdentifier(temporaryName)})`).all() as Array<{ name: string }>;
+      const columnList = columns.map((column) => quoteIdentifier(column.name)).join(",");
+      database.exec(`INSERT INTO ${quoteIdentifier(table.name)} (${columnList}) SELECT ${columnList} FROM ${quoteIdentifier(temporaryName)}`);
+    }
+    for (const table of withForeignKeys) {
+      database.exec(`DROP TABLE ${quoteIdentifier(`__no_fk_${table.name}`)}`);
+    }
+    for (const index of indexes) database.exec(index.sql);
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  } finally {
+    database.pragma("foreign_keys = OFF");
+  }
+}
+
 export function getDb(): Database.Database {
   if (!db) {
     const dir = dirname(DB_PATH);
@@ -112,13 +169,13 @@ export function getDb(): Database.Database {
 
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
+    db.pragma("foreign_keys = OFF");
 
     const schema = readFileSync(join(__dirname, "schema.sql"), "utf-8");
     db.exec(schema);
     db.exec(`
       CREATE TABLE IF NOT EXISTS plugin_configs (
-        plugin_id   TEXT PRIMARY KEY REFERENCES plugins(id) ON DELETE CASCADE,
+        plugin_id   TEXT PRIMARY KEY,
         config_json TEXT NOT NULL DEFAULT '{}',
         updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -141,15 +198,15 @@ export function getDb(): Database.Database {
     db.exec(`
       CREATE TABLE IF NOT EXISTS departments (
         id            TEXT PRIMARY KEY,
-        enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-        parent_id     TEXT REFERENCES departments(id) ON DELETE SET NULL,
+        enterprise_id TEXT NOT NULL,
+        parent_id     TEXT,
         name          TEXT NOT NULL,
         created_at    TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
     const userCols = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
     if (!userCols.some((c) => c.name === "department_id")) {
-      db.prepare("ALTER TABLE users ADD COLUMN department_id TEXT REFERENCES departments(id) ON DELETE SET NULL").run();
+      db.prepare("ALTER TABLE users ADD COLUMN department_id TEXT").run();
     }
     if (!userCols.some((c) => c.name === "position")) {
       db.prepare("ALTER TABLE users ADD COLUMN position TEXT DEFAULT ''").run();
@@ -174,8 +231,12 @@ export function getDb(): Database.Database {
     }
     const applyMigration = (file: string) => {
       if (applied.has(file)) return;
-      const sql = readFileSync(join(migrationDir, file), "utf-8");
-      db!.exec(sql);
+      if (file === "017-remove-database-foreign-keys.sql") {
+        removeForeignKeyConstraints(db!);
+      } else {
+        const sql = readFileSync(join(migrationDir, file), "utf-8");
+        db!.exec(sql);
+      }
       db!.prepare("INSERT INTO _migrations (id) VALUES (?)").run(file);
       applied.add(file);
     };

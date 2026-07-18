@@ -2,8 +2,8 @@
 
 CREATE TABLE IF NOT EXISTS orders (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  customer_id   TEXT REFERENCES customers(id) ON DELETE SET NULL,
+  enterprise_id TEXT NOT NULL,
+  customer_id   TEXT,
   status        TEXT NOT NULL DEFAULT 'draft'
                 CHECK (status IN ('draft','confirmed','processing','shipped','delivered','cancelled','refunded')),
   total_amount  REAL NOT NULL DEFAULT 0,
@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS orders (
 
 CREATE TABLE IF NOT EXISTS order_items (
   id          TEXT PRIMARY KEY,
-  order_id    TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id  TEXT REFERENCES products(id) ON DELETE SET NULL,
+  order_id    TEXT NOT NULL,
+  product_id  TEXT,
   quantity    REAL NOT NULL DEFAULT 1,
   unit_price  REAL NOT NULL DEFAULT 0,
   subtotal    REAL NOT NULL DEFAULT 0
@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS order_items (
 
 CREATE TABLE IF NOT EXISTS payments (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  order_id      TEXT REFERENCES orders(id) ON DELETE SET NULL,
+  enterprise_id TEXT NOT NULL,
+  order_id      TEXT,
   amount        REAL NOT NULL,
   method        TEXT NOT NULL DEFAULT 'cash'
                 CHECK (method IN ('cash','bank_transfer','alipay','wechat','credit_card','other')),
@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS payments (
 
 CREATE TABLE IF NOT EXISTS invoices (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  order_id      TEXT REFERENCES orders(id) ON DELETE SET NULL,
-  customer_id   TEXT REFERENCES customers(id) ON DELETE SET NULL,
+  enterprise_id TEXT NOT NULL,
+  order_id      TEXT,
+  customer_id   TEXT,
   amount        REAL NOT NULL,
   status        TEXT NOT NULL DEFAULT 'draft'
                 CHECK (status IN ('draft','issued','paid','overdue','cancelled')),

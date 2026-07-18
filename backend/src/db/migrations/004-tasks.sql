@@ -2,8 +2,8 @@
 
 CREATE TABLE IF NOT EXISTS tasks (
   id              TEXT PRIMARY KEY,
-  enterprise_id   TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  assignee_id     TEXT REFERENCES users(id) ON DELETE SET NULL,
+  enterprise_id   TEXT NOT NULL,
+  assignee_id     TEXT,
   title           TEXT NOT NULL,
   description     TEXT NOT NULL DEFAULT '',
   status          TEXT NOT NULL DEFAULT 'pending'
@@ -19,9 +19,9 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE TABLE IF NOT EXISTS approvals (
   id              TEXT PRIMARY KEY,
-  enterprise_id   TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  requestor_id    TEXT REFERENCES users(id) ON DELETE SET NULL,
-  approver_id     TEXT REFERENCES users(id) ON DELETE SET NULL,
+  enterprise_id   TEXT NOT NULL,
+  requestor_id    TEXT,
+  approver_id     TEXT,
   object_type     TEXT NOT NULL,
   object_id       TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'pending'

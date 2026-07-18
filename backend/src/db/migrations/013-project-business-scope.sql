@@ -1,11 +1,11 @@
-ALTER TABLE customers ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
-ALTER TABLE suppliers ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
-ALTER TABLE products ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
-ALTER TABLE orders ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
-ALTER TABLE payments ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
-ALTER TABLE invoices ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
-ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
-ALTER TABLE files ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+ALTER TABLE customers ADD COLUMN project_id TEXT;
+ALTER TABLE suppliers ADD COLUMN project_id TEXT;
+ALTER TABLE products ADD COLUMN project_id TEXT;
+ALTER TABLE orders ADD COLUMN project_id TEXT;
+ALTER TABLE payments ADD COLUMN project_id TEXT;
+ALTER TABLE invoices ADD COLUMN project_id TEXT;
+ALTER TABLE tasks ADD COLUMN project_id TEXT;
+ALTER TABLE files ADD COLUMN project_id TEXT;
 
 UPDATE customers
 SET project_id = (SELECT p.id FROM projects p WHERE p.enterprise_id = customers.enterprise_id ORDER BY p.created_at, p.id LIMIT 1)

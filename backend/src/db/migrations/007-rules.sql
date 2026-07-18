@@ -2,7 +2,7 @@
 
 CREATE TABLE IF NOT EXISTS rules (
   id              TEXT PRIMARY KEY,
-  enterprise_id   TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+  enterprise_id   TEXT NOT NULL,
   name            TEXT NOT NULL,
   description     TEXT NOT NULL DEFAULT '',
   object_type     TEXT NOT NULL,
@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_rules_enabled       ON rules(enabled);
 
 CREATE TABLE IF NOT EXISTS sessions (
   id              TEXT PRIMARY KEY,
-  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL,
   token           TEXT NOT NULL UNIQUE,
   expires_at      TEXT NOT NULL,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -32,8 +32,8 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id              TEXT PRIMARY KEY,
-  enterprise_id   TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  user_id         TEXT REFERENCES users(id) ON DELETE SET NULL,
+  enterprise_id   TEXT NOT NULL,
+  user_id         TEXT,
   action          TEXT NOT NULL,
   object_type     TEXT NOT NULL,
   object_id       TEXT,

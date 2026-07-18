@@ -39,7 +39,11 @@ after(() => dbModule.closeDb());
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 18);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 19);
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+  for (const table of tables) {
+    assert.equal((db.prepare(`PRAGMA foreign_key_list(\"${table.name}\")`).all() as unknown[]).length, 0, `${table.name} should not have database foreign keys`);
+  }
   assert.ok((db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).some((column) => column.name === "gender"));
   assert.ok((db.prepare("PRAGMA table_info(suppliers)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));

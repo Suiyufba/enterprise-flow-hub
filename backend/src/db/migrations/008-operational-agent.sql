@@ -1,12 +1,10 @@
 -- Operational Agent: truthful automation runs, authenticated webhooks and real business tools.
 
-PRAGMA foreign_keys = OFF;
-
 ALTER TABLE automations RENAME TO automations_legacy;
 
 CREATE TABLE automations (
   id               TEXT PRIMARY KEY,
-  project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id       TEXT NOT NULL,
   name             TEXT NOT NULL,
   trigger_desc     TEXT NOT NULL,
   trigger_type     TEXT NOT NULL CHECK (trigger_type IN ('schedule','message','webhook','email','file','manual')),
@@ -39,11 +37,9 @@ FROM automations_legacy;
 DROP TABLE automations_legacy;
 CREATE INDEX idx_automations_project ON automations(project_id);
 
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE IF NOT EXISTS automation_runs (
   id            TEXT PRIMARY KEY,
-  automation_id TEXT NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
+  automation_id TEXT NOT NULL,
   status        TEXT NOT NULL CHECK (status IN ('success','error')),
   trigger_event TEXT NOT NULL DEFAULT '{}',
   output        TEXT NOT NULL DEFAULT '',

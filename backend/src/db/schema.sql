@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS enterprises (
 
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+  enterprise_id TEXT NOT NULL,
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   display_name  TEXT NOT NULL,
@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS idx_users_username  ON users(username);
 
 CREATE TABLE IF NOT EXISTS projects (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+  enterprise_id TEXT NOT NULL,
   name          TEXT NOT NULL,
   description   TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS projects (
 
 CREATE TABLE IF NOT EXISTS conversations (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  enterprise_id TEXT NOT NULL,
+  project_id    TEXT NOT NULL,
   title         TEXT NOT NULL,
   tags          TEXT NOT NULL DEFAULT '[]',
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 CREATE TABLE IF NOT EXISTS messages (
   id              TEXT PRIMARY KEY,
-  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  conversation_id TEXT NOT NULL,
   role            TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content         TEXT NOT NULL,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE TABLE IF NOT EXISTS library_items (
   id            TEXT PRIMARY KEY,
-  enterprise_id TEXT NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
-  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  enterprise_id TEXT NOT NULL,
+  project_id    TEXT NOT NULL,
   name          TEXT NOT NULL,
   type          TEXT NOT NULL CHECK (type IN ('screenshot', 'spreadsheet', 'document', 'note')),
   summary       TEXT NOT NULL,
@@ -62,14 +62,14 @@ CREATE TABLE IF NOT EXISTS plugins (
 );
 
 CREATE TABLE IF NOT EXISTS plugin_configs (
-  plugin_id   TEXT PRIMARY KEY REFERENCES plugins(id) ON DELETE CASCADE,
+  plugin_id   TEXT PRIMARY KEY,
   config_json TEXT NOT NULL DEFAULT '{}',
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS automations (
   id            TEXT PRIMARY KEY,
-  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id    TEXT NOT NULL,
   name          TEXT NOT NULL,
   trigger_desc  TEXT NOT NULL,
   trigger_type  TEXT NOT NULL CHECK (trigger_type IN ('schedule','message','webhook','email','file','manual')),
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS ai_tools (
 
 CREATE TABLE IF NOT EXISTS tool_runs (
   id         TEXT PRIMARY KEY,
-  tool_id    TEXT NOT NULL REFERENCES ai_tools(id) ON DELETE CASCADE,
+  tool_id    TEXT NOT NULL,
   status     TEXT NOT NULL CHECK (status IN ('success','error')),
   input      TEXT NOT NULL DEFAULT '{}',
   output     TEXT NOT NULL DEFAULT '',

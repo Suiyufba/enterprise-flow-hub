@@ -1,0 +1,2 @@
+-- Applied by db/index.ts because SQLite requires table rebuilds to remove existing foreign keys.
+-- Relationship IDs remain as ordinary columns and are validated by the service layer.
