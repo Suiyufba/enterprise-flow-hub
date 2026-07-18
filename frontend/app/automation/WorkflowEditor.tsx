@@ -183,6 +183,11 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       triggerType: auto.triggerType,
       desc: auto.trigger,
     };
+    const triggerBinding = auto.actionInput.__efhTrigger;
+    if (triggerBinding && typeof triggerBinding === "object" && !Array.isArray(triggerBinding)) {
+      const chatIds = (triggerBinding as Record<string, unknown>).chatIds;
+      if (Array.isArray(chatIds)) trigCfg.feishuChatId = chatIds.filter((item): item is string => typeof item === "string").join(", ");
+    }
     const agentCfg: Record<string, string> = {};
     if (auto.agentModel) agentCfg.model = auto.agentModel;
     if (auto.systemPrompt) agentCfg.prompt = auto.systemPrompt;
@@ -262,7 +267,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
         setSaving(false);
         return;
       }
-      let actionInput: Record<string, unknown> | undefined;
+      let actionInput: Record<string, unknown> = {};
       if (resolvedActionType === "tool_call") {
         try {
           actionInput = primaryAction.input?.trim() ? JSON.parse(primaryAction.input) as Record<string, unknown> : {};
@@ -271,6 +276,10 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
           setSaving(false);
           return;
         }
+      }
+      const feishuChatIds = (primaryTrigger.feishuChatId ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+      if (resolvedTriggerType === "message" && feishuChatIds.length > 0) {
+        actionInput.__efhTrigger = { provider: "feishu", chatIds: feishuChatIds };
       }
 
       const triggerSummary = joinConfigDescriptions(triggerConfigs, "手动触发");
@@ -520,6 +529,18 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
                   )}
                   {cfgValue("triggerType") === "file" && (
                     <p className="wf-config-warning">在「文件管理」选择此项目并上传文件后会自动触发。</p>
+                  )}
+                  {cfgValue("triggerType") === "message" && (
+                    <>
+                      <label className="wf-props-label">飞书群 Chat ID</label>
+                      <input
+                        className="page-input wf-props-input"
+                        value={cfgValue("feishuChatId") ?? ""}
+                        onChange={(e) => updateNodeConfig("feishuChatId", e.target.value)}
+                        placeholder="oc_xxx；多个群用逗号分隔"
+                      />
+                      <p className="wf-config-warning">机器人所在群收到消息后触发；留空则不会接收飞书群消息。</p>
+                    </>
                   )}
                   {cfgValue("triggerType") === "webhook" && (
                     <p className="wf-config-warning">保存后可通过 /api/automations/&lt;id&gt;/webhook 触发。</p>

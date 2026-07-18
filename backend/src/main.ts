@@ -5,6 +5,7 @@ import { registerAllRoutes } from "./routes/index.js";
 import { createAuditLog } from "./auth/audit.js";
 import { getRuntime, resetRuntimeCache } from "./agent/runtime.js";
 import { startIntegrationScheduler } from "./integration/queue.js";
+import { startFeishuEventStream } from "./integration/feishu-event-stream.js";
 import { setupRulesExecutor } from "./rules/executor.js";
 import { validateSession } from "./auth/service.js";
 import { registerTool } from "./tools/registry.js";
@@ -64,7 +65,7 @@ app.addHook("onRequest", async (request) => {
 app.addHook("onRequest", async (request, reply) => {
   if (request.method === "OPTIONS") return;
   const path = request.url.split("?")[0];
-  const isPublic = path === "/health" || path === "/auth/login" || /^\/automations\/[^/]+\/webhook$/.test(path);
+  const isPublic = path === "/health" || path === "/auth/login" || path === "/integrations/feishu/events" || /^\/automations\/[^/]+\/webhook$/.test(path);
   if (isPublic) return;
   const actor = (request as unknown as Record<string, unknown>).actor as { id?: string } | undefined;
   if (!actor?.id) return reply.status(401).send({ error: "未登录或会话已过期" });
@@ -150,6 +151,7 @@ setupRulesExecutor();
 await app.listen({ port, host });
 startAutomationScheduler(app.log);
 startIntegrationScheduler();
+startFeishuEventStream(app.log);
 
 // Schedule daily midnight persona memory summarization
 function scheduleMidnight() {

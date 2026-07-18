@@ -29,6 +29,7 @@ const { taskRoutes } = await import("../src/routes/tasks.js");
 const { rulesRoutes } = await import("../src/routes/rules.js");
 const { crmRoutes } = await import("../src/routes/crm.js");
 const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
+const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -628,6 +629,65 @@ test("message and file triggers execute only matching project automations", asyn
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n, before + 2);
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM automation_runs WHERE automation_id IN (?,?) AND status='success'").get(messageAutomation.id, fileAutomation.id) as { n: number }).n, 2);
   assert.equal((db.prepare("SELECT last_status FROM automations WHERE id=?").get(failingAutomation.id) as { last_status: string }).last_status, "error");
+});
+
+test("Feishu message events only trigger workflows bound to the matching chat", async () => {
+  const before = (db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n;
+  const bound = store.createAutomation({
+    projectId: "proj-qihang-growth",
+    name: "飞书群消息触发",
+    trigger: "飞书群消息",
+    triggerType: "message",
+    action: "创建群消息待办",
+    actionType: "tool_call",
+    actionToolId: "tool-business-action",
+    actionInput: {
+      operation: "create_task",
+      title: "飞书群消息待办",
+      __efhTrigger: { provider: "feishu", chatIds: ["oc-bound"] },
+    },
+  });
+  const other = store.createAutomation({
+    projectId: "proj-qihang-daily",
+    name: "其他群消息触发",
+    trigger: "飞书群消息",
+    triggerType: "message",
+    action: "创建其他群待办",
+    actionType: "tool_call",
+    actionToolId: "tool-business-action",
+    actionInput: {
+      operation: "create_task",
+      title: "不应触发的待办",
+      __efhTrigger: { provider: "feishu", chatIds: ["oc-other"] },
+    },
+  });
+  assert.ok(bound && other);
+  const runs = await scheduler.triggerFeishuMessageAutomations("oc-bound", { provider: "feishu", chatId: "oc-bound", content: { text: "测试" } });
+  assert.deepEqual(runs.map((automation) => automation.id), [bound.id]);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n, before + 1);
+});
+
+test("Feishu callback validates its token and returns the URL challenge", async () => {
+  const previousToken = process.env.FEISHU_VERIFICATION_TOKEN;
+  process.env.FEISHU_VERIFICATION_TOKEN = "feishu-test-token";
+  try {
+    const parsed = parseFeishuEvent({ type: "url_verification", token: "feishu-test-token", challenge: "challenge-1" }, "feishu-test-token");
+    assert.equal(parsed.challenge, "challenge-1");
+    assert.throws(() => parseFeishuEvent({ type: "url_verification", token: "wrong" }, "feishu-test-token"), /校验失败/);
+    const app = Fastify();
+    await app.register(feishuEventRoutes);
+    const response = await app.inject({
+      method: "POST",
+      url: "/integrations/feishu/events",
+      payload: { type: "url_verification", token: "feishu-test-token", challenge: "challenge-2" },
+    });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json(), { challenge: "challenge-2" });
+    await app.close();
+  } finally {
+    if (previousToken === undefined) delete process.env.FEISHU_VERIFICATION_TOKEN;
+    else process.env.FEISHU_VERIFICATION_TOKEN = previousToken;
+  }
 });
 
 test("Feishu and WeCom notification payloads use provider-specific formats", async () => {

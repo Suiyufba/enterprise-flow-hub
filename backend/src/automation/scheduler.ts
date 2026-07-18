@@ -237,6 +237,37 @@ export async function triggerProjectAutomations(
   return results;
 }
 
+function feishuChatIds(automation: Automation): string[] {
+  const trigger = automation.actionInput.__efhTrigger;
+  if (!trigger || typeof trigger !== "object" || Array.isArray(trigger)) return [];
+  const config = trigger as Record<string, unknown>;
+  if (config.provider !== "feishu" || !Array.isArray(config.chatIds)) return [];
+  return config.chatIds.filter((chatId): chatId is string => typeof chatId === "string" && chatId.trim().length > 0);
+}
+
+/** Run only automations explicitly bound to this Feishu chat. */
+export async function triggerFeishuMessageAutomations(
+  chatId: string,
+  event: Record<string, unknown>,
+  logger?: Logger,
+) {
+  const automations = listEnabledAutomationsByTrigger("message")
+    .filter((automation) => feishuChatIds(automation).includes(chatId));
+  const results: Automation[] = [];
+  for (const automation of automations) {
+    try {
+      const updated = await runAutomationNow(automation.id, event, logger);
+      if (updated) results.push(updated);
+    } catch (error) {
+      logger?.error(
+        { automationId: automation.id, name: automation.name, err: error instanceof Error ? error.message : String(error) },
+        "Feishu message automation failed",
+      );
+    }
+  }
+  return results;
+}
+
 async function scanDueAutomations(logger: Logger, timeZone: string) {
   const now = new Date();
   const automations = listEnabledScheduleAutomations();
