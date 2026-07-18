@@ -33,6 +33,7 @@ const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feis
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 const { isExplicitFeishuRequest, requiresFeishuGroupLookup } = await import("../src/agent/claude-code-runtime.js");
 const { ensureFeishuSummarySections, formatFeishuGroupActivity, selectFeishuChat } = await import("../src/agent/feishu-chat.js");
+const { feishuWriteTools } = await import("../src/agent/feishu-tool-catalog.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -70,6 +71,20 @@ test("Feishu group-chat requests activate the live Feishu lookup guard", () => {
   assert.equal(requiresFeishuGroupLookup("飞书群里的大家在聊什么"), true);
   assert.equal(requiresFeishuGroupLookup("看一下群聊记录"), true);
   assert.equal(requiresFeishuGroupLookup("查询当前项目客户"), false);
+});
+
+test("Feishu MCP catalog exposes business creation workflows", () => {
+  for (const tool of [
+    "calendar.v4.calendarEvent.create",
+    "task.v2.task.create",
+    "docx.v1.document.create",
+    "approval.v4.instance.create",
+    "drive.v1.permissionMember.create",
+    "bitable.v1.appTableRecord.batchCreate",
+    "im.v1.message.create",
+  ]) {
+    assert.ok(feishuWriteTools.includes(tool as never), `${tool} should be available`);
+  }
 });
 
 test("Feishu group selection only chooses an explicit name unless there is one visible chat", () => {
