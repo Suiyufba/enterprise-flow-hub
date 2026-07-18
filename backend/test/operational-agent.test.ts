@@ -31,9 +31,9 @@ const { crmRoutes } = await import("../src/routes/crm.js");
 const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
-const { isExplicitFeishuRequest, requiresFeishuGroupLookup } = await import("../src/agent/claude-code-runtime.js");
+const { feishuMcpScope, isExplicitFeishuRequest, requiresFeishuGroupLookup } = await import("../src/agent/claude-code-runtime.js");
 const { ensureFeishuSummarySections, formatFeishuGroupActivity, selectFeishuChat } = await import("../src/agent/feishu-chat.js");
-const { feishuWriteTools } = await import("../src/agent/feishu-tool-catalog.js");
+const { feishuWriteTools, toolsForFeishuScope } = await import("../src/agent/feishu-tool-catalog.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -85,6 +85,14 @@ test("Feishu MCP catalog exposes business creation workflows", () => {
   ]) {
     assert.ok(feishuWriteTools.includes(tool as never), `${tool} should be available`);
   }
+});
+
+test("Feishu MCP loads the smallest relevant tool domain for each request", () => {
+  assert.equal(feishuMcpScope("明天下午三点创建飞书日程"), "calendar");
+  assert.equal(feishuMcpScope("给王师傅创建任务并设置提醒"), "task");
+  assert.equal(feishuMcpScope("新建一份飞书文档并共享给团队"), "document");
+  assert.ok(toolsForFeishuScope("calendar").includes("calendar.v4.calendarEvent.create" as never));
+  assert.equal(toolsForFeishuScope("calendar").includes("approval.v4.instance.create" as never), false);
 });
 
 test("Feishu group selection only chooses an explicit name unless there is one visible chat", () => {

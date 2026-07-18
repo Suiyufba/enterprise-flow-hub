@@ -1,16 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { format } from "node:util";
-import {
-  defaultToolNames,
-  LarkMcpTool,
-  presetBaseRecordBatchToolNames,
-  presetCalendarToolNames,
-  presetTaskToolNames,
-  TokenMode,
-  type ToolName,
-} from "@larksuiteoapi/lark-mcp/dist/mcp-tool/index.js";
-import { feishuReadTools, feishuWriteTools } from "./feishu-tool-catalog.js";
+import { LarkMcpTool, TokenMode } from "@larksuiteoapi/lark-mcp/dist/mcp-tool/index.js";
+import { toolsForFeishuScope } from "./feishu-tool-catalog.js";
 
 // The MCP stdio transport reserves stdout for JSON-RPC frames. The official
 // SDK emits startup diagnostics through console.*, so route those diagnostics
@@ -29,17 +21,9 @@ if (!appId || !appSecret) {
 
 const userAccessToken = process.env.FEISHU_USER_ACCESS_TOKEN?.trim();
 const tokenMode = userAccessToken ? TokenMode.USER_ACCESS_TOKEN : TokenMode.AUTO;
-// Keep the interactive MCP focused, but cover the normal read paths a business
-// agent needs. The full official surface is intentionally not injected into
-// every chat because its generated schemas are far too large for reliable use.
-const enabledTools = Array.from(new Set([
-  ...defaultToolNames,
-  ...presetBaseRecordBatchToolNames,
-  ...presetTaskToolNames,
-  ...presetCalendarToolNames,
-  ...feishuReadTools,
-  ...feishuWriteTools,
-]));
+// Each request starts only its relevant official Feishu domain. Loading every
+// generated schema exhausts the low-memory production host before a tool call.
+const enabledTools = toolsForFeishuScope(process.env.FEISHU_MCP_SCOPE);
 const larkTool = new LarkMcpTool({
   appId,
   appSecret,
@@ -48,7 +32,7 @@ const larkTool = new LarkMcpTool({
   toolsOptions: {
     language: "zh",
     // Keep the app's granted scopes intact while avoiding 1,291 schemas in every chat context.
-    allowTools: enabledTools as ToolName[],
+    allowTools: enabledTools,
   },
 });
 

@@ -105,7 +105,18 @@ function claudeEnvironment(baseUrl: string, apiKey: string, model: string): Node
   };
 }
 
-function feishuMcpServer() {
+export function feishuMcpScope(content: string): string {
+  if (/日程|日历|会议|空闲|freebusy/i.test(content)) return "calendar";
+  if (/任务|待办|提醒|task/i.test(content)) return "task";
+  if (/文档|云空间|云盘|文件夹|共享|权限|wiki/i.test(content)) return "document";
+  if (/审批|报销|请假|采购申请|approval/i.test(content)) return "approval";
+  if (/多维表格|多维|bitable|数据表/i.test(content)) return "bitable";
+  if (/通讯录|部门|员工|组织架构|联系人/i.test(content)) return "contact";
+  if (/群|消息|聊天|机器人|发消息|飞书通知|im\b/i.test(content)) return "im";
+  return "general";
+}
+
+function feishuMcpServer(scope: string) {
   const appId = process.env.FEISHU_APP_ID?.trim();
   const appSecret = process.env.FEISHU_APP_SECRET?.trim();
   if (!appId || !appSecret) return undefined;
@@ -113,6 +124,7 @@ function feishuMcpServer() {
   const environment = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
+  environment.FEISHU_MCP_SCOPE = scope;
   return {
     type: "stdio" as const,
     command: process.execPath,
@@ -258,7 +270,7 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       },
     }));
     const mcpServer = createSdkMcpServer({ name: "efh", version: "1.0.0", tools: mcpTools });
-    const feishuServer = feishuMcpServer();
+    const feishuServer = feishuMcpServer(feishuMcpScope(input.userContent));
     const allowedTools = [
       ...enabledTools.map((definition) => `mcp__efh__${definition.id}`),
       ...(feishuServer ? ["mcp__feishu__*"] : []),
