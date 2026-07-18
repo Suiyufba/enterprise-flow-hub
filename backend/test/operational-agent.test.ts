@@ -30,6 +30,7 @@ const { rulesRoutes } = await import("../src/routes/rules.js");
 const { crmRoutes } = await import("../src/routes/crm.js");
 const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
+const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 
 const db = dbModule.getDb();
 registerTool("tool-business-action", businessActionExecute);
@@ -38,6 +39,28 @@ registerTool("tool-mcp-company-context", companyContextExecute);
 registerTool("tool-csv-profile", csvProfile);
 
 after(() => dbModule.closeDb());
+
+test("agent kernel prioritizes the Feishu MCP for group-chat questions", () => {
+  const prompt = buildSystemPrompt({
+    userContent: "飞书群里的大家在聊什么",
+    history: [],
+    skills: [],
+    tools: [],
+    context: {
+      conversationTitle: "线索增长",
+      contextLabel: "启航留学 / 线索增长",
+      projectContext: "",
+      enterpriseId: "ent-qihang",
+      projectId: "proj-qihang-growth",
+    },
+    runTool: async () => undefined,
+  });
+
+  assert.match(prompt, /飞书群聊强制路径/);
+  assert.match(prompt, /mcp__feishu__im_v1_chat_list/);
+  assert.match(prompt, /mcp__feishu__im_v1_message_list/);
+  assert.match(prompt, /资料库仅用于补充已归档的项目资料/);
+});
 
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
