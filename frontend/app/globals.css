@@ -7521,12 +7521,25 @@ body {
 }
 
 @media (min-width: 801px) {
+  .page-transition > .chat-shell {
+    transition: margin-left 0.25s ease;
+  }
+
+  .app-main.sidebar-collapsed .page-transition > .chat-shell {
+    margin-left: 236px;
+  }
+
   .app-main.sidebar-collapsed .new-chat-page {
     margin-left: 236px;
   }
 }
 
 @media (max-width: 800px) {
+  .app-main,
+  .app-main.sidebar-collapsed {
+    padding-left: 0;
+  }
+
   .workspace-context-bar {
     display: none;
   }
