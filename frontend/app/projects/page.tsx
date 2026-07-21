@@ -28,8 +28,8 @@ export default function ProjectsPage() {
 
   return (
     <div className="main" style={{ alignItems: "flex-start", paddingTop: "40px" }}>
-      <div className="page-shell">
-        <PageHeader title="项目管理" description="查看和管理所有项目，按企业分组浏览" />
+      <div className="page-shell projects-page-shell">
+        <PageHeader title="项目" description="用企业项目隔离客户、订单、资料和 Agent 上下文" />
 
         <div className="lib-top-bar">
           <SearchInput value={search} onChange={setSearch} placeholder="搜索项目名称..." />
@@ -60,7 +60,7 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        <div className="page-list">
+        <div className="page-list project-card-grid">
           {filtered.length === 0 && (
             <div className="search-empty">暂无项目</div>
           )}
@@ -71,7 +71,7 @@ export default function ProjectsPage() {
             return (
               <div
                 key={project.id}
-                className="page-row search-result"
+                className="page-row search-result project-overview-card"
                 onClick={() => router.push(`/projects/${project.id}`)}
                 role="button"
                 tabIndex={0}
@@ -83,8 +83,10 @@ export default function ProjectsPage() {
                 </div>
                 <strong>{project.name}</strong>
                 {project.description && <p>{project.description}</p>}
-                <div style={{ fontSize: 12, color: "var(--c-8c8c8c)", marginTop: 4 }}>
-                  {convCount} 对话 · {libCount} 资料
+                <div className="project-overview-metrics">
+                  <span><strong>{convCount}</strong> 对话</span>
+                  <span><strong>{libCount}</strong> 资料</span>
+                  <span><strong>{workspace.automations.filter((item) => item.projectId === project.id).length}</strong> 自动化</span>
                 </div>
               </div>
             );

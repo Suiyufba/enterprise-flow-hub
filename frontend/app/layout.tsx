@@ -7,8 +7,8 @@ import { WorkspaceProvider } from "./lib/workspace-context";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Enterprise Flow Hub",
-  description: "Screenshot-first AI workflow analyst",
+  title: "FlowHub - 智能业务工作台",
+  description: "让 Agent 在明确的数据范围内完成企业业务操作。",
 };
 
 export const viewport = { width: "device-width", initialScale: 1 };
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem("theme");document.documentElement.setAttribute("data-theme",t==="dark"?"dark":"light")}catch(e){document.documentElement.setAttribute("data-theme","light")}})()`,
           }}
         />
       </head>

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
 import { PageTransition } from "./PageTransition";
+import { WorkspaceContextBar } from "./WorkspaceContextBar";
 import { useAuth } from "../lib/auth-context";
 
 const SIDEBAR_KEY = "efh_sidebar_collapsed";
@@ -102,6 +103,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <span className="mobile-app-title">{getPageTitle(pathname)}</span>
       </div>
       <main className={`app-main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+        <WorkspaceContextBar />
         <ThemeToggle />
         {isWorkflowEditorPage ? children : <PageTransition>{children}</PageTransition>}
       </main>

@@ -105,8 +105,8 @@ export default function PersonasPage() {
   return (
         <div className="page-shell personas-page-shell">
           <PageHeader
-            title="角色人格"
-            description="为不同业务场景配置回复模型、思考模型和执行规则。"
+            title="人格"
+            description="为不同工作场景配置 Agent 的口吻、职责、模型和工具权限。"
             actions={(
               <button className={showAddForm ? "page-secondary-button" : "page-primary-button"} onClick={() => setShowAddForm(!showAddForm)} type="button">
                 {showAddForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 添加角色</>}

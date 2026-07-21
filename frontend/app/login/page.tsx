@@ -78,22 +78,22 @@ export default function LoginPage() {
 
       <div className="login-panel">
         <section className="login-story" aria-label="Enterprise Flow Hub">
-          <div className="login-mark">EF</div>
-          <p className="login-kicker">Enterprise Flow Hub</p>
-          <h1>把客户、订单、发票和自动化放进同一个工作流。</h1>
-          <p className="login-story-copy">面向管理团队的企业流程中枢，统一跟踪业务数据、文件资料和 AI 协作记录。</p>
+          <div className="login-mark">F</div>
+          <p className="login-kicker">FlowHub</p>
+          <h1>让 Agent 真正完成业务，而不只是回答问题。</h1>
+          <p className="login-story-copy">客户、订单、发票、资料库与自动化在同一范围内协作。每一步可追踪、可确认、可回滚。</p>
           <div className="login-feature-grid">
-            <span>订单</span>
-            <span>发票</span>
-            <span>付款</span>
-            <span>审计</span>
+            <span>业务数据</span>
+            <span>Agent 执行</span>
+            <span>自动化</span>
+            <span>飞书协同</span>
           </div>
         </section>
 
         <div className="login-card">
           <div className="login-header">
-            <span className="login-brand">登录工作台</span>
-            <p className="login-sub">使用企业账号继续访问</p>
+            <span className="login-brand">欢迎回来</span>
+            <p className="login-sub">登录后进入你的企业工作台</p>
           </div>
 
           <form ref={formRef} onSubmit={handleSubmit} className="login-form">
@@ -125,7 +125,7 @@ export default function LoginPage() {
               type="submit"
               disabled={submitting || !username.trim() || !password}
             >
-              {submitting ? "登录中..." : "登录"}
+              {submitting ? "登录中..." : "登录工作台"}
             </button>
           </form>
         </div>

@@ -238,7 +238,7 @@ export function SearchPage() {
   }, [filteredBase]);
 
   return (
-    <PageShell title="搜索" description="跨项目、对话、资料、自动化和业务记录查找。">
+    <PageShell title="全局搜索" description="在当前企业范围内统一查找资料、客户、订单、对话与自动化。">
       <div className="lib-top-bar">
         <input
           className="page-input lib-search-input"
@@ -486,7 +486,7 @@ export function LibraryPage() {
   };
 
   return (
-    <PageShell title="资料库" description="沉淀截图、表格、文档和业务备注，分企业、分可见范围管理。">
+    <PageShell title="资料库" description="沉淀可被 Agent 检索、引用和更新的企业知识，并明确公共与项目范围。">
       {/* Search + Add */}
       <div className="lib-top-bar">
         <input
@@ -829,7 +829,14 @@ export function PluginsPage() {
   }, [workspace.tools, workspace.plugins]);
 
   return (
-    <PageShell title="插件" description="管理工具、Skills 和外部连接。">
+    <PageShell title="插件与连接" description="管理 Agent 可用的企业系统、数据源、Skills 与业务动作。">
+      <div className="integration-permission-note">
+        <AppIcon name="check" />
+        <div>
+          <strong>权限清晰可控</strong>
+          <span>Agent 仅在当前用户授权范围内调用连接；高风险写操作会进入审计日志。</span>
+        </div>
+      </div>
       {/* Tools */}
       <div className="page-section-title">可用工具</div>
       <div className="tool-grid">
@@ -1129,7 +1136,7 @@ export function AutomationPage() {
   }, [filtered]);
 
   return (
-    <PageShell title="自动化" description="AI 驱动的自动化工作流：触发器 + Agent + 动作。">
+    <PageShell title="自动化" description="创建、测试并监控真正执行的业务工作流：触发器 + Agent + 动作。">
       {/* Search + Add */}
       <div className="lib-top-bar">
         <input

@@ -124,7 +124,10 @@ export default function Home() {
 
   return (
     <div className="main-inner new-chat-page">
-      <h1 className="main-title">今天想做什么？</h1>
+      <div className="new-chat-heading">
+        <h1 className="main-title">今天想推进什么？</h1>
+        <p>选择业务范围，Agent 会在该范围内查询、分析并执行操作。</p>
+      </div>
 
       <div className="chat-quick-starts" aria-label="常用任务">
         {QUICK_STARTS.map((item) => (

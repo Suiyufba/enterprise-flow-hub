@@ -7036,3 +7036,542 @@ a {
     width: 100%;
   }
 }
+
+/* ========================================
+   FlowHub Figma implementation
+   Shared application shell and semantic light workspace.
+   ======================================== */
+
+:root,
+[data-theme="light"] {
+  --ui-canvas: #f4f7f5;
+  --ui-sidebar: #152019;
+  --ui-surface: #ffffff;
+  --ui-surface-muted: #eef3f0;
+  --ui-border: #d9e1dc;
+  --ui-border-strong: #b9c7be;
+  --ui-text: #17211b;
+  --ui-text-muted: #67746c;
+  --ui-text-secondary: #4d5b52;
+  --ui-brand: #18794e;
+  --ui-brand-strong: #10693f;
+  --ui-brand-soft: #e7f4ec;
+  --ui-danger: #c83c37;
+  --ui-danger-soft: #fdecec;
+  --ui-warning: #b45309;
+  --ui-warning-soft: #fff3dd;
+  --ui-info: #2563a5;
+  --ui-info-soft: #e8f2ff;
+  --ui-focus: rgba(24, 121, 78, 0.18);
+  --ui-shadow: 0 12px 30px rgba(24, 40, 31, 0.09);
+}
+
+[data-theme="dark"] {
+  --ui-canvas: #111512;
+  --ui-sidebar: #111713;
+  --ui-surface: #1b211d;
+  --ui-surface-muted: #222a25;
+  --ui-border: #303a34;
+  --ui-border-strong: #455249;
+  --ui-text: #f1f5f2;
+  --ui-text-muted: #99a59d;
+  --ui-text-secondary: #bac5bd;
+  --ui-brand: #52bd7d;
+  --ui-brand-strong: #68cd8f;
+  --ui-brand-soft: rgba(82, 189, 125, 0.14);
+  --ui-danger: #ff746c;
+  --ui-danger-soft: rgba(255, 116, 108, 0.12);
+  --ui-warning: #f0b15d;
+  --ui-warning-soft: rgba(240, 177, 93, 0.12);
+  --ui-info: #7eb4ed;
+  --ui-info-soft: rgba(126, 180, 237, 0.12);
+  --ui-focus: rgba(82, 189, 125, 0.28);
+  --ui-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+}
+
+body {
+  font-family: "Noto Sans SC", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.sidebar,
+.sidebar.collapsed {
+  width: 236px;
+  padding: 12px 10px;
+  background: #152019;
+  border-color: #2a372f;
+}
+
+.sidebar.collapsed {
+  transform: translateX(-236px);
+}
+
+.app-main {
+  padding-left: 236px;
+}
+
+.sidebar-toggle {
+  top: 16px;
+  left: 212px;
+  width: 28px;
+  height: 28px;
+  border-color: #405047;
+  background: #223029;
+  color: #c4cec7;
+}
+
+.sidebar-toggle:hover {
+  border-color: #627268;
+  background: #2b3b32;
+  color: #ffffff;
+}
+
+.sidebar-toggle.collapsed {
+  left: 10px;
+  background: var(--ui-surface);
+  color: var(--ui-text-muted);
+}
+
+.sidebar-brand {
+  height: 54px;
+  border-color: #2a372f;
+  color: #eef5f0;
+}
+
+.sidebar-brand-mark {
+  background: #18794e;
+  color: #ffffff;
+}
+
+.sidebar-brand-copy small,
+.sidebar .nav-group-header,
+.sidebar .sidebar-section-header,
+.sidebar .section-label,
+.sidebar .sidebar-user-role {
+  color: #91a097;
+}
+
+.sidebar .nav-item {
+  min-height: 38px;
+  color: #b7c3bb;
+}
+
+.sidebar .nav-item:hover,
+.sidebar .history-chat:hover,
+.sidebar .enterprise-toggle:hover,
+.sidebar .history-company:hover,
+.sidebar .sub-item:hover {
+  background: #223029;
+  color: #ffffff;
+}
+
+.sidebar .nav-item.active,
+.sidebar .history-chat.active,
+.sidebar .sub-item.active {
+  background: #18794e;
+  color: #ffffff;
+}
+
+.sidebar .nav-item.active .app-icon,
+.sidebar .history-chat.active .app-icon,
+.sidebar .sub-item.active .app-icon {
+  color: #ffffff;
+}
+
+.sidebar .nav-indicator {
+  display: none;
+}
+
+.sidebar .primary-nav,
+.sidebar .sidebar-footer {
+  border-color: #2a372f !important;
+}
+
+.sidebar .sidebar-settings-btn,
+.sidebar .sidebar-logout-btn,
+.sidebar .sidebar-login-link,
+.sidebar .sidebar-username {
+  color: #c4cec7;
+}
+
+.workspace-context-bar {
+  position: sticky;
+  top: 0;
+  z-index: 70;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 70px 0 32px;
+  border-bottom: 1px solid var(--ui-border);
+  background: color-mix(in srgb, var(--ui-canvas) 94%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.workspace-context-scope,
+.workspace-context-item,
+.workspace-agent-status {
+  display: inline-flex;
+  align-items: center;
+}
+
+.workspace-context-scope {
+  min-width: 0;
+  gap: 9px;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+}
+
+.workspace-context-item {
+  min-width: 0;
+  gap: 7px;
+  font-weight: 650;
+}
+
+.workspace-context-item .app-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.workspace-context-project {
+  overflow: hidden;
+  max-width: 280px;
+  color: var(--ui-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-context-divider {
+  color: var(--ui-border-strong);
+}
+
+.workspace-agent-status {
+  flex: 0 0 auto;
+  gap: 7px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.workspace-agent-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.theme-toggle {
+  top: 11px;
+  right: 22px;
+}
+
+.page-transition > .page-shell,
+.page-transition > .chat-shell,
+.page-transition > .results-inner,
+.page-transition > .enterprise-page,
+.page-transition > .main-inner {
+  margin-top: 24px;
+}
+
+.app-main .main {
+  padding-top: 24px !important;
+}
+
+.page-shell {
+  max-width: 1280px;
+  padding: 0 32px 72px;
+}
+
+.page-header {
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+}
+
+.page-header h1,
+.page-header-left h1 {
+  font-size: 27px;
+  font-weight: 750;
+}
+
+.page-primary-button,
+.chat-send-btn,
+.data-table-pages button.active {
+  color: #ffffff;
+}
+
+.page-card,
+.page-row,
+.stat-card,
+.dashboard-card,
+.workflow-card,
+.settings-card,
+.data-table-wrap,
+.chat-composer,
+.agent-run-panel {
+  box-shadow: none;
+}
+
+.page-card:hover,
+.page-row:hover,
+.dashboard-card:hover,
+.workflow-card:hover {
+  border-color: var(--ui-border-strong);
+}
+
+.integration-permission-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--ui-info) 22%, var(--ui-border));
+  border-radius: 8px;
+  background: var(--ui-info-soft);
+  color: var(--ui-info);
+}
+
+.integration-permission-note > .app-icon {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.integration-permission-note div {
+  display: grid;
+  gap: 3px;
+}
+
+.integration-permission-note strong {
+  color: var(--ui-text);
+  font-size: 13px;
+}
+
+.integration-permission-note span {
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.project-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.project-overview-card {
+  min-height: 190px;
+  align-content: start;
+  padding: 19px;
+}
+
+.project-overview-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: auto;
+  padding-top: 18px;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+}
+
+.project-overview-metrics span {
+  display: grid;
+  gap: 2px;
+}
+
+.project-overview-metrics strong {
+  color: var(--ui-text);
+  font-size: 18px;
+}
+
+.new-chat-page {
+  max-width: 960px;
+  min-height: calc(100dvh - 136px);
+  padding-bottom: 56px;
+}
+
+.new-chat-heading {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.new-chat-heading .main-title {
+  margin-bottom: 7px;
+  font-size: 31px;
+}
+
+.new-chat-heading p {
+  color: var(--ui-text-muted);
+  font-size: 13px;
+}
+
+.chat-quick-start {
+  min-height: 48px;
+  padding: 10px 13px;
+}
+
+.chat-composer {
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(24, 40, 31, 0.1);
+}
+
+.login-shell {
+  padding: 0;
+  background: #f4f7f5;
+}
+
+.login-bg {
+  background: #f4f7f5;
+}
+
+.login-panel {
+  width: 100%;
+  min-height: 100dvh;
+  grid-template-columns: minmax(480px, 48%) minmax(420px, 52%);
+  border: 0;
+  border-radius: 0;
+  background: #f4f7f5;
+  box-shadow: none;
+}
+
+.login-story {
+  justify-content: center;
+  padding: clamp(44px, 7vw, 104px);
+  border-color: #2a372f;
+  background: #152019;
+}
+
+.login-mark {
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 8px;
+  background: #18794e;
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.login-kicker {
+  color: #70d19a;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.login-story h1 {
+  font-size: clamp(32px, 3.2vw, 48px);
+  line-height: 1.22;
+}
+
+.login-story-copy {
+  color: #aebbb3;
+}
+
+.login-feature-grid span {
+  border-color: #34443a;
+  background: #1d2922;
+  color: #d6e0d9;
+}
+
+.login-card {
+  width: min(100%, 520px);
+  margin: auto;
+  padding: 48px 56px;
+  background: transparent;
+}
+
+.login-brand {
+  color: #17211b;
+  font-size: 28px;
+}
+
+.login-sub {
+  color: #67746c;
+}
+
+.login-input {
+  height: 48px;
+  border-color: #d9e1dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #17211b;
+}
+
+.login-input:focus {
+  border-color: #18794e;
+  box-shadow: 0 0 0 3px rgba(24, 121, 78, 0.14);
+}
+
+.login-input::placeholder {
+  color: #89958d;
+}
+
+.login-submit {
+  background: #18794e;
+  color: #ffffff;
+}
+
+.login-submit:hover {
+  background: #10693f;
+}
+
+@media (min-width: 801px) {
+  .app-main.sidebar-collapsed .new-chat-page {
+    margin-left: 236px;
+  }
+}
+
+@media (max-width: 800px) {
+  .workspace-context-bar {
+    display: none;
+  }
+
+  .sidebar,
+  .sidebar.collapsed {
+    width: min(340px, calc(100% - 44px));
+  }
+
+  .page-transition > .page-shell,
+  .page-transition > .chat-shell,
+  .page-transition > .results-inner,
+  .page-transition > .enterprise-page,
+  .page-transition > .main-inner {
+    margin-top: 20px;
+  }
+
+  .new-chat-heading {
+    text-align: left;
+  }
+
+  .login-panel {
+    display: block;
+    min-height: 100dvh;
+  }
+
+  .login-story {
+    min-height: 310px;
+    padding: 42px 28px;
+  }
+
+  .login-story h1 {
+    font-size: 30px;
+  }
+
+  .login-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .login-card {
+    width: 100%;
+    padding: 38px 24px 48px;
+  }
+
+  .project-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
