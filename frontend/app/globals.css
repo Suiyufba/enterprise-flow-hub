@@ -6694,6 +6694,87 @@ a {
   border-color: var(--ui-border);
 }
 
+.chat-msg-assistant {
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+.chat-msg-assistant .chat-msg-content,
+.chat-msg-assistant .markdown-body {
+  color: var(--ui-text);
+}
+
+.chat-msg-assistant .msg-copy-btn {
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-muted);
+}
+
+.chat-msg-assistant .msg-copy-btn:hover {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+}
+
+.chat-msg-assistant .markdown-body h1,
+.chat-msg-assistant .markdown-body h2,
+.chat-msg-assistant .markdown-body h3,
+.chat-msg-assistant .markdown-body h4,
+.chat-msg-assistant .markdown-body strong {
+  color: var(--ui-text);
+}
+
+.chat-msg-assistant .markdown-body em,
+.chat-msg-assistant .markdown-body blockquote {
+  color: var(--ui-text-secondary);
+}
+
+.chat-msg-assistant .markdown-body li::marker {
+  color: var(--ui-brand);
+}
+
+.chat-msg-assistant .markdown-body code {
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+}
+
+.chat-msg-assistant .markdown-body pre {
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface-muted);
+}
+
+.chat-msg-assistant .markdown-body pre code {
+  color: var(--ui-text);
+}
+
+.chat-msg-assistant .markdown-body blockquote {
+  border-left-color: var(--ui-brand);
+  background: var(--ui-brand-soft);
+  padding: 9px 12px;
+}
+
+.chat-msg-assistant .markdown-body th,
+.chat-msg-assistant .markdown-body td {
+  border-color: var(--ui-border);
+}
+
+.chat-msg-assistant .markdown-body th {
+  background: var(--ui-surface-muted);
+  color: var(--ui-text);
+}
+
+.chat-msg-assistant .markdown-body tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--ui-surface-muted) 52%, transparent);
+}
+
+.chat-msg-assistant .markdown-body a {
+  color: var(--ui-brand);
+}
+
+.chat-msg-assistant .markdown-body hr {
+  border-top-color: var(--ui-border);
+}
+
 .chat-shell {
   max-width: 920px;
 }
