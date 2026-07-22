@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AppIcon } from "./AppIcon";
 
 export function FormDialog({
@@ -22,10 +23,37 @@ export function FormDialog({
   onSubmit: () => void;
   onCancel: () => void;
 }) {
-  if (!open) return null;
-  return (
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCancelRef = useRef(onCancel);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  }, [onCancel]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    const activeElement = document.activeElement as HTMLElement | null;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancelRef.current();
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    const frame = requestAnimationFrame(() => {
+      dialogRef.current?.querySelector<HTMLElement>("input, select, textarea, button")?.focus();
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      activeElement?.focus();
+    };
+  }, [open]);
+
+  if (!open || typeof document === "undefined") return null;
+  return createPortal(
     <div className="settings-overlay" onClick={onCancel}>
-      <div className="settings-modal entity-form-dialog" role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} className="settings-modal entity-form-dialog" role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onClick={(event) => event.stopPropagation()}>
         <div className="settings-header">
           <h2 id="entity-form-title">{title}</h2>
           <button className="settings-close" onClick={onCancel} type="button" aria-label="关闭"><AppIcon name="x" /></button>
@@ -40,6 +68,7 @@ export function FormDialog({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

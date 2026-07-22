@@ -47,7 +47,12 @@ export function DataTable<T extends { id: string }>({
   }
 
   return (
-    <div className={["data-table-wrap", className].filter(Boolean).join(" ")}>
+    <div
+      className={["data-table-wrap", className].filter(Boolean).join(" ")}
+      role="region"
+      aria-label="数据列表"
+      tabIndex={0}
+    >
       <table className="data-table">
         <thead>
           <tr>
@@ -62,7 +67,7 @@ export function DataTable<T extends { id: string }>({
           {data.map((row) => (
             <tr key={row.id}>
               {columns.map((col) => (
-                <td key={col.key}>
+                <td key={col.key} data-label={col.label}>
                   {col.render
                     ? col.render(row)
                     : String((row as Record<string, unknown>)[col.key] ?? "")}

@@ -13,6 +13,7 @@ export type AppIconName =
   | "document"
   | "download"
   | "edit"
+  | "eye"
   | "file"
   | "folder"
   | "image"
@@ -55,6 +56,7 @@ const iconPaths: Record<AppIconName, string[]> = {
   document: ["M7 3h7l5 5v13H7z", "M14 3v6h5", "M9 14h6", "M9 17h4"],
   download: ["M12 4v10", "M8 10l4 4 4-4", "M5 20h14"],
   edit: ["M5 19l4-.8L18.5 8.7a2.1 2.1 0 0 0-3-3L6 15.2z", "M14 7l3 3"],
+  eye: ["M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"],
   file: ["M7 3h7l5 5v13H7z", "M14 3v6h5"],
   folder: ["M5 7h5l2 3h7v9H5z"],
   image: ["M5 5h14v14H5z", "M8 15l3-3 2 2 3-4 3 5", "M9 9h.01"],

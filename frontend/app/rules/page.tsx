@@ -230,7 +230,7 @@ export default function RulesPage() {
           title="规则引擎"
           description="管理自动化业务规则，当条件满足时触发动作"
           actions={
-            <button className="page-primary-button" onClick={() => { resetForm(); setShowForm(!showForm); }} type="button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)" }}>
+            <button className="page-primary-button" onClick={() => { resetForm(); setShowForm(!showForm); }} type="button">
               {showForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 新建规则</>}
             </button>
           }

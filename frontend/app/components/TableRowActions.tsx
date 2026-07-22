@@ -13,7 +13,7 @@ export function TableRowActions({
   return (
     <div className="table-actions">
       <Link className="table-action-link" href={viewHref}>
-        查看
+        <AppIcon name="eye" /> 查看
       </Link>
       {editHref && (
         <Link className="table-action-link" href={editHref}>

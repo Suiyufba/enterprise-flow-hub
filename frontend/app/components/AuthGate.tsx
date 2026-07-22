@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "./ThemeToggle";
@@ -45,6 +45,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const isLoginPage = pathname === "/login";
   const isWorkflowEditorPage = pathname.startsWith("/automation/workflow");
+  const mainRef = useRef<HTMLElement>(null);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -70,6 +71,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
       router.replace("/");
     }
   }, [isLoginPage, loading, router, user]);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    main.scrollTop = 0;
+    main.scrollLeft = 0;
+  }, [pathname]);
 
   if (loading) {
     return (
@@ -102,7 +110,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <span className="mobile-app-mark">F</span>
         <span className="mobile-app-title">{getPageTitle(pathname)}</span>
       </div>
-      <main className={`app-main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <main ref={mainRef} className={`app-main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <WorkspaceContextBar />
         <ThemeToggle />
         {isWorkflowEditorPage ? children : <PageTransition>{children}</PageTransition>}

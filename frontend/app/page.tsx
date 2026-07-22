@@ -110,7 +110,7 @@ export default function DashboardPage() {
           <StatCard label="待处理订单" value={statsLoading ? "..." : summary.pendingOrderCount} icon="sync" />
         </div>
 
-        <div className="dashboard-grid" style={{ marginTop: 16 }}>
+        <div className="dashboard-grid dashboard-grid-secondary" style={{ marginTop: 12 }}>
           <StatCard label="待处理发票" value={statsLoading ? "..." : summary.pendingInvoiceCount} icon="invoice" />
           <StatCard label="逾期发票" value={statsLoading ? "..." : summary.overdueInvoiceCount} icon="alert" trend={summary.overdueInvoiceCount > 0 ? { direction: "down", text: "需要处理" } : undefined} />
           <StatCard label="客户" value={statsLoading ? "..." : summary.customers} icon="user" />

@@ -7669,3 +7669,249 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ========================================
+   Unified interaction and responsive pass
+   ======================================== */
+
+.app-main {
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
+}
+
+.page-header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.page-toolbar,
+.lib-top-bar {
+  align-items: center;
+}
+
+.data-table-wrap:focus-visible {
+  outline: 2px solid var(--ui-brand);
+  outline-offset: 2px;
+}
+
+.data-table td {
+  line-height: 1.45;
+}
+
+.table-actions {
+  flex-wrap: nowrap;
+}
+
+.table-action-link,
+.table-action-button {
+  min-height: 30px;
+  white-space: nowrap;
+}
+
+.table-action-link .app-icon,
+.table-action-button .app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.entity-form-dialog {
+  max-height: min(760px, calc(100dvh - 48px));
+  overflow: hidden;
+}
+
+.entity-form-dialog .settings-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.entity-form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 8px -2px -2px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+}
+
+.dashboard-grid-secondary .stat-card {
+  min-height: 88px;
+  background: color-mix(in srgb, var(--ui-surface) 72%, var(--ui-surface-muted));
+}
+
+.dashboard-grid-secondary .stat-card-value {
+  font-size: 24px;
+}
+
+@media (max-width: 800px) {
+  .page-header {
+    align-items: stretch;
+  }
+
+  .page-header-actions,
+  .page-header-actions > * {
+    width: 100%;
+  }
+
+  .page-header-actions .page-primary-button,
+  .page-header-actions .page-secondary-button {
+    justify-content: center;
+  }
+
+  .page-toolbar,
+  .lib-top-bar {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+
+  .page-toolbar > :first-child,
+  .lib-top-bar > :first-child {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .page-toolbar select,
+  .page-toolbar .search-enterprise-select,
+  .page-toolbar .project-picker,
+  .lib-top-bar .page-primary-button,
+  .lib-top-bar .page-secondary-button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard-grid-secondary .stat-card-value {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 680px) {
+  .page-shell {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .page-header h1,
+  .page-header-left h1 {
+    font-size: 25px;
+  }
+
+  .new-chat-heading .main-title {
+    font-size: 28px;
+  }
+
+  .data-table-wrap,
+  .invoice-table-wrap,
+  .erp-table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .data-table,
+  .invoice-table-wrap .data-table,
+  .data-table-wrap.erp-table-wrap .data-table,
+  .data-table-wrap.invoice-table-wrap.erp-table-wrap .data-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .data-table thead {
+    display: none;
+  }
+
+  .data-table tbody {
+    display: grid;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .data-table tbody tr {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    background: var(--ui-surface);
+  }
+
+  .data-table td,
+  .invoice-table-wrap .data-table td {
+    display: grid;
+    grid-template-columns: minmax(82px, 31%) minmax(0, 1fr);
+    align-items: start;
+    min-width: 0;
+    height: auto;
+    min-height: 42px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--ui-border);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .data-table td::before {
+    content: attr(data-label);
+    padding-right: 10px;
+    color: var(--ui-text-muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .data-table tbody tr:hover td {
+    background: transparent;
+  }
+
+  .data-table tbody tr td:first-child {
+    background: var(--ui-surface-muted);
+    font-size: 14px;
+  }
+
+  .data-table tbody tr td:last-child {
+    border-bottom: 0;
+  }
+
+  .data-table .table-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .data-table .entity-tags-display {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .data-table-footer {
+    margin-top: 10px;
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+  }
+
+  .entity-form-dialog {
+    width: calc(100% - 20px);
+    max-height: calc(100dvh - 20px);
+  }
+
+  .settings-overlay {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-toolbar,
+  .lib-top-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .page-toolbar > :first-child,
+  .lib-top-bar > :first-child {
+    grid-column: auto;
+  }
+
+  .workspace-agent-status {
+    display: none;
+  }
+}

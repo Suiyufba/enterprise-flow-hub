@@ -84,7 +84,7 @@ export default function OrdersPage() {
             </Link>
           }
         />
-        <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
+        <div className="page-toolbar" style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索订单号..." />
           <EnterpriseScopeSelect enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectFilter(""); setPage(1); }} ariaLabel="按所属企业筛选" />
           <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />

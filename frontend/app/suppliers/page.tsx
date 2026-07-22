@@ -150,7 +150,7 @@ export default function SuppliersPage() {
           title="供应商管理"
           description="管理所有供应商信息"
           actions={
-            <button className="page-primary-button" onClick={() => setShowForm(!showForm)} type="button" style={{ border: 0, borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", padding: "10px 18px", background: "var(--c-f0f0f0)", color: "var(--c-181818)" }}>
+            <button className="page-primary-button" onClick={() => setShowForm(!showForm)} type="button">
               {showForm ? <><AppIcon name="x" /> 取消</> : <><AppIcon name="plus" /> 新建供应商</>}
             </button>
           }
@@ -182,7 +182,7 @@ export default function SuppliersPage() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
+        <div className="page-toolbar" style={{ display: "flex", gap: "10px", marginBottom: "14px" }}>
           <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="搜索名称、联系人、电话或标签..." />
           <EnterpriseScopeSelect enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectFilter(""); setPage(1); }} ariaLabel="按所属企业筛选" />
           <ProjectScopeSelect projects={projects} value={projectFilter} onChange={(value) => { setProjectFilter(value); setPage(1); }} />
