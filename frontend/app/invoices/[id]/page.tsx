@@ -3,7 +3,7 @@
 import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { fetchJson } from "../../lib/api";
+import { API, fetchJson, getStoredToken } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
@@ -262,6 +262,22 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
     finally { setSaving(false); setStatusConfirm(null); }
   };
 
+  const openSourceImage = async () => {
+    if (!invoice?.sourceFileId) return;
+    try {
+      const token = getStoredToken();
+      const response = await fetch(`${API}/files/${invoice.sourceFileId}/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const url = URL.createObjectURL(await response.blob());
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      showToast("原始票据加载失败", "error");
+    }
+  };
+
   // ---- Shared form change handler ----
   const updateField = (field: string, value: string | number | null) => {
     setEditForm((prev) => ({ ...prev, [field]: value }));
@@ -385,6 +401,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
               </>
             ) : (
               <>
+                {invoice.sourceFileId && <button className="page-secondary-button" onClick={() => void openSourceImage()} type="button"><AppIcon name="image" /> 查看原始票据</button>}
                 {invoice.status === "draft" && <button className="page-secondary-button" onClick={() => handleEdit()} type="button"><AppIcon name="edit" /> 编辑票面</button>}
                 {invoice.status === "draft" && <button className="page-primary-button" onClick={() => setStatusConfirm("issued")} type="button">确认开具</button>}
                 {(["issued", "overdue"] as Invoice["status"][]).includes(invoice.status) && <button className="page-primary-button" onClick={() => setStatusConfirm("paid")} type="button">标记已支付</button>}

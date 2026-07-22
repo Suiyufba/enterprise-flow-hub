@@ -130,7 +130,7 @@ test("Feishu summaries retain action and question sections when the model omits 
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 19);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 20);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
   for (const table of tables) {
     assert.equal((db.prepare(`PRAGMA foreign_key_list(\"${table.name}\")`).all() as unknown[]).length, 0, `${table.name} should not have database foreign keys`);
@@ -253,6 +253,44 @@ test("business record routes support real edit flows and protect posted records"
   assert.equal((await app.inject({ method: "GET", url: `/invoices/${invoiceId}` })).statusCode, 200);
   assert.equal((await app.inject({ method: "PATCH", url: `/invoices/${invoiceId}`, payload: { status: "issued" } })).statusCode, 200);
   assert.equal((await app.inject({ method: "DELETE", url: `/invoices/${invoiceId}` })).statusCode, 409);
+
+  const ocrSource = createFile({
+    enterpriseId: "ent-qihang",
+    projectId: "proj-qihang-growth",
+    filename: "invoice.png",
+    mimeType: "image/png",
+    size: 128,
+    storagePath: join(testDir, "invoice.png"),
+    uploadedBy: "user-admin",
+    relatedType: "project",
+    relatedId: "proj-qihang-growth",
+  });
+  const ocrInvoiceCreate = await app.inject({
+    method: "POST",
+    url: "/invoices",
+    payload: {
+      enterpriseId: "ent-qihang",
+      projectId: "proj-qihang-growth",
+      sourceFileId: ocrSource.id,
+      amount: 283.02,
+      invoiceCode: "044001900111",
+      invoiceNumber: "87282299610001",
+    },
+  });
+  assert.equal(ocrInvoiceCreate.statusCode, 201);
+  assert.equal(ocrInvoiceCreate.json().sourceFileId, ocrSource.id);
+  const duplicateInvoice = await app.inject({
+    method: "POST",
+    url: "/invoices",
+    payload: {
+      enterpriseId: "ent-qihang",
+      projectId: "proj-qihang-growth",
+      amount: 283.02,
+      invoiceCode: "044001900111",
+      invoiceNumber: "87282299610001",
+    },
+  });
+  assert.equal(duplicateInvoice.statusCode, 409);
 
   const taskCreate = await app.inject({
     method: "POST",

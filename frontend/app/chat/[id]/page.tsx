@@ -11,6 +11,7 @@ import { TypingIndicator } from "../../components/TypingIndicator";
 import { ErrorState } from "../../components/ErrorState";
 import { AgentRunPanel } from "../../components/AgentRunPanel";
 import { AppIcon } from "../../components/AppIcon";
+import { InvoiceOcrUploader } from "../../components/InvoiceOcrUploader";
 import { gsap, useGSAP } from "../../lib/gsap";
 
 interface MessageRunState {
@@ -731,6 +732,12 @@ export default function ChatPage() {
           发送
         </button>
         <div className="chat-composer-controls">
+          <InvoiceOcrUploader
+            enterpriseId={currentEnterpriseId}
+            projectId={detail.projectId}
+            buttonClassName="composer-invoice-ocr"
+            buttonLabel="发票图片"
+          />
           <select
             className="composer-select composer-project"
             value={detail.projectId}

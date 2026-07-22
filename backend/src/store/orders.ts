@@ -243,6 +243,7 @@ function rowToInvoice(r: Record<string, unknown>): Invoice {
     sellerTaxId: (r.seller_tax_id as string) || null,
     remark: (r.remark as string) || null,
     issuer: (r.issuer as string) || null,
+    sourceFileId: (r.source_file_id as string) || null,
   };
 }
 
@@ -269,6 +270,17 @@ export function getInvoice(id: string): Invoice | undefined {
   return row ? rowToInvoice(row) : undefined;
 }
 
+export function findInvoiceByIdentity(enterpriseId: string, invoiceNumber: string, invoiceCode?: string | null): Invoice | undefined {
+  const normalizedNumber = invoiceNumber.trim();
+  if (!normalizedNumber) return undefined;
+  const row = invoiceCode?.trim()
+    ? db().prepare("SELECT * FROM invoices WHERE enterprise_id = ? AND invoice_number = ? AND invoice_code = ? LIMIT 1")
+      .get(enterpriseId, normalizedNumber, invoiceCode.trim()) as Record<string, unknown> | undefined
+    : db().prepare("SELECT * FROM invoices WHERE enterprise_id = ? AND invoice_number = ? LIMIT 1")
+      .get(enterpriseId, normalizedNumber) as Record<string, unknown> | undefined;
+  return row ? rowToInvoice(row) : undefined;
+}
+
 export function createInvoice(input: CreateInvoiceRequest): Invoice {
   const now = new Date().toISOString();
   const projectId = resolveProjectId(input.enterpriseId, input.projectId);
@@ -283,7 +295,7 @@ export function createInvoice(input: CreateInvoiceRequest): Invoice {
     amount: input.amount,
     status: "draft",
     dueDate: input.dueDate || null,
-    issuedAt: null,
+    issuedAt: input.issuedAt || null,
     createdAt: now,
     invoiceNumber: input.invoiceNumber ?? null,
     invoiceCode: input.invoiceCode ?? null,
@@ -297,10 +309,11 @@ export function createInvoice(input: CreateInvoiceRequest): Invoice {
     sellerTaxId: input.sellerTaxId ?? null,
     remark: input.remark ?? null,
     issuer: input.issuer ?? null,
+    sourceFileId: input.sourceFileId ?? null,
   };
   db()
-    .prepare(`INSERT INTO invoices (id, enterprise_id, project_id, order_id, customer_id, amount, status, due_date, issued_at, created_at, invoice_number, invoice_code, invoice_type, tax_rate, tax_amount, total_amount, buyer_name, buyer_tax_id, seller_name, seller_tax_id, remark, issuer) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(invoice.id, invoice.enterpriseId, invoice.projectId, invoice.orderId, invoice.customerId, invoice.amount, invoice.status, invoice.dueDate, invoice.issuedAt, invoice.createdAt, invoice.invoiceNumber, invoice.invoiceCode, invoice.invoiceType, invoice.taxRate, invoice.taxAmount, invoice.totalAmount, invoice.buyerName, invoice.buyerTaxId, invoice.sellerName, invoice.sellerTaxId, invoice.remark, invoice.issuer);
+    .prepare(`INSERT INTO invoices (id, enterprise_id, project_id, order_id, customer_id, amount, status, due_date, issued_at, created_at, invoice_number, invoice_code, invoice_type, tax_rate, tax_amount, total_amount, buyer_name, buyer_tax_id, seller_name, seller_tax_id, remark, issuer, source_file_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(invoice.id, invoice.enterpriseId, invoice.projectId, invoice.orderId, invoice.customerId, invoice.amount, invoice.status, invoice.dueDate, invoice.issuedAt, invoice.createdAt, invoice.invoiceNumber, invoice.invoiceCode, invoice.invoiceType, invoice.taxRate, invoice.taxAmount, invoice.totalAmount, invoice.buyerName, invoice.buyerTaxId, invoice.sellerName, invoice.sellerTaxId, invoice.remark, invoice.issuer, invoice.sourceFileId);
   return invoice;
 }
 
@@ -330,7 +343,7 @@ export function updateInvoice(id: string, input: UpdateInvoiceRequest): Invoice 
     project_id = ?, order_id = ?, customer_id = ?, amount = ?, status = ?, due_date = ?, issued_at = ?,
     invoice_number = ?, invoice_code = ?, invoice_type = ?, tax_rate = ?,
     tax_amount = ?, total_amount = ?, buyer_name = ?, buyer_tax_id = ?,
-    seller_name = ?, seller_tax_id = ?, remark = ?, issuer = ?
+    seller_name = ?, seller_tax_id = ?, remark = ?, issuer = ?, source_file_id = ?
     WHERE id = ?`).run(
     projectId,
     keepOrReplace(input.orderId, existing.order_id),
@@ -351,6 +364,7 @@ export function updateInvoice(id: string, input: UpdateInvoiceRequest): Invoice 
     keepOrReplace(input.sellerTaxId, existing.seller_tax_id),
     keepOrReplace(input.remark, existing.remark),
     keepOrReplace(input.issuer, existing.issuer),
+    keepOrReplace(input.sourceFileId, existing.source_file_id),
     id,
   );
   return rowToInvoice(db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Record<string, unknown>);

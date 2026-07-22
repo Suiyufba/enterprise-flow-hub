@@ -13,6 +13,7 @@ import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { EnterpriseBadge, EnterpriseScopeSelect, ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
+import { InvoiceOcrUploader } from "../components/InvoiceOcrUploader";
 import type { Invoice, PaginatedList } from "shared";
 
 const statusLabels: Record<string, string> = {
@@ -262,6 +263,13 @@ export default function InvoicesPage() {
             <option value="overdue">已逾期</option>
             <option value="cancelled">已取消</option>
           </select>
+          <InvoiceOcrUploader
+            enterpriseId={enterpriseId}
+            projectId={projectFilter}
+            disabled={!projectFilter}
+            buttonLabel={projectFilter ? "识别发票图片" : "先选择业务子类"}
+            onCreated={load}
+          />
         </div>
 
         {error ? (

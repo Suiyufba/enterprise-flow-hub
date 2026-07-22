@@ -11,6 +11,7 @@ export function FormDialog({
   saving = false,
   submitLabel = "保存修改",
   submitDisabled = false,
+  className = "",
   onSubmit,
   onCancel,
 }: {
@@ -20,6 +21,7 @@ export function FormDialog({
   saving?: boolean;
   submitLabel?: string;
   submitDisabled?: boolean;
+  className?: string;
   onSubmit: () => void;
   onCancel: () => void;
 }) {
@@ -53,7 +55,7 @@ export function FormDialog({
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div className="settings-overlay" onClick={onCancel}>
-      <div ref={dialogRef} className="settings-modal entity-form-dialog" role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} className={`settings-modal entity-form-dialog ${className}`.trim()} role="dialog" aria-modal="true" aria-labelledby="entity-form-title" onClick={(event) => event.stopPropagation()}>
         <div className="settings-header">
           <h2 id="entity-form-title">{title}</h2>
           <button className="settings-close" onClick={onCancel} type="button" aria-label="关闭"><AppIcon name="x" /></button>

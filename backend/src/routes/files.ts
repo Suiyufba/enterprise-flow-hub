@@ -3,7 +3,8 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createReadStream, existsSync } from "node:fs";
 import { listFiles, getFileInternal, createFile, deleteFile, ensureUploadDir } from "../store/files.js";
-import { analyzeImageFile } from "../ai/ocr.js";
+import { analyzeImageFile, recognizeInvoiceFile } from "../ai/ocr.js";
+import { findInvoiceByIdentity } from "../store/orders.js";
 import { canAccessEnterprise, requireRequestActor } from "./auth-context.js";
 import { triggerProjectAutomations } from "../automation/scheduler.js";
 import { getProject } from "../store.js";
@@ -68,10 +69,6 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       relatedId,
     });
     emitEvent("create", "file", file.id, file as unknown as Record<string, unknown>, "api");
-    // Trigger async OCR for images
-    if (OCR_MIME_TYPES.has(data.mimetype)) {
-      analyzeImageFile(storagePath, data.mimetype, data.filename).catch(() => {});
-    }
     void triggerProjectAutomations("file", relatedId, {
       source: "file",
       fileId: file.id,
@@ -94,6 +91,29 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     const result = await analyzeImageFile(file.storagePath, file.mimeType, file.filename);
     if (!result) return reply.status(400).send({ error: "OCR 分析失败，文件可能不是图片或无法识别" });
     return reply.send(result);
+  });
+
+  app.post("/files/:id/ocr/invoice", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const file = getFileInternal(id);
+    if (!file) return reply.status(404).send({ error: "文件不存在" });
+    if (!canAccessEnterprise(request, file.enterpriseId, reply)) return;
+    if (!OCR_MIME_TYPES.has(file.mimeType)) return reply.status(400).send({ error: "发票 OCR 仅支持 PNG、JPEG、WebP 或 GIF 图片" });
+    if (file.size > 15 * 1024 * 1024) return reply.status(400).send({ error: "发票图片不能超过 15MB" });
+    try {
+      const candidate = await recognizeInvoiceFile(file.storagePath, file.mimeType, file.filename, file.id);
+      const duplicate = candidate.invoiceNumber
+        ? findInvoiceByIdentity(file.enterpriseId, candidate.invoiceNumber, candidate.invoiceCode)
+        : undefined;
+      if (duplicate) {
+        candidate.duplicateInvoiceId = duplicate.id;
+        candidate.warnings.push(`该发票号码已存在（${duplicate.id}）`);
+      }
+      return reply.send(candidate);
+    } catch (error) {
+      request.log.warn({ err: error, fileId: id }, "Invoice OCR failed");
+      return reply.status(422).send({ error: error instanceof Error ? error.message : "发票识别失败" });
+    }
   });
 
   app.delete("/files/:id", async (request, reply) => {

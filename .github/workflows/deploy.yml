@@ -161,6 +161,8 @@ jobs:
       - name: Deploy on server
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          BAIDU_OCR_API_KEY: ${{ secrets.BAIDU_OCR_API_KEY }}
+          BAIDU_OCR_SECRET_KEY: ${{ secrets.BAIDU_OCR_SECRET_KEY }}
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
           FEISHU_USER_ACCESS_TOKEN: ${{ secrets.FEISHU_USER_ACCESS_TOKEN }}
@@ -183,6 +185,8 @@ jobs:
             BACKEND_IMAGE="${BACKEND_IMAGE}" \
             FRONTEND_IMAGE="${FRONTEND_IMAGE}" \
             DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
+            BAIDU_OCR_API_KEY="${BAIDU_OCR_API_KEY}" \
+            BAIDU_OCR_SECRET_KEY="${BAIDU_OCR_SECRET_KEY}" \
             FEISHU_APP_ID="${FEISHU_APP_ID}" \
             FEISHU_APP_SECRET="${FEISHU_APP_SECRET}" \
             FEISHU_USER_ACCESS_TOKEN="${FEISHU_USER_ACCESS_TOKEN}" \
@@ -208,6 +212,10 @@ jobs:
           DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
           DEEPSEEK_BASE_URL=https://api.deepseek.com
           DEEPSEEK_MODEL=deepseek-chat
+          BAIDU_OCR_API_KEY=${BAIDU_OCR_API_KEY}
+          BAIDU_OCR_SECRET_KEY=${BAIDU_OCR_SECRET_KEY}
+          TESSERACT_LANG=chi_sim+eng
+          OCR_THREAD_LIMIT=1
           AGENT_RUNTIME=claude-code
           AGENT_FALLBACK_RUNTIME=legacy
           FEISHU_APP_ID=${FEISHU_APP_ID}

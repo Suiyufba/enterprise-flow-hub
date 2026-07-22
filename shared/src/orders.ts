@@ -124,6 +124,7 @@ export const InvoiceSchema = z.object({
   sellerTaxId: z.string().nullable(),
   remark: z.string().nullable(),
   issuer: z.string().nullable(),
+  sourceFileId: z.string().nullable(),
 });
 
 export const CreateInvoiceRequestSchema = z.object({
@@ -133,6 +134,7 @@ export const CreateInvoiceRequestSchema = z.object({
   customerId: z.string().optional(),
   amount: z.number().positive(),
   dueDate: z.string().optional(),
+  issuedAt: z.string().optional(),
   invoiceNumber: z.string().optional(),
   invoiceCode: z.string().optional(),
   invoiceType: z.enum(["vat_special","vat_normal","electronic"]).optional(),
@@ -145,6 +147,7 @@ export const CreateInvoiceRequestSchema = z.object({
   sellerTaxId: z.string().optional(),
   remark: z.string().optional(),
   issuer: z.string().optional(),
+  sourceFileId: z.string().optional(),
 });
 
 export const UpdateInvoiceRequestSchema = CreateInvoiceRequestSchema
@@ -173,3 +176,41 @@ export const UpdateInvoiceRequestSchema = CreateInvoiceRequestSchema
 export type Invoice = z.infer<typeof InvoiceSchema>;
 export type CreateInvoiceRequest = z.infer<typeof CreateInvoiceRequestSchema>;
 export type UpdateInvoiceRequest = z.infer<typeof UpdateInvoiceRequestSchema>;
+
+export const InvoiceOcrLineItemSchema = z.object({
+  name: z.string(),
+  specification: z.string().nullable(),
+  unit: z.string().nullable(),
+  quantity: z.number().nullable(),
+  unitPrice: z.number().nullable(),
+  amount: z.number().nullable(),
+  taxRate: z.number().nullable(),
+  taxAmount: z.number().nullable(),
+});
+
+export const InvoiceOcrCandidateSchema = z.object({
+  sourceFileId: z.string(),
+  filename: z.string(),
+  provider: z.enum(["baidu-vat", "tesseract"]),
+  confidence: z.number().min(0).max(1),
+  invoiceNumber: z.string().nullable(),
+  invoiceCode: z.string().nullable(),
+  invoiceType: z.enum(["vat_special", "vat_normal", "electronic"]).nullable(),
+  issuedAt: z.string().nullable(),
+  amount: z.number().nullable(),
+  taxRate: z.number().nullable(),
+  taxAmount: z.number().nullable(),
+  totalAmount: z.number().nullable(),
+  buyerName: z.string().nullable(),
+  buyerTaxId: z.string().nullable(),
+  sellerName: z.string().nullable(),
+  sellerTaxId: z.string().nullable(),
+  remark: z.string().nullable(),
+  issuer: z.string().nullable(),
+  lineItems: z.array(InvoiceOcrLineItemSchema),
+  warnings: z.array(z.string()),
+  duplicateInvoiceId: z.string().nullable(),
+});
+
+export type InvoiceOcrLineItem = z.infer<typeof InvoiceOcrLineItemSchema>;
+export type InvoiceOcrCandidate = z.infer<typeof InvoiceOcrCandidateSchema>;

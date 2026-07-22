@@ -10,8 +10,9 @@ import {
 import {
   listOrders, getOrder, createOrder, updateOrder, deleteOrder,
   listPayments, getPayment, createPayment, updatePayment,
-  listInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice,
+  listInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice, findInvoiceByIdentity,
 } from "../store/orders.js";
+import { getFileInternal } from "../store/files.js";
 import { getCustomer, getProduct } from "../store/crm.js";
 import { canAccessEnterprise } from "./auth-context.js";
 import { emitEvent } from "../events/emitter.js";
@@ -237,8 +238,20 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
       projectId ??= customer.projectId;
       if (customer.projectId !== projectId) return reply.status(400).send({ error: "发票与客户必须属于同一个项目" });
     }
+    if (parsed.data.sourceFileId) {
+      const sourceFile = getFileInternal(parsed.data.sourceFileId);
+      if (!sourceFile || sourceFile.enterpriseId !== parsed.data.enterpriseId) {
+        return reply.status(400).send({ error: "OCR 来源文件不存在或不属于当前企业" });
+      }
+      projectId ??= sourceFile.projectId;
+      if (sourceFile.projectId !== projectId) return reply.status(400).send({ error: "发票与 OCR 来源文件必须属于同一个项目" });
+    }
     if (projectId && !projectBelongsToEnterprise(projectId, parsed.data.enterpriseId)) {
       return reply.status(400).send({ error: "项目不存在或不属于当前企业" });
+    }
+    if (parsed.data.invoiceNumber) {
+      const duplicate = findInvoiceByIdentity(parsed.data.enterpriseId, parsed.data.invoiceNumber, parsed.data.invoiceCode);
+      if (duplicate) return reply.status(409).send({ error: `发票已存在：${duplicate.id}` });
     }
     let invoice;
     try { invoice = createInvoice({ ...parsed.data, projectId }); }
@@ -277,6 +290,18 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
     } else if (existing.customerId) {
       const customer = getCustomer(existing.customerId);
       if (customer && customer.projectId !== targetProjectId) return reply.status(400).send({ error: "请先解除关联客户，再移动发票" });
+    }
+    if (parsed.data.sourceFileId) {
+      const sourceFile = getFileInternal(parsed.data.sourceFileId);
+      if (!sourceFile || sourceFile.enterpriseId !== existing.enterpriseId || sourceFile.projectId !== targetProjectId) {
+        return reply.status(400).send({ error: "OCR 来源文件不存在或不属于当前项目" });
+      }
+    }
+    const nextInvoiceNumber = parsed.data.invoiceNumber === undefined ? existing.invoiceNumber : parsed.data.invoiceNumber;
+    const nextInvoiceCode = parsed.data.invoiceCode === undefined ? existing.invoiceCode : parsed.data.invoiceCode;
+    if (nextInvoiceNumber) {
+      const duplicate = findInvoiceByIdentity(existing.enterpriseId, nextInvoiceNumber, nextInvoiceCode ?? undefined);
+      if (duplicate && duplicate.id !== existing.id) return reply.status(409).send({ error: `发票已存在：${duplicate.id}` });
     }
     if (parsed.data.status && parsed.data.status !== existing.status) {
       const allowedTransitions: Record<string, string[]> = {
