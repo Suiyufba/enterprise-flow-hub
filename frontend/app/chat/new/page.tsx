@@ -8,6 +8,7 @@ import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { gsap, useGSAP } from "../../lib/gsap";
 import { AppIcon } from "../../components/AppIcon";
+import { InvoiceOcrUploader, type InvoiceOcrUploaderHandle } from "../../components/InvoiceOcrUploader";
 
 const QUICK_STARTS = [
   { icon: "users" as const, label: "检查重复客户", prompt: "检查当前项目中的全部客户，按电话号码和姓名找出重复记录，并给出处理建议。" },
@@ -27,6 +28,17 @@ export default function Home() {
   const { showToast } = useToast();
   const composerRef = useRef<HTMLDivElement>(null);
   const sendBtnRef = useRef<HTMLButtonElement>(null);
+  const invoiceOcrRef = useRef<InvoiceOcrUploaderHandle>(null);
+  const [imageDragging, setImageDragging] = useState(false);
+
+  function processDroppedImage(files: FileList | File[]) {
+    const image = Array.from(files).find((file) => file.type.startsWith("image/"));
+    if (!image) {
+      showToast("请拖入 PNG、JPEG 或 WebP 图片", "error");
+      return;
+    }
+    invoiceOcrRef.current?.processFile(image);
+  }
 
   useGSAP(() => {
     if (!composerRef.current) return;
@@ -138,13 +150,33 @@ export default function Home() {
         ))}
       </div>
 
-      <div className="chat-composer" ref={composerRef}>
+      <div
+        className={`chat-composer ${imageDragging ? "is-image-dragging" : ""}`}
+        ref={composerRef}
+        onDragEnter={(event) => { event.preventDefault(); setImageDragging(true); }}
+        onDragOver={(event) => { event.preventDefault(); setImageDragging(true); }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setImageDragging(false);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setImageDragging(false);
+          processDroppedImage(event.dataTransfer.files);
+        }}
+      >
         <textarea
           className="chat-input"
           placeholder="描述你的业务需求，如：帮我看这组客户表和聊天记录，怎么减少顾问漏跟进？"
           rows={3}
           value={need}
           onChange={(e) => setNeed(e.target.value)}
+          onPaste={(event) => {
+            const images = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+            if (images.length > 0) {
+              event.preventDefault();
+              processDroppedImage(images);
+            }
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -167,6 +199,13 @@ export default function Home() {
         </div>
 
         <div className="chat-composer-controls">
+          <InvoiceOcrUploader
+            ref={invoiceOcrRef}
+            enterpriseId={enterpriseId}
+            projectId={projectId}
+            buttonClassName="composer-invoice-ocr"
+            buttonLabel="发票图片"
+          />
           <div className="project-picker enterprise-picker">
             <AppIcon name="project" className="project-icon" />
             <select

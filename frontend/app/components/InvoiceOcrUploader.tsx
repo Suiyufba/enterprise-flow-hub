@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Invoice, InvoiceOcrCandidate } from "shared";
 import { API, fetchJson, getStoredToken } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
@@ -35,21 +35,26 @@ function optionalNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export function InvoiceOcrUploader({
-  enterpriseId,
-  projectId,
-  disabled = false,
-  buttonLabel = "识别发票",
-  buttonClassName = "page-secondary-button",
-  onCreated,
-}: {
+export type InvoiceOcrUploaderHandle = {
+  openPicker: () => void;
+  processFile: (file: File) => void;
+};
+
+export const InvoiceOcrUploader = forwardRef<InvoiceOcrUploaderHandle, {
   enterpriseId?: string;
   projectId?: string;
   disabled?: boolean;
   buttonLabel?: string;
   buttonClassName?: string;
   onCreated?: (invoice: Invoice) => void | Promise<void>;
-}) {
+}>(function InvoiceOcrUploader({
+  enterpriseId,
+  projectId,
+  disabled = false,
+  buttonLabel = "识别发票",
+  buttonClassName = "page-secondary-button",
+  onCreated,
+}, ref) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +117,11 @@ export function InvoiceOcrUploader({
       if (inputRef.current) inputRef.current.value = "";
     }
   }
+
+  useImperativeHandle(ref, () => ({
+    openPicker: () => inputRef.current?.click(),
+    processFile: (file: File) => { void handleFile(file); },
+  }));
 
   async function confirmInvoice() {
     if (!candidate || !enterpriseId || !projectId) return;
@@ -236,4 +246,4 @@ export function InvoiceOcrUploader({
       </FormDialog>
     </>
   );
-}
+});

@@ -3309,6 +3309,7 @@ body {
 }
 
 .chat-composer {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
@@ -3440,6 +3441,27 @@ body {
 .composer-invoice-ocr .app-icon {
   width: 17px;
   height: 17px;
+}
+
+.chat-composer.is-image-dragging {
+  border-color: var(--c-4a90e6);
+  box-shadow: 0 0 0 3px rgba(74, 144, 230, .2);
+}
+
+.chat-composer.is-image-dragging::after {
+  content: "松开图片以识别发票";
+  position: absolute;
+  inset: 8px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--c-4a90e6);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c-151515) 88%, transparent);
+  color: var(--c-4a90e6);
+  font-size: 15px;
+  font-weight: 800;
+  pointer-events: none;
 }
 
 .invoice-ocr-review {
