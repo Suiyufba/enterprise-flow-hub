@@ -118,7 +118,8 @@ function DepartmentTreeNode({
           </div>
         )}
         {!collapsed && dept.members.length > 0 && (
-          <div className="org-member-list" aria-label={`${dept.name}直属成员`}>
+          <div className="org-member-list">
+            <span className="org-member-list-label">直属成员</span>
             {dept.members.map((user) => (
               <div className={`org-user-card ${isAdmin ? "admin" : ""}`} key={user.id}>
                 <span className="org-user-avatar">{user.displayName.slice(0, 1)}</span>

@@ -5032,7 +5032,7 @@ body {
 }
 
 .org-tree-node {
-  min-width: 320px;
+  min-width: 420px;
 }
 
 .org-tree-children {
@@ -5049,13 +5049,13 @@ body {
 }
 
 .org-tree-children-row::before {
-  width: calc(100% - 320px);
+  width: calc(100% - 420px);
   height: 1px;
   background: var(--ui-border-strong);
 }
 
 .org-tree-child {
-  min-width: 320px;
+  min-width: 420px;
   padding-top: 20px;
 }
 
@@ -5065,9 +5065,9 @@ body {
 }
 
 .org-dept-card {
-  width: 320px;
-  min-width: 320px;
-  max-width: 320px;
+  width: 420px;
+  min-width: 420px;
+  max-width: 420px;
   margin: 0;
   padding: 16px;
   border: 1px solid var(--ui-border);
@@ -5202,6 +5202,12 @@ body {
   border-top: 1px solid var(--ui-border);
 }
 
+.org-member-list-label {
+  color: var(--ui-text-subtle);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .org-user-card {
   width: 100%;
   min-width: 0;
@@ -5271,7 +5277,7 @@ body {
 }
 
 .org-unassigned-group {
-  width: 320px;
+  width: 420px;
   margin-top: 20px;
   padding: 10px;
   border-color: var(--ui-border-strong);
