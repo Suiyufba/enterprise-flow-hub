@@ -294,7 +294,7 @@ export function SearchPage() {
   );
 
   return (
-    <PageShell title="全局搜索" description="在当前企业范围内统一查找资料、客户、订单、对话与自动化。">
+    <PageShell title="全局搜索" description="在有权限的企业范围内统一查找资料、客户、订单、对话与自动化。">
       <div className="lib-top-bar">
         <input
           className="page-input lib-search-input"
