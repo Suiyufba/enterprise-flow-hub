@@ -13,6 +13,11 @@ import { formatFeishuGroupActivity, readFeishuGroupActivity } from "./feishu-cha
 import type { AgentRunEvent, AgentRunInput, AgentRunResult, AgentRuntime } from "./runtime.js";
 
 const CLAUDE_CODE_VERSION = "2.1.87";
+const ATTACHMENT_BOUNDARY = "\n\n## 本轮用户附件";
+
+export function userInstruction(content: string): string {
+  return content.split(ATTACHMENT_BOUNDARY, 1)[0]?.trim() ?? "";
+}
 
 function providerBaseUrl(baseUrl: string): string {
   const normalized = baseUrl.replace(/\/$/, "");
@@ -43,12 +48,13 @@ function inputShape(definition: ToolDefinition): Record<string, z.ZodTypeAny> {
 }
 
 function historyPrompt(input: AgentRunInput): string {
+  const instruction = userInstruction(input.userContent);
   const history = input.history
     .slice(-30)
     .map((message) => `${message.role === "user" ? "用户" : "Agent"}: ${message.content}`)
     .join("\n\n");
   return [
-    isExplicitFeishuRequest(input.userContent)
+    isExplicitFeishuRequest(instruction)
       ? "硬性数据源规则：本轮用户明确要飞书数据。先调用对应的 mcp__feishu__ 工具，禁止以 EFH 资料库、历史对话或业务数据库的空结果替代飞书查询；只有飞书 MCP 实际返回空结果或错误后才能下结论。"
       : "",
     history ? `以下是此前的站内对话记录：\n\n${history}` : "",
@@ -57,11 +63,11 @@ function historyPrompt(input: AgentRunInput): string {
 }
 
 export function isExplicitFeishuRequest(content: string): boolean {
-  return /飞书|lark/i.test(content);
+  return /飞书|lark/i.test(userInstruction(content));
 }
 
 export function requiresFeishuGroupLookup(content: string): boolean {
-  const normalized = content.toLocaleLowerCase();
+  const normalized = userInstruction(content).toLocaleLowerCase();
   return /飞书.*(?:群|群聊|群消息|聊天|聊天记录|消息)|(?:飞书群|飞书群聊|群里|群聊|群消息|聊天记录).*(?:聊什么|在聊|消息|记录|讨论|内容|飞书)/.test(normalized);
 }
 
@@ -106,6 +112,7 @@ function claudeEnvironment(baseUrl: string, apiKey: string, model: string): Node
 }
 
 export function feishuMcpScope(content: string): string {
+  content = userInstruction(content);
   if (/日程|日历|会议|空闲|freebusy/i.test(content)) return "calendar";
   if (/任务|待办|提醒|task/i.test(content)) return "task";
   if (/文档|云空间|云盘|文件夹|共享|权限|wiki/i.test(content)) return "document";
@@ -269,7 +276,9 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       },
     }));
     const mcpServer = createSdkMcpServer({ name: "efh", version: "1.0.0", tools: mcpTools });
-    const feishuServer = feishuMcpServer(feishuMcpScope(input.userContent));
+    const feishuServer = isExplicitFeishuRequest(input.userContent)
+      ? feishuMcpServer(feishuMcpScope(input.userContent))
+      : undefined;
     const allowedTools = [
       ...enabledTools.map((definition) => `mcp__efh__${definition.id}`),
       ...(feishuServer ? ["mcp__feishu__*"] : []),
