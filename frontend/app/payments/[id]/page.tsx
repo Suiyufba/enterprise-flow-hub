@@ -26,7 +26,7 @@ export default function PaymentDetailPage({ params }: { params: Promise<{ id: st
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const [payment, setPayment] = useState<Payment | null>(null);
-  const projects = workspace.projects.filter((project) => project.enterpriseId === (user?.enterpriseId ?? payment?.enterpriseId));
+  const projects = workspace.projects.filter((project) => project.enterpriseId === payment?.enterpriseId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);

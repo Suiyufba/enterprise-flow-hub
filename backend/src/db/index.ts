@@ -267,6 +267,14 @@ export function getDb(): Database.Database {
       }
     }
 
+    // Keep existing databases compatible without relying on a non-idempotent
+    // SQLite ALTER TABLE migration. Fresh databases already receive this
+    // column from schema.sql / 008-operational-agent.sql.
+    const finalAutomationColumns = db.prepare("PRAGMA table_info(automations)").all() as Array<{ name: string }>;
+    if (!finalAutomationColumns.some((column) => column.name === "workflow_graph")) {
+      db.prepare("ALTER TABLE automations ADD COLUMN workflow_graph TEXT").run();
+    }
+
     // Ensure tool-create-automation exists (added after initial seed)
     const autoExisting = db.prepare("SELECT id FROM ai_tools WHERE id = 'tool-create-automation'").get();
     if (!autoExisting) {

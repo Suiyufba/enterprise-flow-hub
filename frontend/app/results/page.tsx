@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { AnalysisResult } from "shared";
-import { fetchJson } from "../lib/api";
+import { fetchJson, fetchWithAuth } from "../lib/api";
 import { AppIcon } from "../components/AppIcon";
 import { ErrorState } from "../components/ErrorState";
 
@@ -40,14 +40,9 @@ function ResultsContent() {
 
   async function exportResult(format: "markdown" | "json") {
     if (!id) return;
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (process.env.NEXT_PUBLIC_API_KEY) {
-      headers["Authorization"] = `Bearer ${process.env.NEXT_PUBLIC_API_KEY}`;
-    }
-    const res = await fetch(`${API_BASE}/analysis/${id}/export`, {
+    const res = await fetchWithAuth(`/analysis/${id}/export`, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ format }),
     });
     if (!res.ok) return;

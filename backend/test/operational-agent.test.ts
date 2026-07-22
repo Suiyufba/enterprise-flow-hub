@@ -154,6 +154,7 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.ok((db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).some((column) => column.name === "gender"));
   assert.ok((db.prepare("PRAGMA table_info(suppliers)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
+  assert.ok((db.prepare("PRAGMA table_info(automations)").all() as Array<{ name: string }>).some((column) => column.name === "workflow_graph"));
   for (const table of ["customers", "suppliers", "products", "orders", "payments", "invoices", "tasks", "files"]) {
     assert.ok((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((column) => column.name === "project_id"));
   }
@@ -754,6 +755,48 @@ test("tool-call automation executes the real action and records output", async (
   assert.equal(result?.runCount, 1);
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n, before + 1);
   assert.equal((db.prepare("SELECT status FROM automation_runs WHERE automation_id=?").get(automation.id) as { status: string }).status, "success");
+});
+
+test("workflow editor graph survives create, update and reload", () => {
+  const graph = {
+    version: 1 as const,
+    nodes: [
+      { id: "trigger-1", nodeType: "trigger" as const, position: { x: 40, y: 60 }, config: { triggerType: "manual", desc: "人工确认" } },
+      { id: "condition-2", nodeType: "condition" as const, position: { x: 240, y: 60 }, config: { expression: "amount > 1000" } },
+      { id: "action-3", nodeType: "action" as const, position: { x: 440, y: 60 }, config: { actionType: "tool_call", toolId: "tool-business-action" } },
+    ],
+    edges: [
+      { id: "edge-1", source: "trigger-1", target: "condition-2" },
+      { id: "edge-2", source: "condition-2", target: "action-3", label: "通过" },
+    ],
+  };
+  const automation = store.createAutomation({
+    projectId: "proj-qihang-growth",
+    name: "画布持久化测试",
+    trigger: "人工确认",
+    triggerType: "manual",
+    action: "创建待办",
+    actionType: "tool_call",
+    actionToolId: "tool-business-action",
+    actionInput: { operation: "create_task", title: "画布测试" },
+    workflowGraph: graph,
+  });
+  assert.ok(automation);
+
+  try {
+    assert.deepEqual(store.getAutomation(automation.id)?.workflowGraph, graph);
+    const movedGraph = {
+      ...graph,
+      nodes: graph.nodes.map((node) => node.id === "condition-2"
+        ? { ...node, position: { x: 280, y: 120 } }
+        : node),
+    };
+    const updated = store.updateAutomation(automation.id, { workflowGraph: movedGraph });
+    assert.deepEqual(updated?.workflowGraph, movedGraph);
+    assert.deepEqual(store.getAutomation(automation.id)?.workflowGraph, movedGraph);
+  } finally {
+    store.deleteAutomation(automation.id);
+  }
 });
 
 test("unsupported automation triggers and actions cannot be enabled", () => {

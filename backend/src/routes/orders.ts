@@ -124,10 +124,10 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
 
   // ---- Payments ----
   app.get("/payments", async (request, reply) => {
-    const { enterpriseId, projectId, orderId, status, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, orderId, status, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listPayments(enterpriseId, { projectId, orderId, status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listPayments(enterpriseId, { projectId, orderId, status, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/payments/:id", async (request, reply) => {
@@ -207,10 +207,10 @@ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
 
   // ---- Invoices ----
   app.get("/invoices", async (request, reply) => {
-    const { enterpriseId, projectId, status, page, limit } = request.query as Record<string, string | undefined>;
+    const { enterpriseId, projectId, status, search, page, limit } = request.query as Record<string, string | undefined>;
     if (!enterpriseId) return { items: [], total: 0, page: 1, limit: 20 };
     if (!canAccessEnterprise(request, enterpriseId, reply)) return;
-    return listInvoices(enterpriseId, { projectId, status, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
+    return listInvoices(enterpriseId, { projectId, status, search, page: page ? Number(page) : undefined, limit: limit ? Number(limit) : undefined });
   });
 
   app.get("/invoices/:id", async (request, reply) => {

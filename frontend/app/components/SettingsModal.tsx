@@ -6,6 +6,7 @@ import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
 import { animate, spring } from "../lib/anime";
 import { AppIcon } from "./AppIcon";
+import { ConfirmDialog } from "./ConfirmDialog";
 import "./SettingsModal.css";
 
 type Tab = "providers" | "agent";
@@ -50,6 +51,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [editModel, setEditModel] = useState("");
   const [editApiKey, setEditApiKey] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [providerToDelete, setProviderToDelete] = useState<ModelProvider | null>(null);
+  const [deletingProvider, setDeletingProvider] = useState(false);
 
   // Model dropdown state
   const [addModels, setAddModels] = useState<string[]>([]);
@@ -132,9 +135,19 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setAddFetchingModels(false);
   }
 
-  async function deleteProvider(id: string) {
-    await fetchJson(`/settings/providers/${id}`, { method: "DELETE" });
-    await refresh();
+  async function deleteProvider() {
+    if (!providerToDelete) return;
+    setDeletingProvider(true);
+    try {
+      await fetchJson(`/settings/providers/${providerToDelete.id}`, { method: "DELETE" });
+      setProviderToDelete(null);
+      await refresh();
+      showToast("模型账号已删除", "success");
+    } catch {
+      showToast("模型账号删除失败，可能仍被角色或工作流使用", "error");
+    } finally {
+      setDeletingProvider(false);
+    }
   }
 
   async function testProvider(id: string) {
@@ -369,7 +382,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                           {testingId === p.id ? "测试中..." : "测试连接"}
                         </button>
                         <button className="page-secondary-button" onClick={() => startEdit(p)}>编辑</button>
-                        <button className="page-secondary-button" onClick={() => deleteProvider(p.id)}>删除</button>
+                        <button className="page-secondary-button" onClick={() => setProviderToDelete(p)}>删除</button>
                       </div>
                     </>
                   )}
@@ -384,6 +397,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
 
       </div>
+      <ConfirmDialog
+        open={Boolean(providerToDelete)}
+        title="删除模型账号"
+        message={`确定删除模型账号「${providerToDelete?.name ?? ""}」吗？依赖它的角色和工作流可能无法运行。`}
+        loading={deletingProvider}
+        onConfirm={deleteProvider}
+        onCancel={() => setProviderToDelete(null)}
+      />
     </div>
   );
 }

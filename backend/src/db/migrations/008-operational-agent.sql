@@ -14,6 +14,7 @@ CREATE TABLE automations (
   action_plugin_id TEXT,
   action_tool_id   TEXT,
   action_input     TEXT NOT NULL DEFAULT '{}',
+  workflow_graph   TEXT,
   system_prompt    TEXT,
   webhook_secret   TEXT,
   enabled          INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),

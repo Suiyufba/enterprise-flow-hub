@@ -18,7 +18,7 @@ import type {
   Supplier,
   ToolDefinition,
 } from "shared";
-import { API, fetchJson, getStoredToken } from "../lib/api";
+import { fetchJson, fetchWithAuth } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
@@ -45,6 +45,10 @@ type SearchItem = {
   keywords?: string;
 };
 
+type SearchTotals = Partial<Record<SearchType, number>>;
+
+const BUSINESS_SEARCH_LIMIT = 100;
+
 export function SearchPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -53,30 +57,55 @@ export function SearchPage() {
   const [typeFilter, setTypeFilter] = useState<SearchType | "全部">("全部");
   const [enterpriseFilter, setEnterpriseFilter] = useState("全部");
   const [businessItems, setBusinessItems] = useState<SearchItem[]>([]);
+  const [businessTotals, setBusinessTotals] = useState<SearchTotals>({});
   const [businessLoading, setBusinessLoading] = useState(false);
+  const [businessError, setBusinessError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    const currentEnterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
-    const enterpriseIds = currentEnterpriseId ? [currentEnterpriseId] : [];
-    if (!user?.id || enterpriseIds.length === 0) {
+    const keyword = query.trim();
+    const actorId = user?.id;
+    const accessibleEnterpriseIds = user?.role === "admin"
+      ? workspace.enterprises.map((enterprise) => enterprise.id)
+      : user?.enterpriseId ? [user.enterpriseId] : [];
+    const enterpriseIds = enterpriseFilter === "全部"
+      ? accessibleEnterpriseIds
+      : accessibleEnterpriseIds.includes(enterpriseFilter) ? [enterpriseFilter] : [];
+
+    if (!actorId || !keyword || enterpriseIds.length === 0) {
       setBusinessItems([]);
+      setBusinessTotals({});
+      setBusinessLoading(false);
+      setBusinessError("");
       return;
     }
 
-    async function loadEnterpriseIndex(enterpriseId: string): Promise<SearchItem[]> {
+    async function loadEnterpriseIndex(enterpriseId: string): Promise<{ items: SearchItem[]; totals: SearchTotals }> {
       const enterpriseName = workspace.enterprises.find((enterprise) => enterprise.id === enterpriseId)?.name ?? "";
-      try {
-        const [customers, suppliers, products, orders, payments, invoices] = await Promise.all([
-          fetchJson<PaginatedList<Customer>>(`/customers?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
-          fetchJson<PaginatedList<Supplier>>(`/suppliers?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
-          fetchJson<PaginatedList<Product>>(`/products?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
-          fetchJson<PaginatedList<Order>>(`/orders?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
-          fetchJson<PaginatedList<Payment>>(`/payments?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
-          fetchJson<PaginatedList<Invoice>>(`/invoices?enterpriseId=${enterpriseId}&limit=50`, { adminUserId: user?.id }),
-        ]);
+      const params = new URLSearchParams({
+        enterpriseId,
+        search: keyword,
+        limit: String(BUSINESS_SEARCH_LIMIT),
+      }).toString();
+      const [customers, suppliers, products, orders, payments, invoices] = await Promise.all([
+        fetchJson<PaginatedList<Customer>>(`/customers?${params}`, { adminUserId: actorId }),
+        fetchJson<PaginatedList<Supplier>>(`/suppliers?${params}`, { adminUserId: actorId }),
+        fetchJson<PaginatedList<Product>>(`/products?${params}`, { adminUserId: actorId }),
+        fetchJson<PaginatedList<Order>>(`/orders?${params}`, { adminUserId: actorId }),
+        fetchJson<PaginatedList<Payment>>(`/payments?${params}`, { adminUserId: actorId }),
+        fetchJson<PaginatedList<Invoice>>(`/invoices?${params}`, { adminUserId: actorId }),
+      ]);
 
-        return [
+      return {
+        totals: {
+          客户: customers.total,
+          供应商: suppliers.total,
+          商品: products.total,
+          订单: orders.total,
+          付款: payments.total,
+          发票: invoices.total,
+        },
+        items: [
           ...customers.items.map((item) => ({
             id: item.id,
             type: "客户" as const,
@@ -136,25 +165,44 @@ export function SearchPage() {
             href: `/invoices/${item.id}`,
             keywords: [item.orderId, item.customerId, item.buyerName, item.sellerName, item.remark].filter(Boolean).join(" "),
           })),
-        ];
-      } catch {
-        return [];
-      }
+        ],
+      };
     }
 
+    setBusinessItems([]);
+    setBusinessTotals({});
     setBusinessLoading(true);
-    Promise.all(enterpriseIds.map((enterpriseId) => loadEnterpriseIndex(enterpriseId)))
-      .then((groups) => {
-        if (!cancelled) setBusinessItems(groups.flat());
-      })
-      .finally(() => {
-        if (!cancelled) setBusinessLoading(false);
-      });
+    setBusinessError("");
+    const timer = window.setTimeout(() => {
+      Promise.all(enterpriseIds.map((enterpriseId) => loadEnterpriseIndex(enterpriseId)))
+        .then((groups) => {
+          if (cancelled) return;
+          const totals = groups.reduce<SearchTotals>((result, group) => {
+            for (const [type, count] of Object.entries(group.totals) as Array<[SearchType, number]>) {
+              result[type] = (result[type] ?? 0) + count;
+            }
+            return result;
+          }, {});
+          setBusinessItems(groups.flatMap((group) => group.items));
+          setBusinessTotals(totals);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setBusinessItems([]);
+            setBusinessTotals({});
+            setBusinessError("业务数据搜索失败，请稍后重试");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setBusinessLoading(false);
+        });
+    }, 250);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [user?.enterpriseId, user?.id, workspace.enterprises]);
+  }, [enterpriseFilter, query, user?.enterpriseId, user?.id, user?.role, workspace.enterprises]);
 
   const workspaceItems = useMemo<SearchItem[]>(() => [
     ...workspace.projects.map((item) => {
@@ -232,10 +280,18 @@ export function SearchPage() {
 
   const typeCounts = useMemo(() => {
     return searchTypes.reduce((acc, type) => {
-      acc[type] = filteredBase.filter((item) => item.type === type).length;
+      const displayed = filteredBase.filter((item) => item.type === type).length;
+      const displayedBusiness = businessItems.filter((item) => item.type === type).length;
+      const hiddenBusiness = Math.max(0, (businessTotals[type] ?? displayedBusiness) - displayedBusiness);
+      acc[type] = displayed + hiddenBusiness;
       return acc;
     }, {} as Record<SearchType, number>);
-  }, [filteredBase]);
+  }, [businessItems, businessTotals, filteredBase]);
+
+  const hiddenBusinessCount = Math.max(
+    0,
+    Object.values(businessTotals).reduce((sum, count) => sum + (count ?? 0), 0) - businessItems.length,
+  );
 
   return (
     <PageShell title="全局搜索" description="在当前企业范围内统一查找资料、客户、订单、对话与自动化。">
@@ -285,9 +341,16 @@ export function SearchPage() {
       </div>
 
       <div className="page-list">
-        {results.length === 0 && (
+        {businessError && <div className="search-empty" role="alert">{businessError}</div>}
+        {businessLoading && <div className="search-empty" aria-live="polite">正在搜索业务数据...</div>}
+        {!businessLoading && hiddenBusinessCount > 0 && (
+          <div className="search-empty" aria-live="polite">
+            匹配结果较多，当前每类展示前 {BUSINESS_SEARCH_LIMIT} 条，另有 {hiddenBusinessCount} 条可通过更精确关键词缩小范围
+          </div>
+        )}
+        {!businessLoading && !businessError && results.length === 0 && (
           <div className="search-empty">
-            {businessLoading ? "正在扩展业务搜索索引..." : "没有找到匹配的结果"}
+            没有找到匹配的结果
           </div>
         )}
         {results.map((item) => (
@@ -442,11 +505,9 @@ export function LibraryPage() {
           formData.append("relatedType", "project");
           formData.append("relatedId", projectId);
           formData.append("file", selectedFile);
-          const token = getStoredToken();
-          const response = await fetch(`${API}/files/upload`, {
+          const response = await fetchWithAuth("/files/upload", {
             method: "POST",
             body: formData,
-            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
           });
           if (!response.ok) uploadFailed = true;
         } catch {
@@ -656,6 +717,8 @@ export function PluginsPage() {
   const [pluginConfig, setPluginConfig] = useState<PluginConfigResponse | null>(null);
   const [pluginFields, setPluginFields] = useState<Record<string, string>>({});
   const [pluginMessage, setPluginMessage] = useState("");
+  const [skillToDelete, setSkillToDelete] = useState<AgentSkill | null>(null);
+  const [deletingSkill, setDeletingSkill] = useState(false);
 
   const selectedSkill = useMemo(
     () => workspace.skills.find((skill) => skill.id === editingSkillId),
@@ -727,13 +790,20 @@ export function PluginsPage() {
     if (!configPlugin) return;
     setPluginMessage("");
     try {
+      const fields = Object.fromEntries(
+        Object.entries(pluginFields).filter(([key, value]) =>
+          value.trim() || pluginConfig?.fields[key] !== "********",
+        ),
+      );
       await fetchJson<PluginConfigResponse>(`/plugins/${configPlugin.id}/config`, {
         method: "PATCH",
-        body: JSON.stringify({ fields: pluginFields }),
+        // Empty masked secret fields mean "keep the existing secret", not
+        // "erase it". Users can still clear ordinary non-secret fields.
+        body: JSON.stringify({ fields }),
       });
-      setPluginMessage("配置已保存");
       await refresh();
       await openPluginConfig(configPlugin);
+      setPluginMessage("配置已保存");
     } catch {
       setPluginMessage("配置保存失败");
     }
@@ -804,13 +874,18 @@ export function PluginsPage() {
     setSkillToolIds((prev) => prev.includes(toolId) ? prev.filter((item) => item !== toolId) : [...prev, toolId]);
   }
 
-  async function removeSkill(id: string) {
+  async function removeSkill() {
+    if (!skillToDelete) return;
+    setDeletingSkill(true);
     try {
-      await fetchJson(`/skills/${id}`, { method: "DELETE" });
-      if (editingSkillId === id) cancelSkillForm();
+      await fetchJson(`/skills/${skillToDelete.id}`, { method: "DELETE" });
+      if (editingSkillId === skillToDelete.id) cancelSkillForm();
+      setSkillToDelete(null);
       await refresh();
     } catch {
       setSkillMessage("删除失败，请稍后重试。");
+    } finally {
+      setDeletingSkill(false);
     }
   }
 
@@ -877,7 +952,7 @@ export function PluginsPage() {
                     <span className={skill.enabled ? "skill-on" : "skill-off"}>{skill.enabled ? "启用中" : "已停用"}</span>
                     <div className="skill-card-actions">
                       <button className="sidebar-mini-action" onClick={() => startEditSkill(skill)} title="编辑能力包" type="button" style={{ display: "inline-flex" }}><AppIcon name="edit" /></button>
-                      <button className="sidebar-mini-action danger" onClick={() => removeSkill(skill.id)} title="删除能力包" type="button" style={{ display: "inline-flex" }}><AppIcon name="x" /></button>
+                      <button className="sidebar-mini-action danger" onClick={() => setSkillToDelete(skill)} title="删除能力包" type="button" style={{ display: "inline-flex" }}><AppIcon name="x" /></button>
                     </div>
                   </div>
                   <h3>{skill.name}</h3>
@@ -1015,6 +1090,14 @@ export function PluginsPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(skillToDelete)}
+        title="删除能力包"
+        message={`确定删除能力包「${skillToDelete?.name ?? ""}」吗？引用它的角色将失去这项能力。`}
+        loading={deletingSkill}
+        onConfirm={removeSkill}
+        onCancel={() => setSkillToDelete(null)}
+      />
     </PageShell>
   );
 }
@@ -1026,6 +1109,8 @@ export function AutomationPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [enterpriseFilter, setEnterpriseFilter] = useState("全部");
   const [statusFilter, setStatusFilter] = useState("全部");
+  const [automationToDelete, setAutomationToDelete] = useState<Automation | null>(null);
+  const [deletingAutomation, setDeletingAutomation] = useState(false);
 
   const filtered = useMemo(() => {
     let items = workspace.automations;
@@ -1061,12 +1146,19 @@ export function AutomationPage() {
     }
   }
 
-  async function removeAutomation(id: string) {
+  async function removeAutomation() {
+    if (!automationToDelete) return;
+    setDeletingAutomation(true);
     try {
-      await fetchJson(`/automations/${id}`, { method: "DELETE" });
+      await fetchJson(`/automations/${automationToDelete.id}`, { method: "DELETE" });
+      setAutomationToDelete(null);
       await refresh();
+      showToast("工作流已删除", "success");
     } catch (e) {
       console.error("删除自动化失败", e);
+      showToast("工作流删除失败", "error");
+    } finally {
+      setDeletingAutomation(false);
     }
   }
 
@@ -1200,7 +1292,7 @@ export function AutomationPage() {
                   <button className="page-secondary-button" onClick={() => toggle(automation)} type="button">
                     {automation.enabled ? "暂停" : "启用"}
                   </button>
-                  <button className="page-secondary-button" onClick={() => removeAutomation(automation.id)} type="button">
+                  <button className="page-secondary-button" onClick={() => setAutomationToDelete(automation)} type="button">
                     删除
                   </button>
                 </div>
@@ -1266,6 +1358,14 @@ export function AutomationPage() {
           );
         })}
       </div>
+      <ConfirmDialog
+        open={Boolean(automationToDelete)}
+        title="删除工作流"
+        message={`确定删除工作流「${automationToDelete?.name ?? ""}」吗？历史执行记录也将无法再从工作流页面访问。`}
+        loading={deletingAutomation}
+        onConfirm={removeAutomation}
+        onCancel={() => setAutomationToDelete(null)}
+      />
     </PageShell>
   );
 }
@@ -1275,9 +1375,13 @@ export function NewProjectPage() {
   const [enterpriseName, setEnterpriseName] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   async function create() {
-    if (!enterpriseName.trim() || !name.trim()) return;
+    if (!enterpriseName.trim() || !name.trim() || creating) return;
+    setCreating(true);
+    setCreateError("");
     try {
       const project = await fetchJson<Project>("/projects", {
         method: "POST",
@@ -1287,9 +1391,11 @@ export function NewProjectPage() {
           description: description.trim() || undefined,
         }),
       });
-      router.push(`/?projectId=${project.id}`);
+      router.push(`/chat/new?projectId=${project.id}`);
     } catch (e) {
       console.error("创建项目失败", e);
+      setCreateError(e instanceof Error ? `创建失败：${e.message.slice(0, 100)}` : "创建项目失败，请稍后重试");
+      setCreating(false);
     }
   }
 
@@ -1301,7 +1407,10 @@ export function NewProjectPage() {
           <input className="page-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="项目名称" />
         </div>
         <textarea className="page-textarea" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="项目目标，比如：减少顾问漏跟进，提高签约转化" />
-        <button className="page-primary-button" onClick={create} type="button">创建项目</button>
+        {createError && <div className="settings-test-result" role="alert">{createError}</div>}
+        <button className="page-primary-button" onClick={create} type="button" disabled={creating || !enterpriseName.trim() || !name.trim()}>
+          {creating ? "创建中..." : "创建项目"}
+        </button>
       </div>
     </PageShell>
   );
@@ -1315,6 +1424,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showAllConversations, setShowAllConversations] = useState(false);
   const [projectForm, setProjectForm] = useState({ name: "", description: "" });
   const project = workspace.projects.find((item) => item.id === id);
   const enterprise = project ? workspace.enterprises.find((item) => item.id === project.enterpriseId) : undefined;
@@ -1374,7 +1484,7 @@ export function ProjectDetailPage({ id }: { id: string }) {
   };
   const recentConversations = [...conversations]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 4);
+    .slice(0, showAllConversations ? undefined : 4);
   const recentLibrary = [...libraryItems]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 3);
@@ -1408,14 +1518,14 @@ export function ProjectDetailPage({ id }: { id: string }) {
         <div className="project-hero-actions">
           <button
             className="project-hero-btn primary"
-            onClick={() => router.push(`/?projectId=${project.id}`)}
+            onClick={() => router.push(`/chat/new?projectId=${project.id}`)}
             type="button"
           >
             <AppIcon name="automation" /> 开始诊断
           </button>
           <button
             className="project-hero-btn secondary"
-            onClick={() => router.push("/automation")}
+            onClick={() => router.push(`/automation/workflow?projectId=${project.id}`)}
             type="button"
           >
             <AppIcon name="plus" /> 新建自动化
@@ -1476,7 +1586,9 @@ export function ProjectDetailPage({ id }: { id: string }) {
           <div className="project-section-header">
             <span className="project-section-title">最近对话</span>
             {conversations.length > 4 && (
-              <button className="project-section-link" onClick={() => router.push(`/?projectId=${project.id}`)} type="button">查看全部 <AppIcon name="chevron" className="inline-flow-arrow" /></button>
+              <button className="project-section-link" onClick={() => setShowAllConversations((current) => !current)} type="button">
+                {showAllConversations ? "收起" : "查看全部"} <AppIcon name="chevron" className="inline-flow-arrow" />
+              </button>
             )}
           </div>
           {recentConversations.length === 0 ? (
@@ -1599,11 +1711,11 @@ export function ProjectDetailPage({ id }: { id: string }) {
       <div className="project-quick-actions">
         <div
           className="project-quick-action"
-          onClick={() => router.push(`/?projectId=${project.id}`)}
+          onClick={() => router.push(`/chat/new?projectId=${project.id}`)}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === "Enter") router.push(`/?projectId=${project.id}`);
+            if (e.key === "Enter") router.push(`/chat/new?projectId=${project.id}`);
           }}
         >
           <AppIcon name="search" className="project-quick-action-icon" />

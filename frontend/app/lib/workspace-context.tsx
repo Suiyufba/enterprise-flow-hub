@@ -24,12 +24,14 @@ const defaultWorkspace: Workspace = {
 interface WorkspaceContextValue {
   workspace: Workspace;
   loading: boolean;
+  error: string | null;
   refresh: () => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue>({
   workspace: defaultWorkspace,
   loading: true,
+  error: null,
   refresh: async () => {},
 });
 
@@ -37,13 +39,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const [workspace, setWorkspace] = useState<Workspace>(defaultWorkspace);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    setError(null);
     try {
       const data = await fetchJson<Workspace>("/workspace");
       setWorkspace(data);
     } catch {
-      // keep last known state — UI shows stale data rather than blank
+      // Keep the last known state, but never present an outage as legitimate
+      // empty business data.
+      setError("工作区数据加载失败，请检查网络或服务状态后重试");
     }
   }, []);
 
@@ -51,6 +57,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (authLoading) return;
     if (!user) {
       setWorkspace(defaultWorkspace);
+      setError(null);
       setLoading(false);
       return;
     }
@@ -59,7 +66,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [authLoading, refresh, user]);
 
   return (
-    <WorkspaceContext.Provider value={{ workspace, loading, refresh }}>
+    <WorkspaceContext.Provider value={{ workspace, loading, error, refresh }}>
       {children}
     </WorkspaceContext.Provider>
   );

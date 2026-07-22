@@ -95,7 +95,12 @@ export default function AuditPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setData([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetchJson<{ items: AuditLogRow[]; total: number }>(`/audit?enterpriseId=${enterpriseId}&page=${page}&limit=50`, { adminUserId: user?.id });

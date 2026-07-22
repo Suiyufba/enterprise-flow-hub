@@ -3,7 +3,7 @@
 import { useEffect, useState, use, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { API, fetchJson, getStoredToken } from "../../lib/api";
+import { fetchJson, fetchWithAuth } from "../../lib/api";
 import { useAuth } from "../../lib/auth-context";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
@@ -124,9 +124,8 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const { user } = useAuth();
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
-  const enterpriseId = user?.enterpriseId ?? workspace.enterprises[0]?.id;
   const [invoice, setInvoice] = useState<Invoice | null>(null);
-  const projects = workspace.projects.filter((project) => project.enterpriseId === (enterpriseId ?? invoice?.enterpriseId));
+  const projects = workspace.projects.filter((project) => project.enterpriseId === invoice?.enterpriseId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -158,7 +157,6 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   });
 
   const fetchInvoice = useCallback(() => {
-    if (!enterpriseId) { setError("未选择企业"); setLoading(false); return; }
     setError(null);
     setLoading(true);
     fetchJson<Invoice>(`/invoices/${id}`, { adminUserId: user?.id })
@@ -174,7 +172,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
         showToast("加载发票信息失败", "error");
       })
       .finally(() => setLoading(false));
-  }, [id, enterpriseId, user?.id, showToast]);
+  }, [id, user?.id, showToast]);
 
   useEffect(() => {
     fetchInvoice();
@@ -265,10 +263,7 @@ export default function InvoiceDetailPage({ params }: { params: Promise<{ id: st
   const openSourceImage = async () => {
     if (!invoice?.sourceFileId) return;
     try {
-      const token = getStoredToken();
-      const response = await fetch(`${API}/files/${invoice.sourceFileId}/download`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const response = await fetchWithAuth(`/files/${invoice.sourceFileId}/download`);
       if (!response.ok) throw new Error(await response.text());
       const url = URL.createObjectURL(await response.blob());
       window.open(url, "_blank", "noopener,noreferrer");

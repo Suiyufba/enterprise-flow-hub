@@ -7,6 +7,9 @@ import { ThemeToggle } from "./ThemeToggle";
 import { PageTransition } from "./PageTransition";
 import { WorkspaceContextBar } from "./WorkspaceContextBar";
 import { useAuth } from "../lib/auth-context";
+import { useWorkspace } from "../lib/workspace-context";
+import { getSafeReturnTo } from "../lib/api";
+import { ErrorState } from "./ErrorState";
 
 const SIDEBAR_KEY = "efh_sidebar_collapsed";
 
@@ -42,7 +45,8 @@ function getPageTitle(pathname: string) {
 export function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, loading } = useAuth();
+  const { user, loading, error: authError, retry: retryAuth } = useAuth();
+  const { loading: workspaceLoading, error: workspaceError, refresh: refreshWorkspace } = useWorkspace();
   const isLoginPage = pathname === "/login";
   const isWorkflowEditorPage = pathname.startsWith("/automation/workflow");
   const mainRef = useRef<HTMLElement>(null);
@@ -65,12 +69,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!user && !isLoginPage) {
-      router.replace("/login");
+      const requestedPath = typeof window === "undefined"
+        ? pathname
+        : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const returnTo = getSafeReturnTo(requestedPath, "/");
+      router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
     }
-    if (user && isLoginPage) {
-      router.replace("/");
-    }
-  }, [isLoginPage, loading, router, user]);
+  }, [isLoginPage, loading, pathname, router, user]);
 
   useEffect(() => {
     const main = mainRef.current;
@@ -101,6 +106,31 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (isLoginPage) {
     return <>{children}</>;
+  }
+
+  const blockingError = authError ?? (!workspaceLoading ? workspaceError : null);
+  if (user && blockingError) {
+    const retry = authError ? retryAuth : refreshWorkspace;
+    return (
+      <>
+        <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+        <div className="mobile-app-bar" aria-hidden="true">
+          <span className="mobile-app-mark">F</span>
+          <span className="mobile-app-title">连接异常</span>
+        </div>
+        <main ref={mainRef} className={`app-main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+          <WorkspaceContextBar />
+          <ThemeToggle />
+          <div className="main main-auth-only">
+            <ErrorState
+              message="暂时无法加载企业工作台"
+              description={blockingError}
+              onRetry={() => { void retry(); }}
+            />
+          </div>
+        </main>
+      </>
+    );
   }
 
   return (

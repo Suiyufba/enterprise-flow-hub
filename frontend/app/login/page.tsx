@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth-context";
+import { ApiError, getSafeReturnTo } from "../lib/api";
 import { animate } from "../lib/anime";
 
 export default function LoginPage() {
@@ -15,10 +16,15 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
+  function requestedDestination() {
+    if (typeof window === "undefined") return "/";
+    return getSafeReturnTo(new URLSearchParams(window.location.search).get("returnTo"), "/");
+  }
+
   // Redirect if already logged in
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/");
+      router.replace(requestedDestination());
     }
   }, [authLoading, user, router]);
 
@@ -29,9 +35,14 @@ export default function LoginPage() {
 
     try {
       await login(username.trim(), password);
-      router.replace("/");
+      router.replace(requestedDestination());
     } catch (err) {
-      const rawMsg = err instanceof Error ? err.message : "操作失败";
+      let rawMsg = err instanceof Error ? err.message : "操作失败";
+      if (err instanceof ApiError) {
+        if (err.status === 401) rawMsg = "用户名或密码错误";
+        else if (err.status === 403) rawMsg = "账号已被禁用";
+        else if (err.status >= 500) rawMsg = "服务器暂时不可用，请稍后重试";
+      }
       const errorMap: Record<string, string> = {
         NetworkError: "网络连接失败，请检查网络后重试",
         "Failed to fetch": "网络连接失败，请检查网络后重试",
@@ -106,6 +117,7 @@ export default function LoginPage() {
               autoFocus
               required
               autoComplete="username"
+              aria-label="用户名"
             />
 
             <input
@@ -116,9 +128,10 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
+              aria-label="密码"
             />
 
-            {error && <div className="login-error">{error}</div>}
+            {error && <div className="login-error" role="alert" aria-live="polite">{error}</div>}
 
             <button
               className="login-submit"

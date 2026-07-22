@@ -61,7 +61,14 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "确认删�
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="confirm-overlay" onClick={onCancel} ref={overlayRef}>
+    <div
+      className="confirm-overlay"
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!loading) onCancel();
+      }}
+      ref={overlayRef}
+    >
       <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message" onClick={(e) => e.stopPropagation()} ref={dialogRef}>
         <h3 id="confirm-dialog-title">{title}</h3>
         <p id="confirm-dialog-message">{message}</p>

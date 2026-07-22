@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ReactFlow,
   Controls,
@@ -21,7 +21,7 @@ import "./WorkflowEditor.css";
 import { fetchJson } from "../lib/api";
 import { useWorkspace } from "../lib/workspace-context";
 import { AppIcon, type AppIconName } from "../components/AppIcon";
-import type { Automation } from "shared";
+import type { Automation, WorkflowGraph } from "shared";
 
 const nodeTypes = {
   trigger: { label: "触发器", icon: "automation", color: "#1a2535", border: "#4a90e6" },
@@ -128,18 +128,54 @@ function joinConfigDescriptions(configs: Record<string, string>[], fallback: str
   return text || fallback;
 }
 
+function serializeWorkflowGraph(nodes: Node[], edges: Edge[]): WorkflowGraph {
+  const graphNodes = nodes.flatMap((node) => {
+    const nodeType = node.data?.nodeType;
+    if (typeof nodeType !== "string" || !(nodeType in nodeTypes)) return [];
+    const config = Object.fromEntries(
+      Object.entries((node.data.config ?? {}) as Record<string, unknown>)
+        .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    );
+    return [{
+      id: node.id,
+      nodeType: nodeType as NodeType,
+      position: { x: node.position.x, y: node.position.y },
+      config,
+    }];
+  });
+  const nodeIds = new Set(graphNodes.map((node) => node.id));
+
+  return {
+    version: 1,
+    nodes: graphNodes,
+    edges: edges
+      .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+      .map((edge) => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        ...(typeof edge.label === "string" && edge.label ? { label: edge.label } : {}),
+      })),
+  };
+}
+
+function syncNodeIdCounter(nodes: Node[]) {
+  nodeIdCounter = Math.max(0, ...nodes.map((node) => {
+    const match = node.id.match(/\d+$/);
+    return match ? Number.parseInt(match[0], 10) : 0;
+  }));
+}
+
 /* ---- component ---- */
 
 export function WorkflowEditor({ id: existingId }: { id?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedProjectId = searchParams.get("projectId");
 
   // Reset counter on mount to avoid stale IDs across page navigations
   useEffect(() => {
-    const maxId = Math.max(0, ...initialNodes.map((n) => {
-      const match = n.id.match(/\d+$/);
-      return match ? parseInt(match[0], 10) : 0;
-    }));
-    nodeIdCounter = maxId;
+    syncNodeIdCounter(initialNodes);
   }, []);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -147,6 +183,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   const [workflowName, setWorkflowName] = useState(existingId ? "编辑工作流" : "新建工作流");
   const [saving, setSaving] = useState(false);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const loadedAutomationId = useRef<string | null>(null);
   const [savedMessage, setSavedMessage] = useState("");
   const { workspace, refresh: refreshWorkspace } = useWorkspace();
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -168,16 +205,37 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   );
 
   useEffect(() => {
-    if (workspace.projects[0] && !existingId) setSelectedProjectId(workspace.projects[0].id);
-  }, [workspace.projects, existingId]);
+    if (existingId) return;
+    const requestedProject = workspace.projects.find((project) => project.id === requestedProjectId);
+    setSelectedProjectId((current) => current || requestedProject?.id || workspace.projects[0]?.id || "");
+  }, [workspace.projects, existingId, requestedProjectId]);
 
   // Load existing automation data when editing
   useEffect(() => {
-    if (!existingId) return;
+    if (!existingId) {
+      loadedAutomationId.current = null;
+      return;
+    }
+    if (loadedAutomationId.current === existingId) return;
     const auto = workspace.automations.find((a) => a.id === existingId);
     if (!auto) return;
+    loadedAutomationId.current = existingId;
     setWorkflowName(auto.name);
     setSelectedProjectId(auto.projectId);
+
+    if (auto.workflowGraph) {
+      const restoredNodes = auto.workflowGraph.nodes.map((node) =>
+        createNode(node.nodeType, node.position.x, node.position.y, node.config, node.id),
+      );
+      const restoredEdges = auto.workflowGraph.edges.map((edge) =>
+        createEdge(edge.id, edge.source, edge.target, edge.label),
+      );
+      syncNodeIdCounter(restoredNodes);
+      setNodes(restoredNodes);
+      setEdges(restoredEdges);
+      setSelectedNode(null);
+      return;
+    }
 
     const trigCfg: Record<string, string> = {
       triggerType: auto.triggerType,
@@ -220,7 +278,14 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   }, [existingId, workspace.automations, setEdges, setNodes]);
 
   async function saveWorkflow() {
-    if (!workflowName.trim()) return;
+    if (!workflowName.trim()) {
+      setSavedMessage("请输入工作流名称");
+      return;
+    }
+    if (!selectedProjectId) {
+      setSavedMessage("请选择工作流所属项目");
+      return;
+    }
     setSaving(true);
     setSavedMessage("");
 
@@ -230,6 +295,12 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       const conditionConfigs = collectConfigsByType(nodes, "condition");
       const loopConfigs = collectConfigsByType(nodes, "loop");
       const actionConfigs = collectConfigsByType(nodes, "action");
+
+      if (triggerConfigs.length === 0 || actionConfigs.length === 0) {
+        setSavedMessage("工作流至少需要一个触发器和一个动作节点");
+        setSaving(false);
+        return;
+      }
 
       const primaryTrigger = triggerConfigs[0] ?? {};
       const primaryAgent = agentConfigs.find((config) => config.model) ?? agentConfigs[0] ?? {};
@@ -307,20 +378,22 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
         triggerType: resolvedTriggerType,
         action: actionSummary.slice(0, 200),
         actionType: resolvedActionType,
-        agentModel: primaryAgent.model || undefined,
-        actionPluginId: resolvedActionType === "notify" ? primaryAction.pluginId || undefined : undefined,
-        actionToolId: resolvedActionType === "tool_call" ? primaryAction.toolId || undefined : undefined,
+        agentModel: primaryAgent.model || "",
+        actionPluginId: resolvedActionType === "notify" ? primaryAction.pluginId || "" : "",
+        actionToolId: resolvedActionType === "tool_call" ? primaryAction.toolId || "" : "",
         actionInput,
-        systemPrompt: promptSummary.slice(0, 500) || undefined,
+        workflowGraph: serializeWorkflowGraph(nodes, edges),
+        systemPrompt: promptSummary.slice(0, 500),
       };
 
+      let savedAutomation: Automation;
       if (existingId) {
-        await fetchJson(`/automations/${existingId}`, {
+        savedAutomation = await fetchJson<Automation>(`/automations/${existingId}`, {
           method: "PATCH",
           body: JSON.stringify(body),
         });
       } else {
-        await fetchJson<Automation>("/automations", {
+        savedAutomation = await fetchJson<Automation>("/automations", {
           method: "POST",
           body: JSON.stringify(body),
         });
@@ -328,6 +401,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
 
       setSavedMessage("保存成功");
       await refreshWorkspace();
+      if (!existingId) router.replace(`/automation/workflow/${savedAutomation.id}`);
       setTimeout(() => setSavedMessage(""), 2000);
     } catch (e) {
       setSavedMessage(e instanceof Error ? `保存失败：${e.message.slice(0, 80)}` : "保存失败");
@@ -389,16 +463,16 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
 
   function updateNodeConfig(key: string, value: string) {
     if (!selectedNode) return;
+    const updateNode = (node: Node) => {
+      const type = node.data?.nodeType as NodeType;
+      const config = { ...(node.data.config as Record<string, string>), [key]: value };
+      const rendered = createNode(type, node.position.x, node.position.y, config, node.id);
+      return { ...node, data: rendered.data, style: rendered.style };
+    };
     setNodes((nds) =>
-      nds.map((n) =>
-        n.id === selectedNode.id
-          ? { ...n, data: { ...n.data, config: { ...(n.data.config as Record<string, string>), [key]: value } } }
-          : n,
-      ),
+      nds.map((node) => node.id === selectedNode.id ? updateNode(node) : node),
     );
-    setSelectedNode((n) =>
-      n ? { ...n, data: { ...n.data, config: { ...(n.data.config as Record<string, string>), [key]: value } } } : null,
-    );
+    setSelectedNode((node) => node ? updateNode(node) : null);
   }
 
   const cfg = (selectedNode?.data.config as Record<string, string>) ?? {};
@@ -410,7 +484,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
       Object.entries(nodeTypes).map(([key, def]) => ({
         key,
         ...def,
-      })).filter((option) => ["trigger", "agent", "action"].includes(option.key)),
+      })),
     [],
   );
 

@@ -172,10 +172,10 @@ export default function ChatPage() {
   const initialFileIds = (searchParams.get("fileIds") ?? "").split(",").filter(Boolean).slice(0, 6);
   const msgSent = useRef(false);
   useEffect(() => {
-    if (loading || !workspace || !initialMsg || !personaId || msgSent.current) return;
+    if (loading || !workspace || !initialMsg || msgSent.current) return;
     msgSent.current = true;
     router.replace(`/chat/${id}`, { scroll: false });
-    const content = decodeURIComponent(initialMsg);
+    const content = initialMsg;
     const displayContent = initialFileIds.length ? `${content}\n\n附件：已上传 ${initialFileIds.length} 个文件` : content;
     const userMsg: Message = {
       id: nextMsgId(),
@@ -200,7 +200,7 @@ export default function ChatPage() {
         const conn = connectSSE(`/conversations/${id}/messages/stream`, {
           content,
           fileIds: initialFileIds,
-          personaId,
+          personaId: personaId || undefined,
           skillIds: [],
           contextScope,
           contextProjectIds,
@@ -461,7 +461,7 @@ export default function ChatPage() {
       const conn = connectSSE(`/conversations/${id}/messages/stream`, {
         content: userContent,
         fileIds: currentAttachments.map((file) => file.id),
-        personaId,
+        personaId: personaId || undefined,
         skillIds: [],
         contextScope,
         contextProjectIds,
@@ -802,6 +802,9 @@ export default function ChatPage() {
             onChange={(e) => setPersonaId(e.target.value)}
             aria-label="选择角色"
           >
+            {workspace?.personas.length === 0 && (
+              <option value="">系统默认角色</option>
+            )}
             {workspace?.personas.map((persona) => (
               <option key={persona.id} value={persona.id}>
                 {persona.name}

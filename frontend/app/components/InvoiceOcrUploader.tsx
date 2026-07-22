@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Invoice, InvoiceOcrCandidate } from "shared";
-import { API, fetchJson, getStoredToken } from "../lib/api";
+import { fetchJson, fetchWithAuth } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
 import { AppIcon } from "./AppIcon";
@@ -96,10 +96,8 @@ export const InvoiceOcrUploader = forwardRef<InvoiceOcrUploaderHandle, {
       formData.append("relatedId", projectId);
       formData.append("file", file);
       const headers: Record<string, string> = {};
-      const token = getStoredToken();
-      if (token) headers.Authorization = `Bearer ${token}`;
       if (user?.id) headers["x-user-id"] = user.id;
-      const uploadResponse = await fetch(`${API}/files/upload`, { method: "POST", headers, body: formData });
+      const uploadResponse = await fetchWithAuth("/files/upload", { method: "POST", headers, body: formData });
       if (!uploadResponse.ok) throw new Error(await uploadResponse.text());
       const uploaded = await uploadResponse.json() as { id: string };
       const recognized = await fetchJson<InvoiceOcrCandidate>(`/files/${uploaded.id}/ocr/invoice`, {

@@ -18,7 +18,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const projects = workspace.projects.filter((project) => project.enterpriseId === (user?.enterpriseId ?? supplier?.enterpriseId));
+  const projects = workspace.projects.filter((project) => project.enterpriseId === supplier?.enterpriseId);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);

@@ -6,6 +6,7 @@ import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
 import { AppIcon } from "../components/AppIcon";
 import { PageHeader } from "../components/PageHeader";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 export default function PersonasPage() {
   const { showToast } = useToast();
   const [providers, setProviders] = useState<ModelProvider[]>([]);
@@ -29,6 +30,8 @@ export default function PersonasPage() {
   const [epProviderId, setEpProviderId] = useState("");
   const [epThinkingProviderId, setEpThinkingProviderId] = useState("");
   const [dreamingId, setDreamingId] = useState<string | null>(null);
+  const [personaToDelete, setPersonaToDelete] = useState<AgentPersona | null>(null);
+  const [deletingPersona, setDeletingPersona] = useState(false);
 
   async function refresh() {
     const [p, per] = await Promise.all([
@@ -56,10 +59,19 @@ export default function PersonasPage() {
     } catch { showToast("添加失败", "error"); }
   }
 
-  async function deletePersona(id: string) {
-    await fetchJson(`/settings/personas/${id}`, { method: "DELETE" });
-    await refresh();
-    showToast("已删除", "success");
+  async function deletePersona() {
+    if (!personaToDelete) return;
+    setDeletingPersona(true);
+    try {
+      await fetchJson(`/settings/personas/${personaToDelete.id}`, { method: "DELETE" });
+      setPersonaToDelete(null);
+      await refresh();
+      showToast("角色已删除", "success");
+    } catch {
+      showToast("角色删除失败", "error");
+    } finally {
+      setDeletingPersona(false);
+    }
   }
 
   function startEditPersona(p: AgentPersona) {
@@ -207,13 +219,21 @@ export default function PersonasPage() {
                           showToast("梦境已更新", "success");
                         } catch { showToast("总结失败", "error"); }
                       }}><AppIcon name="spark" /> 立即总结</button>
-                      <button className="page-secondary-button" onClick={() => deletePersona(p.id)}>删除</button>
+                      <button className="page-secondary-button" onClick={() => setPersonaToDelete(p)}>删除</button>
                     </div>
                   </>
                 )}
               </div>
             ))}
           </div>
+          <ConfirmDialog
+            open={Boolean(personaToDelete)}
+            title="删除角色"
+            message={`确定删除角色「${personaToDelete?.name ?? ""}」吗？使用该角色的后续对话将无法继续选择它。`}
+            loading={deletingPersona}
+            onConfirm={deletePersona}
+            onCancel={() => setPersonaToDelete(null)}
+          />
         </div>
   );
 }

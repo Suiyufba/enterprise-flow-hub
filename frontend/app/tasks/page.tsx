@@ -42,7 +42,12 @@ export default function TasksPage() {
   useEffect(() => { if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId); }, [enterpriseFilter, user?.enterpriseId]);
 
   const load = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setItems([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const query = new URLSearchParams({ enterpriseId, page: String(page), limit: "20" });

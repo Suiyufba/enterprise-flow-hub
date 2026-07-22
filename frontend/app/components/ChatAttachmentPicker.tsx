@@ -2,7 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import type { FileRecord } from "shared";
-import { API, fetchJson, getStoredToken } from "../lib/api";
+import { fetchJson, fetchWithAuth } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
 import { AppIcon } from "./AppIcon";
@@ -63,10 +63,8 @@ export const ChatAttachmentPicker = forwardRef<ChatAttachmentPickerHandle, {
         formData.append("relatedId", projectId);
         formData.append("file", file);
         const headers: Record<string, string> = {};
-        const token = getStoredToken();
-        if (token) headers.Authorization = `Bearer ${token}`;
         if (user?.id) headers["x-user-id"] = user.id;
-        const response = await fetch(`${API}/files/upload`, { method: "POST", headers, body: formData });
+        const response = await fetchWithAuth("/files/upload", { method: "POST", headers, body: formData });
         if (!response.ok) throw new Error(await response.text());
         uploaded.push(await response.json() as FileRecord);
       }

@@ -119,6 +119,50 @@ export const PluginSchema = z.object({
   configSummary: z.string().optional(),
 });
 
+export const WorkflowNodeTypeSchema = z.enum(["trigger", "agent", "condition", "action", "loop"]);
+
+export const WorkflowGraphNodeSchema = z.object({
+  id: z.string().min(1).max(100),
+  nodeType: WorkflowNodeTypeSchema,
+  position: z.object({
+    x: z.number().finite().min(-100_000).max(100_000),
+    y: z.number().finite().min(-100_000).max(100_000),
+  }),
+  config: z.record(z.string().max(80), z.string().max(5_000)).default({}),
+});
+
+export const WorkflowGraphEdgeSchema = z.object({
+  id: z.string().min(1).max(100),
+  source: z.string().min(1).max(100),
+  target: z.string().min(1).max(100),
+  label: z.string().max(200).optional(),
+});
+
+export const WorkflowGraphSchema = z.object({
+  version: z.literal(1),
+  nodes: z.array(WorkflowGraphNodeSchema).max(100),
+  edges: z.array(WorkflowGraphEdgeSchema).max(200),
+}).superRefine((graph, ctx) => {
+  const nodeIds = new Set<string>();
+  for (const [index, node] of graph.nodes.entries()) {
+    if (nodeIds.has(node.id)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "工作流节点 ID 不能重复", path: ["nodes", index, "id"] });
+    }
+    nodeIds.add(node.id);
+  }
+
+  const edgeIds = new Set<string>();
+  for (const [index, edge] of graph.edges.entries()) {
+    if (edgeIds.has(edge.id)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "工作流连线 ID 不能重复", path: ["edges", index, "id"] });
+    }
+    edgeIds.add(edge.id);
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "工作流连线必须指向已存在的节点", path: ["edges", index] });
+    }
+  }
+});
+
 export const AutomationSchema = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -131,6 +175,7 @@ export const AutomationSchema = z.object({
   actionPluginId: z.string().optional(),
   actionToolId: z.string().optional(),
   actionInput: z.record(z.string(), z.unknown()).default({}),
+  workflowGraph: WorkflowGraphSchema.optional(),
   systemPrompt: z.string().optional(),
   webhookSecret: z.string().optional(),
   enabled: z.boolean(),
@@ -306,6 +351,7 @@ export const CreateAutomationRequestSchema = z.object({
   actionPluginId: z.string().optional(),
   actionToolId: z.string().optional(),
   actionInput: z.record(z.string(), z.unknown()).optional(),
+  workflowGraph: WorkflowGraphSchema.optional(),
   systemPrompt: z.string().max(500).optional(),
 });
 
@@ -399,6 +445,9 @@ export type Plugin = z.infer<typeof PluginSchema>;
 export type PluginConfigRequest = z.infer<typeof PluginConfigRequestSchema>;
 export type PluginConfigResponse = z.infer<typeof PluginConfigResponseSchema>;
 export type Automation = z.infer<typeof AutomationSchema>;
+export type WorkflowGraph = z.infer<typeof WorkflowGraphSchema>;
+export type WorkflowGraphNode = z.infer<typeof WorkflowGraphNodeSchema>;
+export type WorkflowGraphEdge = z.infer<typeof WorkflowGraphEdgeSchema>;
 export type AutomationRun = z.infer<typeof AutomationRunSchema>;
 export type Task = z.infer<typeof TaskSchema>;
 export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>;

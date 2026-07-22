@@ -151,13 +151,17 @@ function rowToPayment(r: Record<string, unknown>): Payment {
 
 export function listPayments(
   enterpriseId: string,
-  opts?: { projectId?: string; orderId?: string; status?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; orderId?: string; status?: string; search?: string; page?: number; limit?: number },
 ): PaginatedList<Payment> {
   const conds: string[] = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
   if (opts?.projectId) { conds.push("project_id = ?"); params.push(opts.projectId); }
   if (opts?.orderId) { conds.push("order_id = ?"); params.push(opts.orderId); }
   if (opts?.status) { conds.push("status = ?"); params.push(opts.status); }
+  if (opts?.search) {
+    conds.push("(id LIKE ? OR order_id LIKE ? OR method LIKE ? OR status LIKE ?)");
+    for (let index = 0; index < 4; index += 1) params.push(`%${opts.search}%`);
+  }
   const where = conds.join(" AND ");
   const total = (db().prepare(`SELECT COUNT(*) as cnt FROM payments WHERE ${where}`).get(...params) as { cnt: number }).cnt;
   const page = opts?.page ?? 1;
@@ -249,12 +253,16 @@ function rowToInvoice(r: Record<string, unknown>): Invoice {
 
 export function listInvoices(
   enterpriseId: string,
-  opts?: { projectId?: string; status?: string; page?: number; limit?: number },
+  opts?: { projectId?: string; status?: string; search?: string; page?: number; limit?: number },
 ): PaginatedList<Invoice> {
   const conds: string[] = ["enterprise_id = ?"];
   const params: unknown[] = [enterpriseId];
   if (opts?.projectId) { conds.push("project_id = ?"); params.push(opts.projectId); }
   if (opts?.status) { conds.push("status = ?"); params.push(opts.status); }
+  if (opts?.search) {
+    conds.push("(id LIKE ? OR invoice_number LIKE ? OR invoice_code LIKE ? OR buyer_name LIKE ? OR seller_name LIKE ? OR remark LIKE ? OR order_id LIKE ?)");
+    for (let index = 0; index < 7; index += 1) params.push(`%${opts.search}%`);
+  }
   const where = conds.join(" AND ");
   const total = (db().prepare(`SELECT COUNT(*) as cnt FROM invoices WHERE ${where}`).get(...params) as { cnt: number }).cnt;
   const page = opts?.page ?? 1;

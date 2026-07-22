@@ -14,7 +14,7 @@ import { DataTable } from "../components/DataTable";
 import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { EnterpriseBadge, EnterpriseScopeSelect, ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
-import type { Payment, PaginatedList } from "shared";
+import type { Order, Payment, PaginatedList } from "shared";
 
 const methodLabels: Record<string, string> = {
   cash: "现金", bank_transfer: "银行转账", alipay: "支付宝",
@@ -40,7 +40,13 @@ export default function PaymentsPage() {
   const [showForm, setShowForm] = useState(false);
   useEffect(() => { if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId); }, [enterpriseFilter, user?.enterpriseId]);
   const load = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setData([]);
+      setTotal(0);
+      setError("");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -61,7 +67,55 @@ export default function PaymentsPage() {
   const [projectId, setProjectId] = useState("");
   const [amount, setAmount] = useState("");
   const [orderId, setOrderId] = useState("");
+  const [orderOptions, setOrderOptions] = useState<Order[]>([]);
+  const [orderOptionsTotal, setOrderOptionsTotal] = useState(0);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderOptionsLoading, setOrderOptionsLoading] = useState(false);
+  const [orderOptionsError, setOrderOptionsError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!showForm || !enterpriseId || !projectId) {
+      setOrderOptions([]);
+      setOrderOptionsTotal(0);
+      setOrderOptionsError("");
+      setOrderOptionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setOrderOptionsLoading(true);
+    setOrderOptionsError("");
+    const params = new URLSearchParams({
+      enterpriseId,
+      projectId,
+      page: "1",
+      limit: "200",
+    });
+    if (orderSearch.trim()) params.set("search", orderSearch.trim());
+    const timer = window.setTimeout(() => fetchJson<PaginatedList<Order>>(`/orders?${params}`, { adminUserId: user?.id })
+      .then((response) => {
+        if (!cancelled) {
+          setOrderOptions(response.items);
+          setOrderOptionsTotal(response.total);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOrderOptions([]);
+          setOrderOptionsTotal(0);
+          setOrderOptionsError("订单选项加载失败，可稍后重试");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setOrderOptionsLoading(false);
+      }), 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [enterpriseId, orderSearch, projectId, showForm, user?.id]);
 
   async function createPayment() {
     const parsed = parseFloat(amount);
@@ -138,17 +192,44 @@ export default function PaymentsPage() {
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
               <label className="form-label" htmlFor="payment-enterprise">所属企业 *</label>
-              <EnterpriseScopeSelect id="payment-enterprise" enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectId(""); }} className="page-input" ariaLabel="付款所属企业" />
+              <EnterpriseScopeSelect id="payment-enterprise" enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectId(""); setOrderId(""); setOrderSearch(""); }} className="page-input" ariaLabel="付款所属企业" />
               <label className="form-label" htmlFor="payment-project">业务子类 *</label>
-              <ProjectScopeSelect id="payment-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="付款业务子类" />
+              <ProjectScopeSelect id="payment-project" projects={projects} value={projectId} onChange={(value) => { setProjectId(value); setOrderId(""); setOrderSearch(""); }} includeAll={false} className="page-input" ariaLabel="付款业务子类" />
               <label className="form-label" htmlFor="payment-method">支付方式</label>
               <select id="payment-method" className="page-input" value={method} onChange={(e) => setMethod(e.target.value)}>
                 {Object.entries(methodLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
               <label className="form-label" htmlFor="payment-amount">金额 *</label>
               <input id="payment-amount" className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
-              <label className="form-label" htmlFor="payment-orderid">关联订单 ID（可选）</label>
-              <input id="payment-orderid" className="page-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="关联订单 ID（可选）" />
+              <label className="form-label" htmlFor="payment-orderid">关联订单（可选）</label>
+              <input
+                className="page-input"
+                value={orderSearch}
+                onChange={(event) => setOrderSearch(event.target.value)}
+                placeholder="按订单号、客户名或备注搜索"
+                aria-label="搜索关联订单"
+                disabled={!projectId}
+              />
+              <select
+                id="payment-orderid"
+                className="page-input"
+                value={orderId}
+                onChange={(e) => setOrderId(e.target.value)}
+                disabled={!projectId || orderOptionsLoading}
+              >
+                <option value="">
+                  {!projectId ? "请先选择业务子类" : orderOptionsLoading ? "正在加载订单..." : "不关联订单"}
+                </option>
+                {orderOptions.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {`订单 ${order.id.slice(0, 12)} · ¥${order.totalAmount.toFixed(2)} · ${order.status}`}
+                  </option>
+                ))}
+              </select>
+              {orderOptionsTotal > orderOptions.length && (
+                <p className="form-hint">共 {orderOptionsTotal} 条匹配订单，请输入更精确的关键词继续查找</p>
+              )}
+              {orderOptionsError && <p className="form-hint form-hint-error" role="alert">{orderOptionsError}</p>}
               <button className="page-primary-button" onClick={createPayment} disabled={saving || !enterpriseId || !projectId || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0} type="button">
                 {saving ? "创建中..." : "确认创建"}
               </button>

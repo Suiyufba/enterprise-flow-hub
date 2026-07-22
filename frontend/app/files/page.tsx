@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchJson } from "../lib/api";
+import { fetchJson, fetchWithAuth } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useWorkspace } from "../lib/workspace-context";
 import { useToast } from "../lib/toast-context";
@@ -26,7 +26,6 @@ export default function FilesPage() {
   const [enterpriseFilter, setEnterpriseFilter] = useState("");
   const enterprises = user?.role === "admin" ? workspace.enterprises : workspace.enterprises.filter((enterprise) => enterprise.id === user?.enterpriseId);
   const enterpriseId = enterpriseFilter || user?.enterpriseId || enterprises[0]?.id;
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   const [data, setData] = useState<FileRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -46,7 +45,13 @@ export default function FilesPage() {
     if (!selectedProjectId && projectOptions[0]) setSelectedProjectId(projectOptions[0].id);
   }, [projectOptions, selectedProjectId]);
   const load = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setData([]);
+      setTotal(0);
+      setError("");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -75,13 +80,9 @@ export default function FilesPage() {
       form.append("relatedType", "project");
       form.append("relatedId", selectedProjectId);
       form.append("file", file);
-      const headers: Record<string, string> = {};
-      const storedToken = typeof window !== "undefined" ? localStorage.getItem("efh_token") : null;
-      if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
-      const res = await fetch(`${apiUrl}/files/upload`, {
+      const res = await fetchWithAuth("/files/upload", {
         method: "POST",
         body: form,
-        headers,
       });
       if (!res.ok) { showToast("上传失败", "error"); return; }
       showToast("上传成功", "success");
@@ -96,10 +97,7 @@ export default function FilesPage() {
 
   async function handleDownload(fileId: string, filename: string) {
     try {
-      const headers: Record<string, string> = {};
-      const storedToken = typeof window !== "undefined" ? localStorage.getItem("efh_token") : null;
-      if (storedToken) headers["Authorization"] = `Bearer ${storedToken}`;
-      const res = await fetch(`${apiUrl}/files/${fileId}/download`, { headers });
+      const res = await fetchWithAuth(`/files/${fileId}/download`);
       if (!res.ok) { showToast("下载失败", "error"); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS automations (
   action_type   TEXT NOT NULL CHECK (action_type IN ('send_email','call_ai','shell','api_call','notify','browser')),
   agent_model   TEXT,
   action_plugin_id TEXT,
+  workflow_graph TEXT,
   system_prompt TEXT,
   enabled       INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
   run_count     INTEGER NOT NULL DEFAULT 0,

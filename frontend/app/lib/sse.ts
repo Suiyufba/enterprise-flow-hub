@@ -4,6 +4,7 @@
  * Provides a fetch-based SSE reader that emits parsed JSON events.
  * Unlike EventSource, this supports POST requests and custom headers.
  */
+import { fetchWithAuth } from "./api";
 
 export interface SSEEvent {
   event: string;
@@ -38,7 +39,7 @@ export function connectSSE(
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
   async function* eventGenerator(): AsyncIterable<SSEEvent> {
-    const response = await fetch(`${apiUrl}${url}`, {
+    const response = await fetchWithAuth(`${apiUrl}${url}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),

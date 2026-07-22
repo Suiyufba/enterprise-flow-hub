@@ -24,7 +24,6 @@ function countMembers(dept: DepartmentWithChildren): number {
 function DepartmentTreeNode({
   dept,
   allDepartments,
-  allUsers,
   isAdmin,
   onAddDept,
   onEditDept,
@@ -36,7 +35,6 @@ function DepartmentTreeNode({
 }: {
   dept: DepartmentWithChildren;
   allDepartments: Department[];
-  allUsers: User[];
   isAdmin: boolean;
   onAddDept: (parentId: string) => void;
   onEditDept: (dept: Department) => void;
@@ -150,7 +148,6 @@ function DepartmentTreeNode({
                 <DepartmentTreeNode
                   dept={child}
                   allDepartments={allDepartments}
-                  allUsers={allUsers}
                   isAdmin={isAdmin}
                   onAddDept={onAddDept}
                   onEditDept={onEditDept}
@@ -166,28 +163,6 @@ function DepartmentTreeNode({
         </div>
       )}
 
-      {depth === 0 && allUsers.filter((u) => !u.departmentId).length > 0 && (
-        <div className="org-unassigned-group">
-          <div className="org-unassigned-label">未分配部门</div>
-          {allUsers.filter((u) => !u.departmentId).map((user) => (
-            <div className={`org-user-card ${isAdmin ? "admin" : ""}`} key={user.id}>
-              <span className="org-user-avatar">{user.displayName.slice(0, 1)}</span>
-              <div className="org-user-info">
-                <span className="org-user-reports">尚未指定上级部门</span>
-                <span className="org-user-name">{user.displayName}</span>
-                <span className="org-user-pos">{user.position || "未设置职位"}</span>
-                <span className="org-user-role-tag">{user.role === "admin" ? "管理员" : "成员"}</span>
-              </div>
-              {isAdmin && (
-                <div className="org-user-actions">
-                  <button onClick={() => onEditUser(user)} title="编辑" type="button"><AppIcon name="edit" /> 编辑</button>
-                  <button onClick={() => onDeleteUser(user)} className="danger" title="删除" type="button"><AppIcon name="trash" /></button>
-                  </div>
-                )}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -279,7 +254,12 @@ export default function EnterprisePage() {
   }
 
   const loadData = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setDepartments([]);
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [deps, usrs] = await Promise.all([
@@ -325,6 +305,7 @@ export default function EnterprisePage() {
     }
     return roots;
   }, [departments, users]);
+  const unassignedUsers = useMemo(() => users.filter((member) => !member.departmentId), [users]);
 
   // Org chart entrance + node stagger — scoped to the chart container
   useGSAP(() => {
@@ -591,22 +572,45 @@ export default function EnterprisePage() {
                 </div>
               </div>
             ) : (
-              tree.map((root) => (
-                <DepartmentTreeNode
-                  key={root.id}
-                  dept={root}
-                  allDepartments={departments}
-                  allUsers={users}
-                  isAdmin={isAdmin}
-                  onAddDept={openAddDept}
-                  onEditDept={openEditDept}
-                  onDeleteDept={(d) => setDeleteConfirm({ open: true, type: "dept", id: d.id, name: d.name })}
-                  onAddUser={openAddUser}
-                  onEditUser={openEditUser}
-                  onDeleteUser={(u) => setDeleteConfirm({ open: true, type: "user", id: u.id, name: u.displayName })}
-                  depth={0}
-                />
-              ))
+              <>
+                {tree.map((root) => (
+                  <DepartmentTreeNode
+                    key={root.id}
+                    dept={root}
+                    allDepartments={departments}
+                    isAdmin={isAdmin}
+                    onAddDept={openAddDept}
+                    onEditDept={openEditDept}
+                    onDeleteDept={(d) => setDeleteConfirm({ open: true, type: "dept", id: d.id, name: d.name })}
+                    onAddUser={openAddUser}
+                    onEditUser={openEditUser}
+                    onDeleteUser={(u) => setDeleteConfirm({ open: true, type: "user", id: u.id, name: u.displayName })}
+                    depth={0}
+                  />
+                ))}
+                {unassignedUsers.length > 0 && (
+                  <div className="org-unassigned-group">
+                    <div className="org-unassigned-label">未分配部门</div>
+                    {unassignedUsers.map((member) => (
+                      <div className={`org-user-card ${isAdmin ? "admin" : ""}`} key={member.id}>
+                        <span className="org-user-avatar">{member.displayName.slice(0, 1)}</span>
+                        <div className="org-user-info">
+                          <span className="org-user-reports">尚未指定上级部门</span>
+                          <span className="org-user-name">{member.displayName}</span>
+                          <span className="org-user-pos">{member.position || "未设置职位"}</span>
+                          <span className="org-user-role-tag">{member.role === "admin" ? "管理员" : "成员"}</span>
+                        </div>
+                        {isAdmin && (
+                          <div className="org-user-actions">
+                            <button onClick={() => openEditUser(member)} title="编辑" type="button"><AppIcon name="edit" /> 编辑</button>
+                            <button onClick={() => setDeleteConfirm({ open: true, type: "user", id: member.id, name: member.displayName })} className="danger" title="删除" type="button"><AppIcon name="trash" /></button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -46,7 +46,13 @@ export default function CustomersPage() {
     if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId);
   }, [enterpriseFilter, user?.enterpriseId]);
   const load = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setData([]);
+      setTotal(0);
+      setError("");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {

@@ -87,7 +87,11 @@ export default function RulesPage() {
   const [ruleToDelete, setRuleToDelete] = useState<RuleRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const load = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetchJson<RuleRow[]>(`/rules?enterpriseId=${enterpriseId}`, { adminUserId: user?.id });

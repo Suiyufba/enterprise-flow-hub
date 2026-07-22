@@ -14,7 +14,7 @@ import { AppIcon } from "../components/AppIcon";
 import { TableRowActions } from "../components/TableRowActions";
 import { EnterpriseBadge, EnterpriseScopeSelect, ProjectBadge, ProjectScopeSelect } from "../components/ProjectScopeSelect";
 import { InvoiceOcrUploader } from "../components/InvoiceOcrUploader";
-import type { Invoice, PaginatedList } from "shared";
+import type { Customer, Invoice, Order, PaginatedList } from "shared";
 
 const statusLabels: Record<string, string> = {
   draft: "草稿", issued: "已开具", paid: "已付款", overdue: "已逾期", cancelled: "已取消",
@@ -44,7 +44,13 @@ export default function InvoicesPage() {
   const [showForm, setShowForm] = useState(false);
   useEffect(() => { if (!enterpriseFilter && user?.enterpriseId) setEnterpriseFilter(user.enterpriseId); }, [enterpriseFilter, user?.enterpriseId]);
   const load = useCallback(async () => {
-    if (!enterpriseId) return;
+    if (!enterpriseId) {
+      setData([]);
+      setTotal(0);
+      setError("");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -64,6 +70,14 @@ export default function InvoicesPage() {
   const [projectId, setProjectId] = useState("");
   const [orderId, setOrderId] = useState("");
   const [customerId, setCustomerId] = useState("");
+  const [orderOptions, setOrderOptions] = useState<Order[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<Customer[]>([]);
+  const [orderOptionsTotal, setOrderOptionsTotal] = useState(0);
+  const [customerOptionsTotal, setCustomerOptionsTotal] = useState(0);
+  const [orderSearch, setOrderSearch] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [relationOptionsLoading, setRelationOptionsLoading] = useState(false);
+  const [relationOptionsError, setRelationOptionsError] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceCode, setInvoiceCode] = useState("");
@@ -76,6 +90,60 @@ export default function InvoicesPage() {
   const [remark, setRemark] = useState("");
   const [issuer, setIssuer] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!showForm || !enterpriseId || !projectId) {
+      setOrderOptions([]);
+      setCustomerOptions([]);
+      setOrderOptionsTotal(0);
+      setCustomerOptionsTotal(0);
+      setRelationOptionsError("");
+      setRelationOptionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setRelationOptionsLoading(true);
+    setRelationOptionsError("");
+    const baseParams = {
+      enterpriseId,
+      projectId,
+      page: "1",
+      limit: "200",
+    };
+    const orderParams = new URLSearchParams(baseParams);
+    const customerParams = new URLSearchParams(baseParams);
+    if (orderSearch.trim()) orderParams.set("search", orderSearch.trim());
+    if (customerSearch.trim()) customerParams.set("search", customerSearch.trim());
+    const timer = window.setTimeout(() => Promise.all([
+      fetchJson<PaginatedList<Order>>(`/orders?${orderParams}`, { adminUserId: user?.id }),
+      fetchJson<PaginatedList<Customer>>(`/customers?${customerParams}`, { adminUserId: user?.id }),
+    ])
+      .then(([orders, customers]) => {
+        if (cancelled) return;
+        setOrderOptions(orders.items);
+        setCustomerOptions(customers.items);
+        setOrderOptionsTotal(orders.total);
+        setCustomerOptionsTotal(customers.total);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOrderOptions([]);
+          setCustomerOptions([]);
+          setOrderOptionsTotal(0);
+          setCustomerOptionsTotal(0);
+          setRelationOptionsError("订单和客户选项加载失败，可稍后重试");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRelationOptionsLoading(false);
+      }), 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [customerSearch, enterpriseId, orderSearch, projectId, showForm, user?.id]);
 
   async function createInvoice() {
     const parsed = parseFloat(amount);
@@ -187,9 +255,9 @@ export default function InvoicesPage() {
           <div className="settings-card" style={{ marginBottom: 14, borderColor: "var(--c-4a90e6)" }}>
             <div className="settings-edit-form">
               <label className="form-label" htmlFor="invoice-enterprise">所属企业 *</label>
-              <EnterpriseScopeSelect id="invoice-enterprise" enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectId(""); }} className="page-input" ariaLabel="发票所属企业" />
+              <EnterpriseScopeSelect id="invoice-enterprise" enterprises={enterprises} value={enterpriseId ?? ""} onChange={(value) => { setEnterpriseFilter(value); setProjectId(""); setOrderId(""); setCustomerId(""); setOrderSearch(""); setCustomerSearch(""); }} className="page-input" ariaLabel="发票所属企业" />
               <label className="form-label" htmlFor="invoice-project">业务子类 *</label>
-              <ProjectScopeSelect id="invoice-project" projects={projects} value={projectId} onChange={setProjectId} includeAll={false} className="page-input" ariaLabel="发票业务子类" />
+              <ProjectScopeSelect id="invoice-project" projects={projects} value={projectId} onChange={(value) => { setProjectId(value); setOrderId(""); setCustomerId(""); setOrderSearch(""); setCustomerSearch(""); }} includeAll={false} className="page-input" ariaLabel="发票业务子类" />
               <label className="form-label" htmlFor="invoice-amount">金额 *</label>
               <input id="invoice-amount" className="page-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="金额 *" />
 
@@ -230,11 +298,46 @@ export default function InvoicesPage() {
               <label className="form-label" htmlFor="invoice-sellerTaxId">销售方税号</label>
               <input id="invoice-sellerTaxId" className="page-input" value={sellerTaxId} onChange={(e) => setSellerTaxId(e.target.value)} placeholder="销售方税号" />
 
-              <label className="form-label" htmlFor="invoice-orderid">关联订单 ID（可选）</label>
-              <input id="invoice-orderid" className="page-input" value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="关联订单 ID（可选）" />
+              <label className="form-label" htmlFor="invoice-orderid">关联订单（可选）</label>
+              <input className="page-input" value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="按订单号、客户名或备注搜索" aria-label="搜索发票关联订单" disabled={!projectId} />
+              <select
+                id="invoice-orderid"
+                className="page-input"
+                value={orderId}
+                onChange={(e) => setOrderId(e.target.value)}
+                disabled={!projectId || relationOptionsLoading}
+              >
+                <option value="">
+                  {!projectId ? "请先选择业务子类" : relationOptionsLoading ? "正在加载订单..." : "不关联订单"}
+                </option>
+                {orderOptions.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {`订单 ${order.id.slice(0, 12)} · ¥${order.totalAmount.toFixed(2)} · ${order.status}`}
+                  </option>
+                ))}
+              </select>
+              {orderOptionsTotal > orderOptions.length && <p className="form-hint">共 {orderOptionsTotal} 条匹配订单，请输入更精确的关键词继续查找</p>}
 
-              <label className="form-label" htmlFor="invoice-customerid">关联客户 ID（可选）</label>
-              <input id="invoice-customerid" className="page-input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="关联客户 ID（可选）" />
+              <label className="form-label" htmlFor="invoice-customerid">关联客户（可选）</label>
+              <input className="page-input" value={customerSearch} onChange={(event) => setCustomerSearch(event.target.value)} placeholder="按客户名称、联系人或电话搜索" aria-label="搜索发票关联客户" disabled={!projectId} />
+              <select
+                id="invoice-customerid"
+                className="page-input"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                disabled={!projectId || relationOptionsLoading}
+              >
+                <option value="">
+                  {!projectId ? "请先选择业务子类" : relationOptionsLoading ? "正在加载客户..." : "不关联客户"}
+                </option>
+                {customerOptions.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {[customer.name, customer.contact, customer.phone].filter(Boolean).join(" · ")}
+                  </option>
+                ))}
+              </select>
+              {customerOptionsTotal > customerOptions.length && <p className="form-hint">共 {customerOptionsTotal} 条匹配客户，请输入更精确的关键词继续查找</p>}
+              {relationOptionsError && <p className="form-hint form-hint-error" role="alert">{relationOptionsError}</p>}
 
               <label className="form-label" htmlFor="invoice-duedate">到期日</label>
               <input id="invoice-duedate" className="page-input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} placeholder="到期日" />

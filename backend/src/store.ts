@@ -44,6 +44,7 @@ import type {
   User,
   Workspace,
 } from "shared";
+import { WorkflowGraphSchema } from "shared";
 import { getDb } from "./db/index.js";
 
 export function db() {
@@ -586,6 +587,7 @@ function isProviderUsable(id: string): boolean {
 // ---- Automations ----
 
 function rowToAutomation(r: Record<string, unknown>): Automation {
+  const parsedGraph = WorkflowGraphSchema.safeParse(jsonParse<unknown>(r.workflow_graph as string, undefined));
   return {
     id: r.id as string,
     projectId: r.project_id as string,
@@ -598,6 +600,7 @@ function rowToAutomation(r: Record<string, unknown>): Automation {
     actionPluginId: (r.action_plugin_id as string) || undefined,
     actionToolId: (r.action_tool_id as string) || undefined,
     actionInput: jsonParse<Record<string, unknown>>(r.action_input as string, {}),
+    workflowGraph: parsedGraph.success ? parsedGraph.data : undefined,
     systemPrompt: (r.system_prompt as string) || undefined,
     webhookSecret: (r.webhook_secret as string) || undefined,
     enabled: (r.enabled as number) === 1,
@@ -661,6 +664,7 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
     actionPluginId: input.actionPluginId?.trim() || undefined,
     actionToolId: input.actionToolId?.trim() || undefined,
     actionInput: input.actionInput ?? {},
+    workflowGraph: input.workflowGraph,
     systemPrompt: input.systemPrompt?.trim() || undefined,
     webhookSecret: input.triggerType === "webhook" ? randomBytes(24).toString("hex") : undefined,
     enabled: true,
@@ -670,15 +674,16 @@ export function createAutomation(input: CreateAutomationRequest): Automation | u
   db()
     .prepare(
       `INSERT INTO automations
-       (id, project_id, name, trigger_desc, trigger_type, action_desc, action_type, agent_model, action_plugin_id, action_tool_id, action_input, system_prompt, webhook_secret, enabled, run_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, project_id, name, trigger_desc, trigger_type, action_desc, action_type, agent_model, action_plugin_id, action_tool_id, action_input, workflow_graph, system_prompt, webhook_secret, enabled, run_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       automation.id, automation.projectId, automation.name,
       automation.trigger, automation.triggerType,
       automation.action, automation.actionType,
       automation.agentModel ?? null, automation.actionPluginId ?? null, automation.actionToolId ?? null,
-      JSON.stringify(automation.actionInput), automation.systemPrompt ?? null, automation.webhookSecret ?? null,
+      JSON.stringify(automation.actionInput), automation.workflowGraph ? JSON.stringify(automation.workflowGraph) : null,
+      automation.systemPrompt ?? null, automation.webhookSecret ?? null,
       1, 0,
     );
 
@@ -743,6 +748,9 @@ export function updateAutomation(id: string, input: Partial<CreateAutomationRequ
     action_plugin_id: nextActionPluginId ?? null,
     action_tool_id: nextActionToolId ?? null,
     action_input: JSON.stringify(input.actionInput ?? current.actionInput),
+    workflow_graph: input.workflowGraph !== undefined
+      ? JSON.stringify(input.workflowGraph)
+      : (current.workflowGraph ? JSON.stringify(current.workflowGraph) : null),
     system_prompt: input.systemPrompt !== undefined ? (input.systemPrompt?.trim() || null) : (current.systemPrompt ?? null),
     webhook_secret: nextTriggerType === "webhook"
       ? (current.webhookSecret ?? randomBytes(24).toString("hex"))
@@ -750,8 +758,8 @@ export function updateAutomation(id: string, input: Partial<CreateAutomationRequ
     enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : (current.enabled ? 1 : 0),
   };
   db()
-    .prepare("UPDATE automations SET project_id=?, name=?, trigger_desc=?, trigger_type=?, action_desc=?, action_type=?, agent_model=?, action_plugin_id=?, action_tool_id=?, action_input=?, system_prompt=?, webhook_secret=?, enabled=? WHERE id=?")
-    .run(next.project_id, next.name, next.trigger_desc, next.trigger_type, next.action_desc, next.action_type, next.agent_model, next.action_plugin_id, next.action_tool_id, next.action_input, next.system_prompt, next.webhook_secret, next.enabled, id);
+    .prepare("UPDATE automations SET project_id=?, name=?, trigger_desc=?, trigger_type=?, action_desc=?, action_type=?, agent_model=?, action_plugin_id=?, action_tool_id=?, action_input=?, workflow_graph=?, system_prompt=?, webhook_secret=?, enabled=? WHERE id=?")
+    .run(next.project_id, next.name, next.trigger_desc, next.trigger_type, next.action_desc, next.action_type, next.agent_model, next.action_plugin_id, next.action_tool_id, next.action_input, next.workflow_graph, next.system_prompt, next.webhook_secret, next.enabled, id);
   return rowToAutomation(db().prepare("SELECT * FROM automations WHERE id = ?").get(id) as Record<string, unknown>);
 }
 

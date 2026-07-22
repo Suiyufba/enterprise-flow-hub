@@ -25,7 +25,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const { workspace } = useWorkspace();
   const { showToast } = useToast();
   const [order, setOrder] = useState<Order | null>(null);
-  const projects = workspace.projects.filter((project) => project.enterpriseId === (user?.enterpriseId ?? order?.enterpriseId));
+  const projects = workspace.projects.filter((project) => project.enterpriseId === order?.enterpriseId);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
