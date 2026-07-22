@@ -55,7 +55,11 @@ function invoiceTypeValue(value: unknown, fallbackText = ""): CandidateFields["i
   if (/增值税[^\n]{0,12}专用发票|增值税专票/.test(sourceText)) return "vat_special";
   if (/增值税[^\n]{0,12}普通发票|增值税普票/.test(sourceText)) return "vat_normal";
   if (/电子[^\n]{0,12}发票|全电发票|数电发票/.test(sourceText)) return "electronic";
-  const text = `${typeof value === "string" ? value : ""} ${fallbackText}`.toLowerCase();
+  const candidateValue = typeof value === "string" ? value : "";
+  const onlyElectronicPaymentMarker = /电子支付标[识总]/.test(sourceText)
+    && !/电子[^\n]{0,12}发票|全电发票|数电发票/.test(sourceText);
+  const trustedValue = onlyElectronicPaymentMarker && /electronic|电子/.test(candidateValue.toLowerCase()) ? "" : candidateValue;
+  const text = `${trustedValue} ${fallbackText.replace(/电子支付标[识总]/g, "")}`.toLowerCase();
   if (/专用|special/.test(text)) return "vat_special";
   if (/电子|electronic|digital/.test(text)) return "electronic";
   if (/普通|增值税|normal/.test(text)) return "vat_normal";
@@ -162,7 +166,7 @@ export function parseInvoiceText(rawText: string): CandidateFields {
 
 async function parseInvoiceTextWithAi(rawText: string): Promise<CandidateFields> {
   const prompt = `从下面 OCR 原文提取中国发票字段，只返回一个 JSON 对象，不要解释，不得猜测原文不存在的值。
-字段：invoiceNumber, invoiceCode, invoiceType(vat_special|vat_normal|electronic|null), issuedAt(YYYY-MM-DD), amount(不含税金额), taxRate(小数，如6%为0.06), taxAmount, totalAmount(价税合计), buyerName, buyerTaxId, sellerName, sellerTaxId, remark, issuer, lineItems。
+字段：invoiceNumber, invoiceCode, invoiceType(vat_special|vat_normal|electronic|null), issuedAt(YYYY-MM-DD), amount(不含税金额), taxRate(小数，如6%为0.06), taxAmount, totalAmount(价税合计), buyerName, buyerTaxId, sellerName, sellerTaxId, remark, issuer, lineItems。注意“电子支付标识”不是电子发票类型；票种标题无法辨认时 invoiceType 必须填 null。
 lineItems 每项字段：name, specification, unit, quantity, unitPrice, amount, taxRate, taxAmount。无法确定填 null 或空数组。
 
 OCR 原文：

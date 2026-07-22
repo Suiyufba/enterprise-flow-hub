@@ -35,3 +35,8 @@ test("invoice title wins over unrelated electronic-payment text", () => {
   `);
   assert.equal(fields.invoiceType, "vat_normal");
 });
+
+test("electronic payment marker alone is not treated as an electronic invoice", () => {
+  const fields = parseInvoiceText("深圳 发票\n购方 电子支付标识\n发票代码：044001900111");
+  assert.equal(fields.invoiceType, null);
+});
