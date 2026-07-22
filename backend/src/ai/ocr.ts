@@ -185,7 +185,7 @@ ${rawText.slice(0, 16000)}`;
   }
 }
 
-async function tesseractText(storagePath: string): Promise<string> {
+export async function extractImageText(storagePath: string): Promise<string> {
   try {
     const { stdout } = await execFileAsync("tesseract", [
       storagePath,
@@ -213,7 +213,7 @@ async function runLocalInvoiceOcr(storagePath: string): Promise<CandidateFields>
   localInvoiceOcrQueue = new Promise<void>((resolve) => { release = resolve; });
   await previous;
   try {
-    return await parseInvoiceTextWithAi(await tesseractText(storagePath));
+    return await parseInvoiceTextWithAi(await extractImageText(storagePath));
   } finally {
     release();
   }
@@ -348,7 +348,7 @@ export async function analyzeImageFile(
 ): Promise<{ summary: string; fields: Array<{ name: string; label: string; type: string }> } | null> {
   if (!mimeType.startsWith("image/")) return null;
   try {
-    const rawText = await tesseractText(storagePath);
+    const rawText = await extractImageText(storagePath);
     if (!rawText) return null;
     const lines = rawText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const fields = lines.slice(0, 80).map((line, index) => ({ name: `line_${index + 1}`, label: line.slice(0, 120), type: "text" }));

@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import type { AgentPlanStep, ConversationDetail, Message, ToolRun, Workspace } from "shared";
+import type { AgentPlanStep, ConversationDetail, FileRecord, Message, ToolRun, Workspace } from "shared";
 import { fetchJson, getStoredToken } from "../../lib/api";
 import { connectSSE } from "../../lib/sse";
 import { useToast } from "../../lib/toast-context";
@@ -11,7 +11,7 @@ import { TypingIndicator } from "../../components/TypingIndicator";
 import { ErrorState } from "../../components/ErrorState";
 import { AgentRunPanel } from "../../components/AgentRunPanel";
 import { AppIcon } from "../../components/AppIcon";
-import { InvoiceOcrUploader } from "../../components/InvoiceOcrUploader";
+import { ChatAttachmentPicker, type ChatAttachmentPickerHandle } from "../../components/ChatAttachmentPicker";
 import { gsap, useGSAP } from "../../lib/gsap";
 
 interface MessageRunState {
@@ -68,6 +68,13 @@ export default function ChatPage() {
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
+  const attachmentPickerRef = useRef<ChatAttachmentPickerHandle>(null);
+  const [attachments, setAttachments] = useState<FileRecord[]>([]);
+  const [fileDragging, setFileDragging] = useState(false);
+
+  function processDroppedFiles(files: FileList | File[]) {
+    attachmentPickerRef.current?.processFiles(files);
+  }
 
   // Animate new messages as they appear
   const prevCountRef = useRef(0);
@@ -162,16 +169,18 @@ export default function ChatPage() {
 
   // Auto-send initial message from URL param
   const initialMsg = searchParams.get("msg");
+  const initialFileIds = (searchParams.get("fileIds") ?? "").split(",").filter(Boolean).slice(0, 6);
   const msgSent = useRef(false);
   useEffect(() => {
     if (loading || !workspace || !initialMsg || !personaId || msgSent.current) return;
     msgSent.current = true;
     router.replace(`/chat/${id}`, { scroll: false });
     const content = decodeURIComponent(initialMsg);
+    const displayContent = initialFileIds.length ? `${content}\n\n附件：已上传 ${initialFileIds.length} 个文件` : content;
     const userMsg: Message = {
       id: nextMsgId(),
       role: "user",
-      content,
+      content: displayContent,
       createdAt: new Date().toISOString(),
     };
     setLocalMessages((prev) => [...prev, userMsg]);
@@ -190,6 +199,7 @@ export default function ChatPage() {
       try {
         const conn = connectSSE(`/conversations/${id}/messages/stream`, {
           content,
+          fileIds: initialFileIds,
           personaId,
           skillIds: [],
           contextScope,
@@ -294,7 +304,7 @@ export default function ChatPage() {
         updateMessageRun(aiMsgId, (run) => ({ ...run, sending: false, streaming: false }));
       }
     })();
-  }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds, id, router, showToast, beginMessageRun, removeMessageRun, updateMessageRun]);
+  }, [loading, workspace, initialMsg, personaId, contextScope, contextProjectIds, id, router, showToast, beginMessageRun, removeMessageRun, updateMessageRun, initialFileIds]);
 
   useEffect(() => {
     if (!streamingMsgId) {
@@ -402,16 +412,19 @@ export default function ChatPage() {
   }
 
   async function sendMessage() {
-    if (!input.trim() || sending) return;
-    const userContent = input.trim();
+    if ((!input.trim() && attachments.length === 0) || sending) return;
+    const userContent = input.trim() || "请分析本轮上传的附件。";
+    const currentAttachments = attachments;
+    const displayContent = currentAttachments.length ? `${userContent}\n\n附件：${currentAttachments.map((file) => file.filename).join("、")}` : userContent;
     const userMsg: Message = {
       id: nextMsgId(),
       role: "user",
-      content: userContent,
+      content: displayContent,
       createdAt: new Date().toISOString(),
     };
     setLocalMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setAttachments([]);
     setSending(true);
 
     // Create placeholder AI message
@@ -434,6 +447,7 @@ export default function ChatPage() {
       // Try SSE streaming
       const conn = connectSSE(`/conversations/${id}/messages/stream`, {
         content: userContent,
+        fileIds: currentAttachments.map((file) => file.id),
         personaId,
         skillIds: [],
         contextScope,
@@ -554,6 +568,7 @@ export default function ChatPage() {
         showToast(errMsg, "error");
         setLocalMessages((prev) => prev.filter((m) => m.id !== userMsg.id && m.id !== aiMsgId));
         setInput(userContent);
+        setAttachments(currentAttachments);
         removeMessageRun(aiMsgId);
       } else {
         // Partial content — mark as done with what we have
@@ -706,13 +721,29 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="chat-composer">
+      <div
+        className={`chat-composer ${fileDragging ? "is-image-dragging" : ""}`}
+        onDragEnter={(event) => { event.preventDefault(); setFileDragging(true); }}
+        onDragOver={(event) => { event.preventDefault(); setFileDragging(true); }}
+        onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFileDragging(false); }}
+        onDrop={(event) => { event.preventDefault(); setFileDragging(false); processDroppedFiles(event.dataTransfer.files); }}
+      >
         <textarea
           className="chat-input"
           placeholder="输入消息，继续对话..."
           rows={2}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onPaste={(event) => {
+            const itemImages = Array.from(event.clipboardData.items)
+              .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+              .map((item) => item.getAsFile())
+              .filter((file): file is File => Boolean(file));
+            const images = itemImages.length
+              ? itemImages
+              : Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+            if (images.length) { event.preventDefault(); processDroppedFiles(images); }
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -725,18 +756,19 @@ export default function ChatPage() {
         <button
           className="chat-send-btn"
           onClick={sendMessage}
-          disabled={!input.trim() || sending}
+          disabled={(!input.trim() && attachments.length === 0) || sending}
           type="button"
           aria-label="发送消息"
         >
           发送
         </button>
         <div className="chat-composer-controls">
-          <InvoiceOcrUploader
-            enterpriseId={currentEnterpriseId}
+          <ChatAttachmentPicker
+            ref={attachmentPickerRef}
             projectId={detail.projectId}
-            buttonClassName="composer-invoice-ocr"
-            buttonLabel="发票图片"
+            files={attachments}
+            onChange={setAttachments}
+            disabled={sending}
           />
           <select
             className="composer-select composer-project"

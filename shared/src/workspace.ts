@@ -334,11 +334,14 @@ export const UpdateConversationRequestSchema = z.object({
 });
 
 export const AddMessageRequestSchema = z.object({
-  content: z.string().min(1).max(2000),
+  content: z.string().max(2000).default(""),
+  fileIds: z.array(z.string()).max(6).optional(),
   personaId: z.string().optional(),
   skillIds: z.array(z.string()).optional(),
   contextScope: z.enum(["current_project", "selected_projects"]).optional(),
   contextProjectIds: z.array(z.string()).optional(),
+}).refine((value) => value.content.trim().length > 0 || Boolean(value.fileIds?.length), {
+  message: "消息内容和附件不能同时为空",
 });
 
 export const UpdateProjectRequestSchema = z.object({

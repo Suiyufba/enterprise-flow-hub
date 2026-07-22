@@ -2,13 +2,13 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import type { ConversationDetail } from "shared";
+import type { ConversationDetail, FileRecord } from "shared";
 import { fetchJson } from "../../lib/api";
 import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { gsap, useGSAP } from "../../lib/gsap";
 import { AppIcon } from "../../components/AppIcon";
-import { InvoiceOcrUploader, type InvoiceOcrUploaderHandle } from "../../components/InvoiceOcrUploader";
+import { ChatAttachmentPicker, type ChatAttachmentPickerHandle } from "../../components/ChatAttachmentPicker";
 
 const QUICK_STARTS = [
   { icon: "users" as const, label: "检查重复客户", prompt: "检查当前项目中的全部客户，按电话号码和姓名找出重复记录，并给出处理建议。" },
@@ -28,16 +28,12 @@ export default function Home() {
   const { showToast } = useToast();
   const composerRef = useRef<HTMLDivElement>(null);
   const sendBtnRef = useRef<HTMLButtonElement>(null);
-  const invoiceOcrRef = useRef<InvoiceOcrUploaderHandle>(null);
+  const attachmentPickerRef = useRef<ChatAttachmentPickerHandle>(null);
+  const [attachments, setAttachments] = useState<FileRecord[]>([]);
   const [imageDragging, setImageDragging] = useState(false);
 
-  function processDroppedImage(files: FileList | File[]) {
-    const image = Array.from(files).find((file) => file.type.startsWith("image/"));
-    if (!image) {
-      showToast("请拖入 PNG、JPEG 或 WebP 图片", "error");
-      return;
-    }
-    invoiceOcrRef.current?.processFile(image);
+  function processDroppedFiles(files: FileList | File[]) {
+    attachmentPickerRef.current?.processFiles(files);
   }
 
   useGSAP(() => {
@@ -99,7 +95,7 @@ export default function Home() {
   }, [enterpriseId, personaId, projectId, workspace.projects, workspace.personas, workspace.enterprises]);
 
   async function submit() {
-    if (!need.trim() || loading) return;
+    if ((!need.trim() && attachments.length === 0) || loading) return;
     setLoading(true);
 
     try {
@@ -115,14 +111,15 @@ export default function Home() {
         body: JSON.stringify({
           enterpriseId,
           projectId,
-          title: need.trim().slice(0, 30),
+          title: need.trim().slice(0, 30) || `分析 ${attachments[0]?.filename ?? "附件"}`,
         }),
       });
 
       // Immediately navigate to chat page with initial message
-      const msg = encodeURIComponent(need.trim());
+      const msg = encodeURIComponent(need.trim() || "请分析本轮上传的附件。");
       const persona = personaId ? `&personaId=${encodeURIComponent(personaId)}` : "";
-      router.push(`/chat/${conversation.id}?msg=${msg}${persona}`);
+      const files = attachments.length ? `&fileIds=${encodeURIComponent(attachments.map((file) => file.id).join(","))}` : "";
+      router.push(`/chat/${conversation.id}?msg=${msg}${persona}${files}`);
     } catch (e) {
       let errMsg = "创建对话失败，请重试";
       try {
@@ -161,7 +158,7 @@ export default function Home() {
         onDrop={(event) => {
           event.preventDefault();
           setImageDragging(false);
-          processDroppedImage(event.dataTransfer.files);
+          processDroppedFiles(event.dataTransfer.files);
         }}
       >
         <textarea
@@ -171,10 +168,16 @@ export default function Home() {
           value={need}
           onChange={(e) => setNeed(e.target.value)}
           onPaste={(event) => {
-            const images = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+            const itemImages = Array.from(event.clipboardData.items)
+              .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+              .map((item) => item.getAsFile())
+              .filter((file): file is File => Boolean(file));
+            const images = itemImages.length
+              ? itemImages
+              : Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
             if (images.length > 0) {
               event.preventDefault();
-              processDroppedImage(images);
+              processDroppedFiles(images);
             }
           }}
           onKeyDown={(e) => {
@@ -191,7 +194,7 @@ export default function Home() {
             className="chat-send-btn"
             ref={sendBtnRef}
             onClick={submit}
-            disabled={!need.trim() || loading}
+            disabled={(!need.trim() && attachments.length === 0) || loading}
             aria-label="发送消息"
           >
             {loading ? "创建中..." : "发送"}
@@ -199,12 +202,11 @@ export default function Home() {
         </div>
 
         <div className="chat-composer-controls">
-          <InvoiceOcrUploader
-            ref={invoiceOcrRef}
-            enterpriseId={enterpriseId}
+          <ChatAttachmentPicker
+            ref={attachmentPickerRef}
             projectId={projectId}
-            buttonClassName="composer-invoice-ocr"
-            buttonLabel="发票图片"
+            files={attachments}
+            onChange={setAttachments}
           />
           <div className="project-picker enterprise-picker">
             <AppIcon name="project" className="project-icon" />

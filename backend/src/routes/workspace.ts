@@ -50,6 +50,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { notifyExecute } from "../tools/executors/notify.js";
 import { emitEvent } from "../events/emitter.js";
 import { canAccessEnterprise, getRequestActor, requireAdminActor } from "./auth-context.js";
+import { buildChatAttachmentContext } from "../ai/file-extractor.js";
 
 const activeRuns = new Map<string, { abort: () => void }>();
 const configuredAgentTimeoutMs = Number(process.env.AGENT_RUN_TIMEOUT_MS ?? 180_000);
@@ -480,7 +481,14 @@ export async function workspaceRoutes(app: FastifyInstance) {
       if (!before) return reply.status(404).send({ error: "Conversation not found" });
       if (!canAccessEnterprise(request, before.enterpriseId, reply)) return;
       const actor = (request as unknown as Record<string, unknown>).actor as { id: string } | undefined;
-      const result = await addMessage(id, parsed.data, actor?.id);
+      let attachments: Awaited<ReturnType<typeof buildChatAttachmentContext>>;
+      try {
+        attachments = await buildChatAttachmentContext(parsed.data.fileIds, before.enterpriseId, before.projectId);
+      } catch (error) {
+        return reply.status(400).send({ error: error instanceof Error ? error.message : "附件读取失败" });
+      }
+      const baseContent = parsed.data.content.trim() || "请分析本轮上传的附件。";
+      const result = await addMessage(id, { ...parsed.data, content: baseContent + attachments.prompt }, actor?.id);
       if (!result) {
         return reply.status(404).send({ error: "Conversation not found" });
       }
@@ -525,6 +533,15 @@ export async function workspaceRoutes(app: FastifyInstance) {
     if (actor && actor.role !== "admin" && actor.enterpriseId && actor.enterpriseId !== before.enterpriseId) {
       return reply.status(403).send({ error: "Access denied: enterprise mismatch" });
     }
+    let attachments: Awaited<ReturnType<typeof buildChatAttachmentContext>>;
+    try {
+      attachments = await buildChatAttachmentContext(parsed.data.fileIds, before.enterpriseId, before.projectId);
+    } catch (error) {
+      return reply.status(400).send({ error: error instanceof Error ? error.message : "附件读取失败" });
+    }
+    const baseUserContent = parsed.data.content.trim() || "请分析本轮上传的附件。";
+    const agentUserContent = baseUserContent + attachments.prompt;
+    const storedUserContent = baseUserContent + attachments.displaySuffix;
 
     // Build context (same logic as addMessage in store.ts)
     const personas = listPersonas();
@@ -566,7 +583,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     const userMsgId = `msg-${randomUUID()}`;
     db().prepare(
       "INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
-    ).run(userMsgId, id, "user", parsed.data.content, new Date().toISOString());
+    ).run(userMsgId, id, "user", storedUserContent, new Date().toISOString());
 
     // Set up SSE response headers
     reply.raw.writeHead(200, {
@@ -621,7 +638,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
       const runtime = await getRuntime(actor?.id);
 
       for await (const event of runtime.runStream({
-        userContent: parsed.data.content,
+        userContent: agentUserContent,
         history,
         persona,
         skills: selectedSkills,
@@ -698,7 +715,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
       void triggerProjectAutomations(
         "message",
         before.projectId,
-        { source: "message", conversationId: id, content: parsed.data.content },
+        { source: "message", conversationId: id, content: storedUserContent, fileIds: parsed.data.fileIds ?? [] },
         app.log,
       ).catch((error) => app.log.error({ err: error, conversationId: id }, "Message automation failed"));
     }

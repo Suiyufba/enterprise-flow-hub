@@ -18,6 +18,7 @@ const { browserCheckExecute } = await import("../src/tools/executors/browser-che
 const { companyContextExecute } = await import("../src/tools/executors/company-context.js");
 const { csvProfile } = await import("../src/tools/executors/csv-profile.js");
 const { createFile, getUploadRoot } = await import("../src/store/files.js");
+const { buildChatAttachmentContext } = await import("../src/ai/file-extractor.js");
 const { registerTool } = await import("../src/tools/registry.js");
 const { createRule } = await import("../src/store/rules.js");
 const { emitEvent } = await import("../src/events/emitter.js");
@@ -156,6 +157,31 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.equal(
     (db.prepare("SELECT COUNT(*) AS n FROM agent_personas WHERE default_skill_ids IS NULL OR default_skill_ids IN ('','[]')").get() as { n: number }).n,
     0,
+  );
+});
+
+test("chat attachments are extracted and remain project scoped", async () => {
+  const storagePath = join(testDir, "chat-brief.txt");
+  writeFileSync(storagePath, "王师傅电话是 11211110000，本周五前确认报价。", "utf8");
+  const file = createFile({
+    enterpriseId: "ent-qihang",
+    projectId: "proj-qihang-growth",
+    filename: "客户联络说明.txt",
+    mimeType: "text/plain",
+    size: 64,
+    storagePath,
+    uploadedBy: "user-admin",
+    relatedType: "project",
+    relatedId: "proj-qihang-growth",
+  });
+
+  const context = await buildChatAttachmentContext([file.id], "ent-qihang", "proj-qihang-growth");
+  assert.match(context.prompt, /王师傅电话是 11211110000/);
+  assert.match(context.prompt, /客户联络说明\.txt/);
+  assert.match(context.displaySuffix, /附件：客户联络说明\.txt/);
+  await assert.rejects(
+    buildChatAttachmentContext([file.id], "ent-qihang", "proj-qihang-daily"),
+    /不属于当前业务子类/,
   );
 });
 
