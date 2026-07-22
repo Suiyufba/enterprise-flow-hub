@@ -31,6 +31,7 @@ const { rulesRoutes } = await import("../src/routes/rules.js");
 const { crmRoutes } = await import("../src/routes/crm.js");
 const { enterpriseRoutes } = await import("../src/routes/enterprise.js");
 const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feishu-events.js");
+const { fileRoutes } = await import("../src/routes/files.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 const { feishuMcpScope, isExplicitFeishuRequest, requiresFeishuGroupLookup, userInstruction } = await import("../src/agent/claude-code-runtime.js");
 const { ensureFeishuSummarySections, formatFeishuGroupActivity, selectFeishuChat } = await import("../src/agent/feishu-chat.js");
@@ -195,7 +196,7 @@ test("chat attachments are extracted and remain project scoped", async () => {
   assert.match(context.displaySuffix, /附件：客户联络说明\.txt/);
   await assert.rejects(
     buildChatAttachmentContext([file.id], "ent-qihang", "proj-qihang-daily"),
-    /不属于当前业务子类/,
+    /与当前业务子类不一致/,
   );
 });
 
@@ -238,6 +239,7 @@ test("business record routes support real edit flows and protect posted records"
   await app.register(rulesRoutes);
   await app.register(crmRoutes);
   await app.register(enterpriseRoutes);
+  await app.register(fileRoutes);
 
   const customerCreate = await app.inject({
     method: "POST",
@@ -305,6 +307,25 @@ test("business record routes support real edit flows and protect posted records"
     relatedType: "project",
     relatedId: "proj-qihang-growth",
   });
+  const movedAttachment = await app.inject({
+    method: "PATCH",
+    url: `/files/${ocrSource.id}/project`,
+    payload: { projectId: "proj-qihang-daily" },
+  });
+  assert.equal(movedAttachment.statusCode, 200);
+  assert.equal(movedAttachment.json().projectId, "proj-qihang-daily");
+  const crossEnterpriseMove = await app.inject({
+    method: "PATCH",
+    url: `/files/${ocrSource.id}/project`,
+    payload: { projectId: "proj-yunshan-orders" },
+  });
+  assert.equal(crossEnterpriseMove.statusCode, 400);
+  const restoredAttachment = await app.inject({
+    method: "PATCH",
+    url: `/files/${ocrSource.id}/project`,
+    payload: { projectId: "proj-qihang-growth" },
+  });
+  assert.equal(restoredAttachment.statusCode, 200);
   const ocrInvoiceCreate = await app.inject({
     method: "POST",
     url: "/invoices",

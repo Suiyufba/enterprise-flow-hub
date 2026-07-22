@@ -8,7 +8,7 @@ import { useWorkspace } from "../../lib/workspace-context";
 import { useToast } from "../../lib/toast-context";
 import { gsap, useGSAP } from "../../lib/gsap";
 import { AppIcon } from "../../components/AppIcon";
-import { ChatAttachmentPicker, type ChatAttachmentPickerHandle } from "../../components/ChatAttachmentPicker";
+import { alignChatAttachments, ChatAttachmentPicker, type ChatAttachmentPickerHandle } from "../../components/ChatAttachmentPicker";
 
 const QUICK_STARTS = [
   { icon: "users" as const, label: "检查重复客户", prompt: "检查当前项目中的全部客户，按电话号码和姓名找出重复记录，并给出处理建议。" },
@@ -106,19 +106,21 @@ export default function Home() {
         return;
       }
 
+      const alignedAttachments = await alignChatAttachments(attachments, projectId);
+      setAttachments(alignedAttachments);
       const conversation = await fetchJson<ConversationDetail>("/conversations", {
         method: "POST",
         body: JSON.stringify({
           enterpriseId,
           projectId,
-          title: need.trim().slice(0, 30) || `分析 ${attachments[0]?.filename ?? "附件"}`,
+          title: need.trim().slice(0, 30) || `分析 ${alignedAttachments[0]?.filename ?? "附件"}`,
         }),
       });
 
       // Immediately navigate to chat page with initial message
       const msg = encodeURIComponent(need.trim() || "请分析本轮上传的附件。");
       const persona = personaId ? `&personaId=${encodeURIComponent(personaId)}` : "";
-      const files = attachments.length ? `&fileIds=${encodeURIComponent(attachments.map((file) => file.id).join(","))}` : "";
+      const files = alignedAttachments.length ? `&fileIds=${encodeURIComponent(alignedAttachments.map((file) => file.id).join(","))}` : "";
       router.push(`/chat/${conversation.id}?msg=${msg}${persona}${files}`);
     } catch (e) {
       let errMsg = "创建对话失败，请重试";

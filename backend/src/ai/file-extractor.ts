@@ -79,9 +79,9 @@ export async function buildChatAttachmentContext(
 
   for (const fileId of uniqueIds) {
     const file = getFileInternal(fileId);
-    if (!file || file.enterpriseId !== enterpriseId || file.projectId !== projectId) {
-      throw new Error(`附件不存在或不属于当前业务子类：${fileId}`);
-    }
+    if (!file) throw new Error("附件不存在或已被删除");
+    if (file.enterpriseId !== enterpriseId) throw new Error("附件不属于当前企业");
+    if (file.projectId !== projectId) throw new Error("附件与当前业务子类不一致，请重新选择业务子类或重新上传附件");
     names.push(file.filename);
     try {
       const extracted = await extractFileText(file.storagePath, file.mimeType, file.filename);

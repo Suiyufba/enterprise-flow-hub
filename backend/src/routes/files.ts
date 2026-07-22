@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createReadStream, existsSync } from "node:fs";
-import { listFiles, getFileInternal, createFile, deleteFile, ensureUploadDir } from "../store/files.js";
+import { listFiles, getFileInternal, createFile, deleteFile, ensureUploadDir, moveFileToProject } from "../store/files.js";
 import { analyzeImageFile, recognizeInvoiceFile } from "../ai/ocr.js";
 import { findInvoiceByIdentity } from "../store/orders.js";
 import { canAccessEnterprise, requireRequestActor } from "./auth-context.js";
@@ -114,6 +114,29 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       request.log.warn({ err: error, fileId: id }, "Invoice OCR failed");
       return reply.status(422).send({ error: error instanceof Error ? error.message : "发票识别失败" });
     }
+  });
+
+  app.patch("/files/:id/project", async (request, reply) => {
+    const actor = requireRequestActor(request, reply);
+    if (!actor) return;
+    const { id } = request.params as { id: string };
+    const { projectId } = request.body as { projectId?: string };
+    const existing = getFileInternal(id);
+    if (!existing) return reply.status(404).send({ error: "附件不存在或已被删除" });
+    if (actor.role !== "admin" && existing.uploadedBy !== actor.id) {
+      return reply.status(403).send({ error: "只能调整自己上传的附件" });
+    }
+    if (!projectId) return reply.status(400).send({ error: "请选择目标业务子类" });
+    const project = getProject(projectId);
+    if (!project) return reply.status(404).send({ error: "目标业务子类不存在" });
+    if (project.enterpriseId !== existing.enterpriseId) {
+      return reply.status(400).send({ error: "附件不能跨企业移动，请重新上传" });
+    }
+    if (!canAccessEnterprise(request, project.enterpriseId, reply)) return;
+    const updated = moveFileToProject(id, project.id);
+    if (!updated) return reply.status(500).send({ error: "附件业务范围更新失败" });
+    emitEvent("update", "file", id, updated as unknown as Record<string, unknown>, "api");
+    return reply.send(updated);
   });
 
   app.delete("/files/:id", async (request, reply) => {

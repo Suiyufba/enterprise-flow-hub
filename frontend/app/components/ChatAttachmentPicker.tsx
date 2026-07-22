@@ -2,7 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import type { FileRecord } from "shared";
-import { API, getStoredToken } from "../lib/api";
+import { API, fetchJson, getStoredToken } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useToast } from "../lib/toast-context";
 import { AppIcon } from "./AppIcon";
@@ -14,6 +14,15 @@ export type ChatAttachmentPickerHandle = {
 
 const ACCEPT = ".pdf,.doc,.docx,.xlsx,.xlsm,.csv,.tsv,.txt,.md,.json,.png,.jpg,.jpeg,.webp";
 const SUPPORTED_EXTENSIONS = new Set(ACCEPT.split(","));
+
+export async function alignChatAttachments(files: FileRecord[], projectId: string): Promise<FileRecord[]> {
+  return Promise.all(files.map((file) => file.projectId === projectId
+    ? file
+    : fetchJson<FileRecord>(`/files/${file.id}/project`, {
+      method: "PATCH",
+      body: JSON.stringify({ projectId }),
+    })));
+}
 
 export const ChatAttachmentPicker = forwardRef<ChatAttachmentPickerHandle, {
   projectId?: string;

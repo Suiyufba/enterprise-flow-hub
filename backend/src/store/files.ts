@@ -109,6 +109,13 @@ export function createFile(record: {
   return file;
 }
 
+export function moveFileToProject(id: string, projectId: string): FileRecord | undefined {
+  const result = db()
+    .prepare("UPDATE files SET project_id = ?, related_type = 'project', related_id = ? WHERE id = ?")
+    .run(projectId, projectId, id);
+  return result.changes > 0 ? getFile(id) : undefined;
+}
+
 export function deleteFile(id: string): boolean {
   const file = getFileInternal(id);
   if (!file) return false;

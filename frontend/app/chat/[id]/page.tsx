@@ -11,7 +11,7 @@ import { TypingIndicator } from "../../components/TypingIndicator";
 import { ErrorState } from "../../components/ErrorState";
 import { AgentRunPanel } from "../../components/AgentRunPanel";
 import { AppIcon } from "../../components/AppIcon";
-import { ChatAttachmentPicker, type ChatAttachmentPickerHandle } from "../../components/ChatAttachmentPicker";
+import { alignChatAttachments, ChatAttachmentPicker, type ChatAttachmentPickerHandle } from "../../components/ChatAttachmentPicker";
 import { gsap, useGSAP } from "../../lib/gsap";
 
 interface MessageRunState {
@@ -413,8 +413,22 @@ export default function ChatPage() {
 
   async function sendMessage() {
     if ((!input.trim() && attachments.length === 0) || sending) return;
+    const targetProjectId = detail?.projectId;
+    if (!targetProjectId) {
+      showToast("对话业务范围尚未加载，请稍后重试", "error");
+      return;
+    }
+    setSending(true);
     const userContent = input.trim() || "请分析本轮上传的附件。";
-    const currentAttachments = attachments;
+    let currentAttachments: FileRecord[];
+    try {
+      currentAttachments = await alignChatAttachments(attachments, targetProjectId);
+      setAttachments(currentAttachments);
+    } catch {
+      showToast("附件业务范围更新失败，请确认当前业务子类后重试", "error");
+      setSending(false);
+      return;
+    }
     const displayContent = currentAttachments.length ? `${userContent}\n\n附件：${currentAttachments.map((file) => file.filename).join("、")}` : userContent;
     const userMsg: Message = {
       id: nextMsgId(),
@@ -425,7 +439,6 @@ export default function ChatPage() {
     setLocalMessages((prev) => [...prev, userMsg]);
     setInput("");
     setAttachments([]);
-    setSending(true);
 
     // Create placeholder AI message
     const aiMsgId = nextMsgId();
