@@ -27,3 +27,11 @@ test("invoice OCR text parser extracts the core VAT invoice fields", () => {
   assert.equal(fields.buyerTaxId, "91440300123456789X");
   assert.equal(fields.sellerTaxId, "91440300708461136T");
 });
+
+test("invoice title wins over unrelated electronic-payment text", () => {
+  const fields = parseInvoiceText(`
+    深圳市增值税普通发票
+    备注：企业微信认证费已付，请勿转账。
+  `);
+  assert.equal(fields.invoiceType, "vat_normal");
+});

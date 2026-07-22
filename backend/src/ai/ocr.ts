@@ -51,6 +51,10 @@ function dateValue(value: unknown): string | null {
 }
 
 function invoiceTypeValue(value: unknown, fallbackText = ""): CandidateFields["invoiceType"] {
+  const sourceText = fallbackText.toLowerCase();
+  if (/增值税[^\n]{0,12}专用发票|增值税专票/.test(sourceText)) return "vat_special";
+  if (/增值税[^\n]{0,12}普通发票|增值税普票/.test(sourceText)) return "vat_normal";
+  if (/电子[^\n]{0,12}发票|全电发票|数电发票/.test(sourceText)) return "electronic";
   const text = `${typeof value === "string" ? value : ""} ${fallbackText}`.toLowerCase();
   if (/专用|special/.test(text)) return "vat_special";
   if (/电子|electronic|digital/.test(text)) return "electronic";
