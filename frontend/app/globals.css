@@ -5002,6 +5002,366 @@ body {
   }
 }
 
+/* ---- Enterprise Org Chart Refinement ---- */
+
+.org-chart-container {
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-soft);
+}
+
+.org-chart-header {
+  min-height: 64px;
+  padding: 12px 18px;
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+}
+
+.org-chart-header h2 {
+  color: var(--ui-text);
+  font-size: 16px;
+}
+
+.org-chart {
+  min-height: 280px;
+  justify-content: center;
+  padding: 36px 28px 44px;
+  background: var(--ui-surface-subtle);
+}
+
+.org-tree-node {
+  min-width: 320px;
+}
+
+.org-tree-children {
+  padding-top: 32px;
+}
+
+.org-tree-connector {
+  height: 32px;
+  background: var(--ui-border-strong);
+}
+
+.org-tree-children-row {
+  gap: 24px;
+}
+
+.org-tree-children-row::before {
+  width: calc(100% - 320px);
+  height: 1px;
+  background: var(--ui-border-strong);
+}
+
+.org-tree-child {
+  min-width: 320px;
+  padding-top: 20px;
+}
+
+.org-child-connector {
+  height: 20px;
+  background: var(--ui-border-strong);
+}
+
+.org-dept-card {
+  width: 320px;
+  min-width: 320px;
+  max-width: 320px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  box-shadow: 0 2px 8px rgba(20, 31, 24, 0.05);
+}
+
+.org-dept-card:hover,
+.org-dept-card.admin:hover {
+  border-color: color-mix(in srgb, var(--ui-brand) 45%, var(--ui-border));
+  box-shadow: 0 5px 16px rgba(20, 31, 24, 0.08);
+}
+
+.org-card-kicker {
+  margin-bottom: 12px;
+  color: var(--ui-text-subtle);
+  font-size: 10px;
+}
+
+.org-card-kicker span {
+  padding: 2px 7px;
+  border-color: var(--ui-border);
+  border-radius: 5px;
+  background: var(--ui-surface-subtle);
+}
+
+.org-dept-header {
+  align-items: center;
+  gap: 10px;
+}
+
+.org-dept-info {
+  gap: 9px;
+}
+
+.org-collapse-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--ui-text-subtle);
+}
+
+.org-collapse-btn:hover {
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text);
+}
+
+.org-dept-icon {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 7px;
+  background: var(--ui-brand-soft);
+  color: var(--ui-brand);
+}
+
+.org-dept-icon .app-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.org-dept-name {
+  color: var(--ui-text);
+  font-size: 15px;
+}
+
+.org-dept-count {
+  color: var(--ui-text-subtle);
+}
+
+.org-dept-count::before {
+  display: none;
+}
+
+.org-dept-actions {
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.org-dept-actions button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 7px;
+  border-color: var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-surface);
+  color: var(--ui-text-muted);
+  font-size: 11px;
+}
+
+.org-dept-actions button:nth-last-child(-n + 2) {
+  width: 30px;
+  padding: 0;
+}
+
+.org-dept-actions button:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text);
+}
+
+.org-dept-actions .app-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.org-card-summary {
+  gap: 14px;
+  margin-top: 13px;
+  padding-top: 11px;
+  border-color: var(--ui-border);
+  color: var(--ui-text-subtle);
+}
+
+.org-card-summary span {
+  padding: 0;
+  background: transparent;
+}
+
+.org-member-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.org-user-card {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 46px;
+  gap: 9px;
+  margin: 0;
+  padding: 7px 8px;
+  border-color: transparent;
+  border-radius: 7px;
+  background: var(--ui-surface-subtle);
+}
+
+.org-user-card:hover,
+.org-user-card.admin:hover {
+  border-color: var(--ui-border);
+}
+
+.org-user-avatar {
+  width: 30px;
+  height: 30px;
+  background: color-mix(in srgb, var(--ui-brand) 10%, var(--ui-surface));
+  color: var(--ui-brand);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.org-user-name {
+  color: var(--ui-text);
+}
+
+.org-user-pos,
+.org-user-reports {
+  color: var(--ui-text-subtle);
+}
+
+.org-user-role-tag {
+  flex: 0 0 auto;
+  margin: 0;
+  background: var(--ui-surface);
+  color: var(--ui-text-muted);
+}
+
+.org-user-actions {
+  flex: 0 0 auto;
+  gap: 3px;
+  opacity: 1;
+}
+
+.org-user-actions button {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ui-text-subtle);
+}
+
+.org-user-actions button:hover {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+.org-unassigned-group {
+  width: 320px;
+  margin-top: 20px;
+  padding: 10px;
+  border-color: var(--ui-border-strong);
+  border-radius: 8px;
+  background: var(--ui-surface);
+}
+
+.org-unassigned-label {
+  padding: 2px 2px 8px;
+  color: var(--ui-text-subtle);
+}
+
+@media (max-width: 980px) {
+  .org-chart {
+    justify-content: flex-start;
+    overflow-x: hidden;
+    padding: 24px 16px 32px;
+  }
+
+  .org-tree-node,
+  .org-tree-child,
+  .org-dept-card,
+  .org-unassigned-group {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .org-tree-node {
+    align-items: stretch;
+  }
+
+  .org-tree-children {
+    width: auto;
+    align-items: stretch;
+    margin-left: 16px;
+    padding: 12px 0 0 20px;
+    border-left: 1px solid var(--ui-border-strong);
+  }
+
+  .org-tree-connector,
+  .org-tree-children-row::before {
+    display: none;
+  }
+
+  .org-tree-children-row {
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .org-tree-child {
+    align-items: stretch;
+    padding-top: 0;
+  }
+
+  .org-child-connector {
+    top: 22px;
+    left: -20px;
+    width: 20px;
+    height: 1px;
+    background: var(--ui-border-strong);
+    transform: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .org-chart-header {
+    gap: 10px;
+  }
+
+  .org-chart-header .page-secondary-button {
+    width: 100%;
+  }
+
+  .org-dept-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .org-dept-actions {
+    width: 100%;
+  }
+
+  .org-dept-actions button:nth-child(-n + 2) {
+    flex: 1;
+  }
+}
+
 /* ---- Modal ---- */
 
 .modal-overlay {
@@ -7602,6 +7962,10 @@ body {
 }
 
 @media (min-width: 801px) {
+  .app-main.sidebar-collapsed .workspace-context-bar {
+    padding-left: 58px;
+  }
+
   .page-transition > .chat-shell {
     transition: margin-left 0.25s ease;
   }
