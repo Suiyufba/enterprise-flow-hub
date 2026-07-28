@@ -57,6 +57,7 @@ const configuredAgentTimeoutMs = Number(process.env.AGENT_RUN_TIMEOUT_MS ?? 180_
 const agentRunTimeoutMs = Number.isFinite(configuredAgentTimeoutMs)
   ? Math.max(30_000, configuredAgentTimeoutMs)
   : 180_000;
+const agentProgressHeartbeatMs = 3_000;
 const allowedCorsOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3001")
   .split(",")
   .map((origin) => origin.trim())
@@ -591,9 +592,28 @@ export async function workspaceRoutes(app: FastifyInstance) {
       ...sseCorsHeaders(request.headers.origin),
     });
 
-    const sendSSE = (event: string, data: unknown) => {
+    const streamStartedAt = Date.now();
+    let lastRuntimeActivityAt = streamStartedAt;
+    let currentPhase = "正在启动 Agent";
+    const sendSSE = (event: string, data: unknown, runtimeActivity = true) => {
+      if (reply.raw.destroyed || reply.raw.writableEnded) return;
+      if (runtimeActivity) lastRuntimeActivityAt = Date.now();
       reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
+    const sendProgress = () => {
+      const now = Date.now();
+      sendSSE("progress", {
+        phase: currentPhase,
+        message: currentPhase,
+        elapsedMs: now - streamStartedAt,
+        idleMs: now - lastRuntimeActivityAt,
+        connected: true,
+      }, false);
+    };
+    reply.raw.flushHeaders?.();
+    sendProgress();
+    const progressHeartbeat = setInterval(sendProgress, agentProgressHeartbeatMs);
+    progressHeartbeat.unref();
 
     // Register this SSE session so the stop endpoint can abort it
     const abortController = new AbortController();
@@ -632,6 +652,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
     };
 
     try {
+      currentPhase = "正在连接模型并准备上下文";
       const runtime = await getRuntime(actor?.id);
 
       for await (const event of runtime.runStream({
@@ -654,22 +675,32 @@ export async function workspaceRoutes(app: FastifyInstance) {
       })) {
         switch (event.type) {
           case "thinking":
+            currentPhase = event.message || "正在分析任务";
             sendSSE("thinking", { message: event.message });
             break;
           case "tool_call":
+            currentPhase = `正在调用 ${event.toolName || event.toolId}`;
             sendSSE("tool_call", { toolId: event.toolId, toolName: event.toolName, input: event.input });
             break;
           case "tool_result":
+            currentPhase = event.status === "success"
+              ? `${event.toolId} 已返回，正在继续分析`
+              : `${event.toolId} 返回异常，正在调整方案`;
             sendSSE("tool_result", { toolId: event.toolId, status: event.status, output: event.output });
             break;
           case "content_chunk":
+            currentPhase = "正在整理并生成回复";
             aiContent += event.delta;
             sendSSE("content_chunk", { delta: event.delta });
             break;
-          case "plan_update":
+          case "plan_update": {
+            const runningStep = event.planSteps.find((step) => step.status === "running");
+            currentPhase = runningStep?.detail || runningStep?.title || "正在执行计划";
             sendSSE("plan_update", { planSteps: event.planSteps });
             break;
+          }
           case "done": {
+            currentPhase = "执行完成";
             finishRun(event.content || aiContent || "任务已完成。", {
               planSteps: event.planSteps,
               toolRuns: event.toolRuns,
@@ -703,6 +734,7 @@ export async function workspaceRoutes(app: FastifyInstance) {
       }
     } finally {
       clearTimeout(timeout);
+      clearInterval(progressHeartbeat);
       activeRuns.delete(id);
       reply.raw.end();
     }

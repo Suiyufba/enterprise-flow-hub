@@ -13,9 +13,31 @@ interface AgentRunPanelProps {
   streaming?: boolean;
   collapsed: boolean;
   onToggle: () => void;
+  statusMessage?: string;
+  elapsedMs?: number;
+  idleMs?: number;
 }
 
-export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming, collapsed, onToggle }: AgentRunPanelProps) {
+function formatElapsed(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1_000));
+  if (totalSeconds < 60) return `${totalSeconds} 秒`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes} 分 ${seconds.toString().padStart(2, "0")} 秒`;
+}
+
+export function AgentRunPanel({
+  planSteps,
+  toolRuns,
+  sending,
+  onStop,
+  streaming,
+  collapsed,
+  onToggle,
+  statusMessage = "正在执行",
+  elapsedMs = 0,
+  idleMs = 0,
+}: AgentRunPanelProps) {
   const planRef = useRef<HTMLDivElement>(null);
   const bodyId = useId();
 
@@ -50,7 +72,9 @@ export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming,
         </div>
         <div className="agent-run-header-right">
           <span className="agent-run-summary">
-            {toolRuns.length > 0
+            {statusMessage === "已停止" || statusMessage === "执行已中断"
+              ? statusMessage
+              : toolRuns.length > 0
               ? `${toolRuns.length} 个工具调用`
               : sending
                 ? `${doneCount}/${planSteps.length} 步`
@@ -79,6 +103,21 @@ export function AgentRunPanel({ planSteps, toolRuns, sending, onStop, streaming,
           </button>
         </div>
       </div>
+
+      {streaming && (
+        <div className="agent-run-progress" role="status" aria-live="polite">
+          <span className="agent-run-pulse" aria-hidden="true" />
+          <span className="agent-run-progress-copy">
+            <strong>{statusMessage}</strong>
+            <span>
+              {idleMs >= 8_000
+                ? "任务较复杂，模型或工具仍在处理，连接正常"
+                : "Agent 正在持续处理本轮任务"}
+            </span>
+          </span>
+          <time>{formatElapsed(elapsedMs)}</time>
+        </div>
+      )}
 
       <div className="agent-run-body" id={bodyId} hidden={collapsed}>
         <div className="agent-plan-list">
