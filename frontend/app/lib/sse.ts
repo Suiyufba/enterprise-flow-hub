@@ -36,10 +36,10 @@ export function connectSSE(
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
   async function* eventGenerator(): AsyncIterable<SSEEvent> {
-    const response = await fetchWithAuth(`${apiUrl}${url}`, {
+    // fetchWithAuth owns API base URL resolution. Passing an already-prefixed
+    // URL here produced /api/api/... in production when NEXT_PUBLIC_API_URL=/api.
+    const response = await fetchWithAuth(url, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
