@@ -35,7 +35,10 @@ const { fileRoutes } = await import("../src/routes/files.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 const { feishuMcpScope, isExplicitFeishuRequest, requiresFeishuGroupLookup, userInstruction } = await import("../src/agent/claude-code-runtime.js");
 const {
+  classifyIntentByEmbedding,
+  classifyIntentByRule,
   createExecutionPlan,
+  fuseIntentVotes,
   recognizeIntent,
   replanAfterFailure,
 } = await import("../src/agent/architecture.js");
@@ -70,20 +73,20 @@ const routingTools = [
   createdAt: "2026-07-29T00:00:00.000Z",
 }));
 
-test("intent recognition routes simple work directly to a target MCP", () => {
-  const query = recognizeIntent("查询当前项目有多少客户", routingTools);
+test("intent recognition routes simple work directly to a target MCP", async () => {
+  const query = await recognizeIntent("查询当前项目有多少客户", routingTools);
   assert.equal(query.intent, "business_query");
   assert.equal(query.route, "tool");
   assert.deepEqual(query.preferredToolIds, ["tool-business-query"]);
 
-  const action = recognizeIntent("把王师傅的性别修改为男", routingTools);
+  const action = await recognizeIntent("把王师傅的性别修改为男", routingTools);
   assert.equal(action.intent, "business_action");
   assert.equal(action.route, "tool");
   assert.deepEqual(action.preferredToolIds, ["tool-business-action"]);
 });
 
-test("intent recognition sends multi-source analysis through Planner", () => {
-  const decision = recognizeIntent("综合分析全部客户、订单和发票，给出回款风险方案", routingTools);
+test("intent recognition sends multi-source analysis through Planner", async () => {
+  const decision = await recognizeIntent("综合分析全部客户、订单和发票，给出回款风险方案", routingTools);
   assert.equal(decision.intent, "analysis");
   assert.equal(decision.route, "planner");
   assert.ok(decision.preferredToolIds.includes("tool-business-query"));
@@ -91,8 +94,8 @@ test("intent recognition sends multi-source analysis through Planner", () => {
   assert.equal(plan.find((step) => step.id === "plan")?.status, "running");
 });
 
-test("attachment data cannot redirect a knowledge-write intent to Feishu", () => {
-  const decision = recognizeIntent([
+test("attachment data cannot redirect a knowledge-write intent to Feishu", async () => {
+  const decision = await recognizeIntent([
     "帮我整理到资料库里",
     "",
     "## 本轮用户附件",
@@ -103,8 +106,8 @@ test("attachment data cannot redirect a knowledge-write intent to Feishu", () =>
   assert.deepEqual(decision.preferredToolIds, ["tool-csv-profile", "tool-create-library-item"]);
 });
 
-test("Replanner records the real failure and increments the execution attempt", () => {
-  const decision = recognizeIntent("查询客户", routingTools);
+test("Replanner records the real failure and increments the execution attempt", async () => {
+  const decision = await recognizeIntent("查询客户", routingTools);
   const replanned = replanAfterFailure(
     createExecutionPlan(decision),
     decision,
@@ -115,6 +118,42 @@ test("Replanner records the real failure and increments the execution attempt", 
   assert.equal(replanned.context.attempt, 2);
   assert.match(replanned.context.replanReason ?? "", /数据库暂时繁忙/);
   assert.equal(replanned.steps.find((step) => step.id === "replan")?.status, "running");
+});
+
+test("three-layer intent fusion combines Rule, Embedding and LLM votes", async () => {
+  const content = "查询当前项目客户数量";
+  const rule = classifyIntentByRule(content);
+  const embedding = await classifyIntentByEmbedding(content);
+  const llm = {
+    source: "llm" as const,
+    intent: "business_query" as const,
+    confidence: 0.96,
+    reason: "读取客户数据",
+  };
+  const decision = fuseIntentVotes([rule, embedding, llm], routingTools);
+  assert.equal(decision.votes.length, 3);
+  assert.equal(decision.intent, "business_query");
+  assert.equal(decision.route, "tool");
+  assert.ok(decision.confidence >= 0.58);
+});
+
+test("low-confidence writes require confirmation while low-confidence reads enter Planner", () => {
+  const write = fuseIntentVotes([
+    { source: "rule", intent: "business_action", confidence: 0.51, reason: "弱规则" },
+    { source: "embedding", intent: "knowledge_write", confidence: 0.5, reason: "近似向量" },
+    { source: "llm", intent: "business_action", confidence: 0.45, reason: "LLM 不确定" },
+  ], routingTools);
+  assert.equal(write.requiresConfirmation, true);
+  assert.equal(write.decisionMode, "confirm");
+  assert.equal(write.route, "conversation");
+
+  const read = fuseIntentVotes([
+    { source: "rule", intent: "business_query", confidence: 0.5, reason: "弱规则" },
+    { source: "embedding", intent: "knowledge_lookup", confidence: 0.49, reason: "近似向量" },
+    { source: "llm", intent: "business_query", confidence: 0.46, reason: "LLM 不确定" },
+  ], routingTools);
+  assert.equal(read.requiresConfirmation, false);
+  assert.equal(read.route, "planner");
 });
 
 test("orchestration emits plan updates and recovers after an MCP failure", async () => {
@@ -263,7 +302,7 @@ test("Feishu summaries retain action and question sections when the model omits 
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 20);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 21);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
   for (const table of tables) {
     assert.equal((db.prepare(`PRAGMA foreign_key_list(\"${table.name}\")`).all() as unknown[]).length, 0, `${table.name} should not have database foreign keys`);
@@ -272,6 +311,7 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.ok((db.prepare("PRAGMA table_info(suppliers)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(automations)").all() as Array<{ name: string }>).some((column) => column.name === "workflow_graph"));
+  assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "embedding_model"));
   for (const table of ["customers", "suppliers", "products", "orders", "payments", "invoices", "tasks", "files"]) {
     assert.ok((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((column) => column.name === "project_id"));
   }

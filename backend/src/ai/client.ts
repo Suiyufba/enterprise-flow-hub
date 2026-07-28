@@ -28,6 +28,36 @@ export interface AiProviderOptions {
   baseUrl?: string;
   model?: string;
   apiKey?: string;
+  embeddingBaseUrl?: string;
+  embeddingModel?: string;
+  embeddingApiKey?: string;
+}
+
+export async function aiEmbeddings(
+  inputs: string[],
+  provider?: AiProviderOptions,
+): Promise<number[][] | undefined> {
+  const model = provider?.embeddingModel?.trim();
+  if (!model || inputs.length === 0) return undefined;
+  const baseUrl = (provider?.embeddingBaseUrl?.trim() || provider?.baseUrl || BASE_URL).replace(/\/$/, "");
+  const apiKey = provider?.embeddingApiKey?.trim() || provider?.apiKey || API_KEY;
+  if (!apiKey) return undefined;
+  const res = await fetch(`${baseUrl}/v1/embeddings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ model, input: inputs }),
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!res.ok) throw new Error(`Embedding API error ${res.status}: ${(await res.text()).slice(0, 160)}`);
+  const data = (await res.json()) as { data?: Array<{ index?: number; embedding?: number[] }> };
+  const rows = (data.data ?? []).slice().sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  if (rows.length !== inputs.length || rows.some((row) => !Array.isArray(row.embedding))) {
+    throw new Error("Embedding API 返回向量数量不匹配");
+  }
+  return rows.map((row) => row.embedding as number[]);
 }
 
 // OpenAI-compatible function definition

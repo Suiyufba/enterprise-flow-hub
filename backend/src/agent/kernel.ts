@@ -24,6 +24,7 @@ type ChatMessage = {
 
 export type AgentRuntimeProvider = ModelProvider & {
   apiKey?: string;
+  embeddingApiKey?: string;
 };
 
 export type AgentKernelContext = {
@@ -123,12 +124,15 @@ export function buildSystemPrompt(input: AgentKernelInput): string {
           "## 本轮 Agent 编排",
           `- Intent Recognition：${input.orchestration.intent}（置信度 ${Math.round(input.orchestration.confidence * 100)}%）`,
           `- Route：${input.orchestration.route}`,
+          `- 三层投票：${input.orchestration.votes.map((vote) => `${vote.source}=${vote.intent}(${Math.round(vote.confidence * 100)}%)`).join("；")}`,
           `- 原因：${input.orchestration.reason}`,
           input.orchestration.preferredToolIds.length
             ? `- Executor 允许优先调用：${input.orchestration.preferredToolIds.join("、")}`
             : "- Executor 根据已授权能力选择执行路径。",
           input.orchestration.route === "tool"
             ? "- 简单任务规则：直接调用目标工具提取参数并执行，不展开无关的长计划，不查询其他数据源。"
+            : input.orchestration.requiresConfirmation
+              ? "- 低置信度确认规则：本轮只用一句话复述你理解的写入目标并请用户确认，不调用任何工具；用户确认后下一轮再执行。"
             : input.orchestration.route === "planner"
               ? "- 复杂任务规则：先在内部拆分可验证步骤，再逐步调用工具；每一步使用上一步的真实结果。"
               : "- 对话任务规则：直接回答，不调用与问题无关的业务工具。",

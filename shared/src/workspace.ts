@@ -296,6 +296,9 @@ export const ModelProviderSchema = z.object({
   name: z.string(),
   baseUrl: z.string(),
   model: z.string(),
+  embeddingBaseUrl: z.string().optional(),
+  embeddingModel: z.string().optional(),
+  embeddingConfigured: z.boolean(),
   configured: z.boolean(),
   enabled: z.boolean(),
 });
@@ -305,6 +308,9 @@ export const UpdateProviderRequestSchema = z.object({
   baseUrl: z.string().min(1).max(200).optional(),
   model: z.string().min(1).max(60).optional(),
   apiKey: z.string().min(1).max(200).optional(),
+  embeddingBaseUrl: z.string().max(200).optional(),
+  embeddingModel: z.string().max(100).optional(),
+  embeddingApiKey: z.string().max(200).optional(),
   enabled: z.boolean().optional(),
 });
 

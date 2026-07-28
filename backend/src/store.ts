@@ -950,11 +950,16 @@ function rowToPersona(r: Record<string, unknown>): AgentPersona {
 }
 
 function rowToProvider(r: Record<string, unknown>): ModelProvider {
+  const embeddingBaseUrl = (r.embedding_base_url as string) || "";
+  const embeddingModel = (r.embedding_model as string) || "";
   return {
     id: r.id as string,
     name: r.name as string,
     baseUrl: r.base_url as string,
     model: r.model as string,
+    embeddingBaseUrl: embeddingBaseUrl || undefined,
+    embeddingModel: embeddingModel || undefined,
+    embeddingConfigured: Boolean(embeddingModel && (r.embedding_api_key || r.api_key_env)),
     configured: Boolean(r.api_key_env),
     enabled: (r.enabled as number) === 1,
   };
@@ -964,6 +969,7 @@ function rowToRuntimeProvider(r: Record<string, unknown>): AgentRuntimeProvider 
   return {
     ...rowToProvider(r),
     apiKey: r.api_key_env as string,
+    embeddingApiKey: (r.embedding_api_key as string) || undefined,
   };
 }
 
@@ -1037,11 +1043,28 @@ export function getRuntimeProvider(id?: string): AgentRuntimeProvider | undefine
   return row ? rowToRuntimeProvider(row as Record<string, unknown>) : undefined;
 }
 
-export function createProvider(input: { name: string; baseUrl: string; model: string; apiKey: string }): ModelProvider {
+export function createProvider(input: {
+  name: string;
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  embeddingBaseUrl?: string;
+  embeddingModel?: string;
+  embeddingApiKey?: string;
+}): ModelProvider {
   const id = `provider-${randomUUID()}`;
   db()
-    .prepare("INSERT INTO model_providers (id, name, base_url, model, api_key_env, enabled) VALUES (?, ?, ?, ?, ?, 1)")
-    .run(id, input.name.trim(), input.baseUrl.trim(), input.model.trim(), input.apiKey.trim());
+    .prepare("INSERT INTO model_providers (id, name, base_url, model, api_key_env, embedding_base_url, embedding_model, embedding_api_key, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)")
+    .run(
+      id,
+      input.name.trim(),
+      input.baseUrl.trim(),
+      input.model.trim(),
+      input.apiKey.trim(),
+      input.embeddingBaseUrl?.trim() || "",
+      input.embeddingModel?.trim() || "",
+      input.embeddingApiKey?.trim() || "",
+    );
   return rowToProvider(db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -1059,11 +1082,24 @@ export function updateProvider(id: string, input: UpdateProviderRequest): ModelP
     base_url: input.baseUrl ?? current.baseUrl,
     model: input.model ?? current.model,
     api_key_env: input.apiKey !== undefined ? input.apiKey : row.api_key_env,
+    embedding_base_url: input.embeddingBaseUrl !== undefined ? input.embeddingBaseUrl.trim() : row.embedding_base_url,
+    embedding_model: input.embeddingModel !== undefined ? input.embeddingModel.trim() : row.embedding_model,
+    embedding_api_key: input.embeddingApiKey !== undefined ? input.embeddingApiKey.trim() : row.embedding_api_key,
     enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : row.enabled,
   };
   db()
-    .prepare("UPDATE model_providers SET name=?, base_url=?, model=?, api_key_env=?, enabled=? WHERE id=?")
-    .run(next.name, next.base_url, next.model, next.api_key_env, next.enabled, id);
+    .prepare("UPDATE model_providers SET name=?, base_url=?, model=?, api_key_env=?, embedding_base_url=?, embedding_model=?, embedding_api_key=?, enabled=? WHERE id=?")
+    .run(
+      next.name,
+      next.base_url,
+      next.model,
+      next.api_key_env,
+      next.embedding_base_url,
+      next.embedding_model,
+      next.embedding_api_key,
+      next.enabled,
+      id,
+    );
   return rowToProvider(db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
@@ -1101,6 +1137,35 @@ export async function testProviderConnection(id: string): Promise<{ ok: boolean;
     return { ok: false, message: `HTTP ${res.status}: ${text.slice(0, 150)}` };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "连接失败" };
+  }
+}
+
+export async function testProviderEmbeddingConnection(id: string): Promise<{ ok: boolean; message: string }> {
+  const provider = db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!provider) return { ok: false, message: "Provider not found" };
+  const model = String(provider.embedding_model || "").trim();
+  if (!model) return { ok: false, message: "Embedding 模型未配置" };
+  const apiKey = String(provider.embedding_api_key || provider.api_key_env || "").trim();
+  if (!apiKey) return { ok: false, message: "Embedding API Key 未配置" };
+  const baseUrl = String(provider.embedding_base_url || provider.base_url || "").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${baseUrl}/v1/embeddings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, input: ["intent routing health check"] }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { data?: Array<{ embedding?: number[] }> };
+      const dimensions = data.data?.[0]?.embedding?.length ?? 0;
+      return dimensions > 0
+        ? { ok: true, message: `连接成功，向量维度 ${dimensions}` }
+        : { ok: false, message: "接口响应成功，但没有返回向量" };
+    }
+    const text = await res.text();
+    return { ok: false, message: `HTTP ${res.status}: ${text.slice(0, 150)}` };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Embedding 连接失败" };
   }
 }
 

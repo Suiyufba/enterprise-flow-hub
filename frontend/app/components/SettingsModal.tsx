@@ -41,6 +41,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [pBaseUrl, setPBaseUrl] = useState("");
   const [pModel, setPModel] = useState("");
   const [pApiKey, setPApiKey] = useState("");
+  const [pEmbeddingBaseUrl, setPEmbeddingBaseUrl] = useState("");
+  const [pEmbeddingModel, setPEmbeddingModel] = useState("");
+  const [pEmbeddingApiKey, setPEmbeddingApiKey] = useState("");
   const [testingId, setTestingId] = useState("");
   const [testResults, setTestResults] = useState<Record<string, string>>({});
 
@@ -50,6 +53,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [editBaseUrl, setEditBaseUrl] = useState("");
   const [editModel, setEditModel] = useState("");
   const [editApiKey, setEditApiKey] = useState("");
+  const [editEmbeddingBaseUrl, setEditEmbeddingBaseUrl] = useState("");
+  const [editEmbeddingModel, setEditEmbeddingModel] = useState("");
+  const [editEmbeddingApiKey, setEditEmbeddingApiKey] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [providerToDelete, setProviderToDelete] = useState<ModelProvider | null>(null);
   const [deletingProvider, setDeletingProvider] = useState(false);
@@ -109,9 +115,18 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     try {
       await fetchJson("/settings/providers", {
         method: "POST",
-        body: JSON.stringify({ name: pName, baseUrl: pBaseUrl, model: pModel, apiKey: pApiKey }),
+        body: JSON.stringify({
+          name: pName,
+          baseUrl: pBaseUrl,
+          model: pModel,
+          apiKey: pApiKey,
+          embeddingBaseUrl: pEmbeddingBaseUrl,
+          embeddingModel: pEmbeddingModel,
+          embeddingApiKey: pEmbeddingApiKey,
+        }),
       });
       setPName(""); setPBaseUrl(""); setPModel(""); setPApiKey("");
+      setPEmbeddingBaseUrl(""); setPEmbeddingModel(""); setPEmbeddingApiKey("");
       setAddModels([]);
       await refresh();
     } catch { showToast("添加模型失败", "error"); }
@@ -161,6 +176,17 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setTestingId("");
   }
 
+  async function testEmbeddingProvider(id: string) {
+    setTestingId(`${id}:embedding`);
+    try {
+      const res = await fetchJson<{ ok: boolean; message: string }>(`/settings/providers/${id}/test-embedding`);
+      setTestResults((prev) => ({ ...prev, [id]: `向量${res.ok ? "通过" : "失败"}：${res.message}` }));
+    } catch {
+      setTestResults((prev) => ({ ...prev, [id]: "向量失败：测试请求失败" }));
+    }
+    setTestingId("");
+  }
+
   // ---- Edit provider ----
   function startEdit(p: ModelProvider) {
     setEditingId(p.id);
@@ -168,6 +194,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setEditBaseUrl(p.baseUrl);
     setEditModel(p.model);
     setEditApiKey("");
+    setEditEmbeddingBaseUrl(p.embeddingBaseUrl ?? "");
+    setEditEmbeddingModel(p.embeddingModel ?? "");
+    setEditEmbeddingApiKey("");
     setEditModels([]);
     setEditShowDropdown(false);
   }
@@ -180,8 +209,15 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     if (!editName.trim() || !editBaseUrl.trim() || !editModel.trim()) return;
     setEditSaving(true);
     try {
-      const body: Record<string, string> = { name: editName, baseUrl: editBaseUrl, model: editModel };
+      const body: Record<string, string> = {
+        name: editName,
+        baseUrl: editBaseUrl,
+        model: editModel,
+        embeddingBaseUrl: editEmbeddingBaseUrl,
+        embeddingModel: editEmbeddingModel,
+      };
       if (editApiKey.trim()) body.apiKey = editApiKey;
+      if (editEmbeddingApiKey.trim()) body.embeddingApiKey = editEmbeddingApiKey;
       await fetchJson(`/settings/providers/${editingId}`, {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -320,6 +356,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 </ul>
               )}
               <input className="page-input" value={pApiKey} onChange={(e) => setPApiKey(e.target.value)} placeholder="API Key，如：sk-xxxx" />
+              <div className="settings-section-label">Embedding 向量服务（可选）</div>
+              <input className="page-input" value={pEmbeddingBaseUrl} onChange={(e) => setPEmbeddingBaseUrl(e.target.value)} placeholder="Embedding API 地址；留空则复用上方地址" />
+              <input className="page-input" value={pEmbeddingModel} onChange={(e) => setPEmbeddingModel(e.target.value)} placeholder="Embedding 模型，如：text-embedding-v3" />
+              <input className="page-input" value={pEmbeddingApiKey} onChange={(e) => setPEmbeddingApiKey(e.target.value)} placeholder="Embedding API Key；留空则复用上方 Key" />
               <button className="page-primary-button" onClick={addProvider} disabled={loading} type="button">添加模型</button>
             </div>
 
@@ -361,6 +401,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                         </ul>
                       )}
                       <input className="page-input" value={editApiKey} onChange={(e) => setEditApiKey(e.target.value)} placeholder="API Key（留空不修改）" />
+                      <div className="settings-section-label">Embedding 向量服务（可选）</div>
+                      <input className="page-input" value={editEmbeddingBaseUrl} onChange={(e) => setEditEmbeddingBaseUrl(e.target.value)} placeholder="Embedding API 地址；留空复用对话模型地址" />
+                      <input className="page-input" value={editEmbeddingModel} onChange={(e) => setEditEmbeddingModel(e.target.value)} placeholder="Embedding 模型；清空后使用本地向量召回" />
+                      <input className="page-input" value={editEmbeddingApiKey} onChange={(e) => setEditEmbeddingApiKey(e.target.value)} placeholder="Embedding API Key（留空不修改/复用）" />
                       <div className="settings-card-actions">
                         <button className="page-primary-button" onClick={saveEdit} disabled={editSaving} type="button">
                           {editSaving ? "保存中..." : "保存"}
@@ -373,6 +417,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                       <div>
                         <strong>{p.name}</strong>
                         <span className="settings-meta">{p.model} @ {p.baseUrl}</span>
+                        <span className="settings-meta">
+                          向量：{p.embeddingConfigured ? `${p.embeddingModel} @ ${p.embeddingBaseUrl || p.baseUrl}` : "本地向量召回"}
+                        </span>
                         <span className={`settings-status ${p.configured ? "on" : "off"}`}>
                           {p.configured ? "已配置" : "未配置 Key"}
                         </span>
@@ -381,6 +428,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                         <button className="page-secondary-button" onClick={() => testProvider(p.id)} disabled={testingId === p.id}>
                           {testingId === p.id ? "测试中..." : "测试连接"}
                         </button>
+                        {p.embeddingModel && (
+                          <button className="page-secondary-button" onClick={() => testEmbeddingProvider(p.id)} disabled={testingId === `${p.id}:embedding`}>
+                            {testingId === `${p.id}:embedding` ? "测试中..." : "测试向量"}
+                          </button>
+                        )}
                         <button className="page-secondary-button" onClick={() => startEdit(p)}>编辑</button>
                         <button className="page-secondary-button" onClick={() => setProviderToDelete(p)}>删除</button>
                       </div>

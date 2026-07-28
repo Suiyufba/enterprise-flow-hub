@@ -12,6 +12,7 @@ import {
   listPersonas,
   listProviders,
   summarizePersonaMemory,
+  testProviderEmbeddingConnection,
   testProviderConnection,
   updatePersona,
   updateProvider,
@@ -23,6 +24,9 @@ const CreateProviderSchema = z.object({
   baseUrl: z.string().min(1).max(200),
   model: z.string().min(1).max(60),
   apiKey: z.string().min(1).max(200),
+  embeddingBaseUrl: z.string().max(200).optional(),
+  embeddingModel: z.string().max(100).optional(),
+  embeddingApiKey: z.string().max(200).optional(),
 });
 
 const UpdateProviderSchema = z.object({
@@ -30,6 +34,9 @@ const UpdateProviderSchema = z.object({
   baseUrl: z.string().min(1).max(200).optional(),
   model: z.string().min(1).max(60).optional(),
   apiKey: z.string().min(1).max(200).optional(),
+  embeddingBaseUrl: z.string().max(200).optional(),
+  embeddingModel: z.string().max(100).optional(),
+  embeddingApiKey: z.string().max(200).optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -125,6 +132,11 @@ export async function settingsRoutes(app: FastifyInstance) {
   app.get("/settings/providers/:id/test", async (request) => {
     const { id } = request.params as { id: string };
     return testProviderConnection(id);
+  });
+
+  app.get("/settings/providers/:id/test-embedding", async (request) => {
+    const { id } = request.params as { id: string };
+    return testProviderEmbeddingConnection(id);
   });
 
   // Personas

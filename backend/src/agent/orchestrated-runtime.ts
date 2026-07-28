@@ -42,7 +42,9 @@ export class OrchestratedAgentRuntime implements AgentRuntime {
   }
 
   async *runStream(input: AgentRunInput): AsyncIterable<AgentRunEvent> {
-    let orchestration = recognizeIntent(input.userContent, input.tools);
+    let orchestration = await recognizeIntent(input.userContent, input.tools, {
+      provider: input.provider,
+    });
     let planSteps = createExecutionPlan(orchestration);
     let awaitingRecovery = false;
     let answerStarted = false;
@@ -52,6 +54,8 @@ export class OrchestratedAgentRuntime implements AgentRuntime {
       type: "thinking",
       message: orchestration.route === "tool"
         ? `已识别为简单任务，准备直接调用${orchestration.preferredToolIds.length ? "目标工具" : "对应工具"}。`
+        : orchestration.requiresConfirmation
+          ? "三层意图识别置信度较低，正在向用户确认写入目标。"
         : orchestration.route === "planner"
           ? "已识别为复杂任务，正在规划执行步骤。"
           : "已识别为一般对话，正在生成回复。",
