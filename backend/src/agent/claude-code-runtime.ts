@@ -208,15 +208,22 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       "tool-mcp-company-context",
       "tool-create-library-item",
       "tool-create-automation",
+      ...input.orchestration?.preferredToolIds ?? [],
       ...input.skills.flatMap((skill) => skill.toolIds),
     ]);
     const enabledTools = input.tools.filter((definition) =>
       definition.status === "enabled"
       && definition.risk !== "admin"
       && permittedToolIds.has(definition.id)
+      && input.orchestration?.route !== "conversation"
+      && input.orchestration?.intent !== "feishu"
       // A request for live Feishu group content must not silently fall back to
       // EFH's database or library. Those sources are not a replica of Feishu.
       && (!feishuGroupLookup || !["tool-business-query", "tool-mcp-company-context"].includes(definition.id)),
+    ).filter((definition) =>
+      input.orchestration?.route !== "tool"
+      || input.orchestration.preferredToolIds.length === 0
+      || input.orchestration.preferredToolIds.includes(definition.id),
     );
     const mcpTools: SdkMcpToolDefinition[] = enabledTools.map((definition) => ({
       name: definition.id,

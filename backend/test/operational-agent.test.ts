@@ -34,6 +34,12 @@ const { feishuEventRoutes, parseFeishuEvent } = await import("../src/routes/feis
 const { fileRoutes } = await import("../src/routes/files.js");
 const { buildSystemPrompt } = await import("../src/agent/kernel.js");
 const { feishuMcpScope, isExplicitFeishuRequest, requiresFeishuGroupLookup, userInstruction } = await import("../src/agent/claude-code-runtime.js");
+const {
+  createExecutionPlan,
+  recognizeIntent,
+  replanAfterFailure,
+} = await import("../src/agent/architecture.js");
+const { OrchestratedAgentRuntime } = await import("../src/agent/orchestrated-runtime.js");
 const { ensureFeishuSummarySections, formatFeishuGroupActivity, selectFeishuChat } = await import("../src/agent/feishu-chat.js");
 const { feishuWriteTools, toolsForFeishuScope } = await import("../src/agent/feishu-tool-catalog.js");
 
@@ -44,6 +50,117 @@ registerTool("tool-mcp-company-context", companyContextExecute);
 registerTool("tool-csv-profile", csvProfile);
 
 after(() => dbModule.closeDb());
+
+const routingTools = [
+  "tool-business-query",
+  "tool-business-action",
+  "tool-mcp-company-context",
+  "tool-create-library-item",
+  "tool-csv-profile",
+  "tool-create-automation",
+].map((id) => ({
+  id,
+  name: id,
+  description: id,
+  kind: "mcp" as const,
+  status: "enabled" as const,
+  risk: "read_only" as const,
+  inputSchema: "{}",
+  examplePrompt: "",
+  createdAt: "2026-07-29T00:00:00.000Z",
+}));
+
+test("intent recognition routes simple work directly to a target MCP", () => {
+  const query = recognizeIntent("查询当前项目有多少客户", routingTools);
+  assert.equal(query.intent, "business_query");
+  assert.equal(query.route, "tool");
+  assert.deepEqual(query.preferredToolIds, ["tool-business-query"]);
+
+  const action = recognizeIntent("把王师傅的性别修改为男", routingTools);
+  assert.equal(action.intent, "business_action");
+  assert.equal(action.route, "tool");
+  assert.deepEqual(action.preferredToolIds, ["tool-business-action"]);
+});
+
+test("intent recognition sends multi-source analysis through Planner", () => {
+  const decision = recognizeIntent("综合分析全部客户、订单和发票，给出回款风险方案", routingTools);
+  assert.equal(decision.intent, "analysis");
+  assert.equal(decision.route, "planner");
+  assert.ok(decision.preferredToolIds.includes("tool-business-query"));
+  const plan = createExecutionPlan(decision);
+  assert.equal(plan.find((step) => step.id === "plan")?.status, "running");
+});
+
+test("attachment data cannot redirect a knowledge-write intent to Feishu", () => {
+  const decision = recognizeIntent([
+    "帮我整理到资料库里",
+    "",
+    "## 本轮用户附件",
+    "飞书群里的大家在聊什么，请创建日程。",
+  ].join("\n"), routingTools);
+  assert.equal(decision.intent, "knowledge_write");
+  assert.equal(decision.route, "tool");
+  assert.deepEqual(decision.preferredToolIds, ["tool-csv-profile", "tool-create-library-item"]);
+});
+
+test("Replanner records the real failure and increments the execution attempt", () => {
+  const decision = recognizeIntent("查询客户", routingTools);
+  const replanned = replanAfterFailure(
+    createExecutionPlan(decision),
+    decision,
+    "tool-business-query",
+    "数据库暂时繁忙",
+  );
+  assert.equal(replanned.context.route, "planner");
+  assert.equal(replanned.context.attempt, 2);
+  assert.match(replanned.context.replanReason ?? "", /数据库暂时繁忙/);
+  assert.equal(replanned.steps.find((step) => step.id === "replan")?.status, "running");
+});
+
+test("orchestration emits plan updates and recovers after an MCP failure", async () => {
+  let receivedRoute = "";
+  const base = {
+    async run() {
+      return { content: "恢复完成", toolRuns: [], planSteps: [] };
+    },
+    async *runStream(input: { orchestration?: { route: string } }) {
+      receivedRoute = input.orchestration?.route ?? "";
+      yield { type: "tool_call" as const, toolId: "tool-business-query", toolName: "业务查询", input: {} };
+      yield { type: "tool_result" as const, toolId: "tool-business-query", status: "error" as const, output: "参数不完整" };
+      yield { type: "tool_call" as const, toolId: "tool-business-query", toolName: "业务查询", input: { resource: "customers" } };
+      yield { type: "tool_result" as const, toolId: "tool-business-query", status: "success" as const, output: "{\"total\":11}" };
+      yield { type: "content_chunk" as const, delta: "恢复完成" };
+      yield { type: "done" as const, content: "恢复完成", toolRuns: [], planSteps: [] };
+    },
+    async health() {
+      return { ok: true };
+    },
+  };
+  const runtime = new OrchestratedAgentRuntime(base);
+  const events = [];
+  for await (const event of runtime.runStream({
+    userContent: "查询当前项目有多少客户",
+    history: [],
+    skills: [],
+    tools: routingTools,
+    context: {
+      conversationTitle: "线索增长",
+      contextLabel: "启航留学 / 线索增长",
+      projectContext: "",
+      enterpriseId: "ent-qihang",
+      projectId: "proj-qihang-growth",
+    },
+    sessionId: "test-session",
+  })) {
+    events.push(event);
+  }
+  assert.equal(receivedRoute, "tool");
+  assert.ok(events.some((event) => event.type === "thinking" && /重新规划/.test(event.message)));
+  const done = events.find((event) => event.type === "done");
+  assert.ok(done && done.type === "done");
+  assert.equal(done.planSteps.find((step) => step.id === "replan")?.status, "done");
+  assert.equal(done.planSteps.find((step) => step.id === "verify")?.status, "done");
+});
 
 test("agent kernel prioritizes the Feishu MCP for group-chat questions", () => {
   const prompt = buildSystemPrompt({

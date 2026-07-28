@@ -7,6 +7,7 @@ import type {
   AgentPlanStep,
 } from "shared";
 import type { AgentKernelContext, AgentRuntimeProvider } from "./kernel.js";
+import type { AgentOrchestrationContext } from "./architecture.js";
 
 // ── Runtime Interface ──
 
@@ -21,6 +22,7 @@ export interface AgentRunInput {
   context: AgentKernelContext;
   sessionId: string;
   abortController?: AbortController;
+  orchestration?: AgentOrchestrationContext;
 }
 
 export interface AgentRunResult {
@@ -53,10 +55,15 @@ export interface AgentRuntime {
 
 export async function getRuntime(_userId?: string): Promise<AgentRuntime> {
   const runtimeMode = (process.env.AGENT_RUNTIME ?? "claude-code").trim();
+  let base: AgentRuntime;
   if (runtimeMode === "legacy") {
-    return await getLegacyRuntime();
+    base = await getLegacyRuntime();
+  } else {
+    base = await getClaudeCodeRuntime();
   }
-  return await getClaudeCodeRuntime();
+  if ((process.env.AGENT_ORCHESTRATION ?? "on").trim() === "off") return base;
+  const { OrchestratedAgentRuntime } = await import("./orchestrated-runtime.js");
+  return new OrchestratedAgentRuntime(base);
 }
 
 export function resetRuntimeCache(): void {
