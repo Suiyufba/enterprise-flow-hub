@@ -303,6 +303,16 @@ export const ModelProviderSchema = z.object({
   enabled: z.boolean(),
 });
 
+export const AgentModelConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  thinkingProviderId: z.string(),
+  executorProviderId: z.string(),
+  embeddingProviderId: z.string(),
+  active: z.boolean(),
+  createdAt: z.string(),
+});
+
 export const UpdateProviderRequestSchema = z.object({
   name: z.string().min(1).max(60).optional(),
   baseUrl: z.string().min(1).max(200).optional(),
@@ -465,6 +475,7 @@ export type AddMessageResponse = z.infer<typeof AddMessageResponseSchema>;
 export type AgentSkill = z.infer<typeof AgentSkillSchema>;
 export type AgentPersona = z.infer<typeof AgentPersonaSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
+export type AgentModelConfig = z.infer<typeof AgentModelConfigSchema>;
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 export type CreateProjectRequest = z.infer<typeof CreateProjectRequestSchema>;
 export type CreateLibraryItemRequest = z.infer<typeof CreateLibraryItemRequestSchema>;

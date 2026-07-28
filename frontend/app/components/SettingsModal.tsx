@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ModelProvider } from "shared";
+import type { AgentModelConfig, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
 import { animate, spring } from "../lib/anime";
@@ -34,7 +34,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const [tab, setTab] = useState<Tab>("providers");
   const [providers, setProviders] = useState<ModelProvider[]>([]);
+  const [agentConfigs, setAgentConfigs] = useState<AgentModelConfig[]>([]);
   const [loading, setLoading] = useState(false);
+  const [configName, setConfigName] = useState("");
+  const [thinkingProviderId, setThinkingProviderId] = useState("");
+  const [executorProviderId, setExecutorProviderId] = useState("");
+  const [embeddingProviderId, setEmbeddingProviderId] = useState("");
+  const [configSaving, setConfigSaving] = useState(false);
 
   // Provider form
   const [pName, setPName] = useState("");
@@ -96,9 +102,21 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   async function refresh() {
-    const p = await fetchJson<{ providers: ModelProvider[] }>("/settings/providers");
+    const [p, c] = await Promise.all([
+      fetchJson<{ providers: ModelProvider[] }>("/settings/providers"),
+      fetchJson<{ configs: AgentModelConfig[] }>("/settings/agent-model-configs"),
+    ]);
     setProviders(p.providers);
+    setAgentConfigs(c.configs);
   }
+
+  useEffect(() => {
+    const enabled = providers.filter((provider) => provider.enabled && provider.configured);
+    const embedding = enabled.filter((provider) => provider.embeddingConfigured);
+    if (!thinkingProviderId && enabled[0]) setThinkingProviderId(enabled[0].id);
+    if (!executorProviderId && enabled[0]) setExecutorProviderId(enabled[0].id);
+    if (!embeddingProviderId && embedding[0]) setEmbeddingProviderId(embedding[0].id);
+  }, [providers, thinkingProviderId, executorProviderId, embeddingProviderId]);
 
   useEffect(() => {
     if (open) refresh();
@@ -148,6 +166,61 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       showToast(e instanceof Error ? e.message : "获取模型列表失败", "error");
     }
     setAddFetchingModels(false);
+  }
+
+  async function createAgentConfig() {
+    if (!configName.trim() || !thinkingProviderId || !executorProviderId || !embeddingProviderId) {
+      showToast("请填写配置名称，并选择 Think、Executor 和 Embedding 模型", "error");
+      return;
+    }
+    setConfigSaving(true);
+    try {
+      await fetchJson("/settings/agent-model-configs", {
+        method: "POST",
+        body: JSON.stringify({ name: configName, thinkingProviderId, executorProviderId, embeddingProviderId }),
+      });
+      setConfigName("");
+      await refresh();
+      showToast("Agent 配置已创建", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "创建配置失败", "error");
+    } finally {
+      setConfigSaving(false);
+    }
+  }
+
+  async function activateAgentConfig(id: string) {
+    setConfigSaving(true);
+    try {
+      await fetchJson(`/settings/agent-model-configs/${id}/activate`, { method: "POST" });
+      await refresh();
+      showToast("已切换 Agent 运行配置", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "切换配置失败", "error");
+    } finally {
+      setConfigSaving(false);
+    }
+  }
+
+  async function removeAgentConfig(id: string) {
+    setConfigSaving(true);
+    try {
+      await fetchJson(`/settings/agent-model-configs/${id}`, { method: "DELETE" });
+      await refresh();
+      showToast("配置已删除", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "删除配置失败", "error");
+    } finally {
+      setConfigSaving(false);
+    }
+  }
+
+  function providerLabel(id: string, embedding = false) {
+    const provider = providers.find((item) => item.id === id);
+    if (!provider) return "模型已移除";
+    return embedding
+      ? `${provider.name} · ${provider.embeddingModel || "本地向量"}`
+      : `${provider.name} · ${provider.model}`;
   }
 
   async function deleteProvider() {
@@ -362,6 +435,67 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               <input className="page-input" value={pEmbeddingApiKey} onChange={(e) => setPEmbeddingApiKey(e.target.value)} placeholder="Embedding API Key；留空则复用上方 Key" />
               <button className="page-primary-button" onClick={addProvider} disabled={loading} type="button">添加模型</button>
             </div>
+
+            <section className="settings-config-section">
+              <div className="settings-config-heading">
+                <div>
+                  <strong>Agent 运行配置</strong>
+                  <span>一套配置同时指定 Think、Executor 和 Embedding；新对话与已有对话都会使用当前启用项。</span>
+                </div>
+              </div>
+              <div className="settings-config-builder">
+                <input className="page-input" value={configName} onChange={(event) => setConfigName(event.target.value)} placeholder="配置名称，如：配置 1 / 高质量分析" />
+                <label>
+                  <span>Think</span>
+                  <select className="page-select" value={thinkingProviderId} onChange={(event) => setThinkingProviderId(event.target.value)}>
+                    {providers.filter((provider) => provider.enabled && provider.configured).map((provider) => (
+                      <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Executor</span>
+                  <select className="page-select" value={executorProviderId} onChange={(event) => setExecutorProviderId(event.target.value)}>
+                    {providers.filter((provider) => provider.enabled && provider.configured).map((provider) => (
+                      <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Embedding</span>
+                  <select className="page-select" value={embeddingProviderId} onChange={(event) => setEmbeddingProviderId(event.target.value)}>
+                    {providers.filter((provider) => provider.enabled && provider.embeddingConfigured).map((provider) => (
+                      <option key={provider.id} value={provider.id}>{provider.name} · {provider.embeddingModel}</option>
+                    ))}
+                  </select>
+                </label>
+                <button className="page-primary-button" onClick={createAgentConfig} disabled={configSaving} type="button">
+                  {configSaving ? "处理中..." : "保存为新配置"}
+                </button>
+              </div>
+              <div className="settings-config-list">
+                {agentConfigs.map((config) => (
+                  <article className={`settings-config-card ${config.active ? "active" : ""}`} key={config.id}>
+                    <div className="settings-config-card-title">
+                      <strong>{config.name}</strong>
+                      <span>{config.active ? "当前使用" : "未启用"}</span>
+                    </div>
+                    <dl>
+                      <div><dt>Think</dt><dd>{providerLabel(config.thinkingProviderId)}</dd></div>
+                      <div><dt>Executor</dt><dd>{providerLabel(config.executorProviderId)}</dd></div>
+                      <div><dt>Embedding</dt><dd>{providerLabel(config.embeddingProviderId, true)}</dd></div>
+                    </dl>
+                    <div className="settings-card-actions">
+                      <button className={config.active ? "page-primary-button" : "page-secondary-button"} onClick={() => activateAgentConfig(config.id)} disabled={configSaving || config.active} type="button">
+                        {config.active ? "使用中" : "使用此配置"}
+                      </button>
+                      <button className="page-secondary-button" onClick={() => removeAgentConfig(config.id)} disabled={configSaving} type="button">删除</button>
+                    </div>
+                  </article>
+                ))}
+                {agentConfigs.length === 0 && <div className="settings-config-empty">还没有运行配置。创建第一套后会自动启用。</div>}
+              </div>
+            </section>
 
             {providers.length === 0 && (
               <div className="search-empty">暂无模型账号，请添加</div>

@@ -73,6 +73,55 @@ const routingTools = [
   createdAt: "2026-07-29T00:00:00.000Z",
 }));
 
+test("Agent model configs switch Think, Executor and Embedding as one active profile", () => {
+  const think = store.createProvider({
+    name: "Think Test",
+    baseUrl: "https://think.example/v1",
+    model: "think-model",
+    apiKey: "test-key",
+  });
+  const executor = store.createProvider({
+    name: "Executor Test",
+    baseUrl: "https://executor.example/v1",
+    model: "executor-model",
+    apiKey: "test-key",
+  });
+  const embedding = store.createProvider({
+    name: "Embedding Test",
+    baseUrl: "https://chat.example/v1",
+    model: "chat-model",
+    apiKey: "test-key",
+    embeddingBaseUrl: "https://embedding.example/v1",
+    embeddingModel: "embedding-model",
+    embeddingApiKey: "embedding-key",
+  });
+  const first = store.createAgentModelConfig({
+    name: "配置 1",
+    thinkingProviderId: think.id,
+    executorProviderId: executor.id,
+    embeddingProviderId: embedding.id,
+  });
+  const second = store.createAgentModelConfig({
+    name: "配置 2",
+    thinkingProviderId: executor.id,
+    executorProviderId: think.id,
+    embeddingProviderId: embedding.id,
+  });
+  assert.equal(first.active, true);
+  assert.equal(second.active, false);
+
+  store.activateAgentModelConfig(second.id);
+  const active = store.getActiveAgentModelConfig();
+  const runtime = store.getAgentRuntimeProviders();
+  assert.equal(active?.id, second.id);
+  assert.equal(runtime.thinkingProvider?.model, "executor-model");
+  assert.equal(runtime.thinkingProvider?.embeddingModel, "embedding-model");
+  assert.equal(runtime.provider?.model, "think-model");
+  assert.equal(runtime.provider?.embeddingModel, "embedding-model");
+  assert.equal(runtime.provider?.embeddingBaseUrl, "https://embedding.example/v1");
+  assert.equal(runtime.provider?.embeddingApiKey, "embedding-key");
+});
+
 test("intent recognition routes simple work directly to a target MCP", async () => {
   const query = await recognizeIntent("查询当前项目有多少客户", routingTools);
   assert.equal(query.intent, "business_query");
@@ -302,7 +351,7 @@ test("Feishu summaries retain action and question sections when the model omits 
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 21);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 22);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
   for (const table of tables) {
     assert.equal((db.prepare(`PRAGMA foreign_key_list(\"${table.name}\")`).all() as unknown[]).length, 0, `${table.name} should not have database foreign keys`);
@@ -312,6 +361,7 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(automations)").all() as Array<{ name: string }>).some((column) => column.name === "workflow_graph"));
   assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "embedding_model"));
+  assert.ok((db.prepare("PRAGMA table_info(agent_model_configs)").all() as Array<{ name: string }>).some((column) => column.name === "executor_provider_id"));
   for (const table of ["customers", "suppliers", "products", "orders", "payments", "invoices", "tasks", "files"]) {
     assert.ok((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((column) => column.name === "project_id"));
   }

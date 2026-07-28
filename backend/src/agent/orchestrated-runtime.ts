@@ -43,7 +43,7 @@ export class OrchestratedAgentRuntime implements AgentRuntime {
 
   async *runStream(input: AgentRunInput): AsyncIterable<AgentRunEvent> {
     let orchestration = await recognizeIntent(input.userContent, input.tools, {
-      provider: input.provider,
+      provider: input.thinkingProvider ?? input.provider,
     });
     let planSteps = createExecutionPlan(orchestration);
     let awaitingRecovery = false;

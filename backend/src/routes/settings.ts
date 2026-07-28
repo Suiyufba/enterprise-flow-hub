@@ -4,18 +4,22 @@ import { z } from "zod";
 import { aiChat } from "../ai/client.js";
 import {
   createPersona,
+  createAgentModelConfig,
   createProvider,
   deletePersona,
   deleteProvider,
+  deleteAgentModelConfig,
   fetchProviderModels,
   listAllPersonas,
   listPersonas,
   listProviders,
+  listAgentModelConfigs,
   summarizePersonaMemory,
   testProviderEmbeddingConnection,
   testProviderConnection,
   updatePersona,
   updateProvider,
+  activateAgentModelConfig,
 } from "../store.js";
 import { requireAdminActor } from "./auth-context.js";
 
@@ -69,12 +73,43 @@ const GeneratePromptSchema = z.object({
   description: z.string().min(1).max(500),
 });
 
+const CreateAgentModelConfigSchema = z.object({
+  name: z.string().min(1).max(60),
+  thinkingProviderId: z.string().min(1),
+  executorProviderId: z.string().min(1),
+  embeddingProviderId: z.string().min(1),
+});
+
 export async function settingsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
     requireAdminActor(request, reply);
   });
   // Providers
   app.get("/settings/providers", async () => ({ providers: listProviders() }));
+  app.get("/settings/agent-model-configs", async () => ({ configs: listAgentModelConfigs() }));
+
+  app.post("/settings/agent-model-configs", async (request, reply) => {
+    const parsed = CreateAgentModelConfigSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.flatten() });
+    try {
+      return reply.status(201).send(createAgentModelConfig(parsed.data));
+    } catch (error) {
+      return reply.status(400).send({ error: error instanceof Error ? error.message : "创建配置失败" });
+    }
+  });
+
+  app.post("/settings/agent-model-configs/:id/activate", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const config = activateAgentModelConfig(id);
+    if (!config) return reply.status(404).send({ error: "配置不存在" });
+    return config;
+  });
+
+  app.delete("/settings/agent-model-configs/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!deleteAgentModelConfig(id)) return reply.status(404).send({ error: "配置不存在" });
+    return reply.status(204).send();
+  });
 
   app.post("/settings/providers", async (request, reply) => {
     const parsed = CreateProviderSchema.safeParse(request.body);

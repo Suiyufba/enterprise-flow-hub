@@ -41,7 +41,7 @@ import {
   listPersonas,
   listSkills,
   listTools,
-  getRuntimeProvider,
+  getAgentRuntimeProviders,
   buildProjectContext,
 } from "../store.js";
 import { runAutomationNow, triggerProjectAutomations } from "../automation/scheduler.js";
@@ -550,13 +550,10 @@ export async function workspaceRoutes(app: FastifyInstance) {
     const persona = personas.find((item) => item.id === parsed.data.personaId) ?? personas[0];
     const selectedSkillIds = parsed.data.skillIds?.length ? parsed.data.skillIds : persona?.defaultSkillIds ?? [];
     const selectedSkills = skills.filter((item) => selectedSkillIds.includes(item.id));
-    const provider = getRuntimeProvider(persona?.providerId) ?? getRuntimeProvider();
+    const { provider, thinkingProvider } = getAgentRuntimeProviders(persona);
     if (!provider) {
       return reply.status(400).send({ error: "没有找到可用的 AI 模型账号" });
     }
-    const thinkingProvider = persona?.thinkingProviderId
-      ? getRuntimeProvider(persona.thinkingProviderId)
-      : undefined;
     const contextLabel =
       parsed.data.contextScope === "selected_projects"
         ? `结合 ${parsed.data.contextProjectIds?.length ?? 0} 个指定项目资料`

@@ -6,6 +6,7 @@ import type {
   AddMessageRequest,
   AddMessageResponse,
   AgentPersona,
+  AgentModelConfig,
   AgentPlanStep,
   AgentSkill,
   AnalysisResult,
@@ -973,6 +974,18 @@ function rowToRuntimeProvider(r: Record<string, unknown>): AgentRuntimeProvider 
   };
 }
 
+function rowToAgentModelConfig(r: Record<string, unknown>): AgentModelConfig {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    thinkingProviderId: r.thinking_provider_id as string,
+    executorProviderId: r.executor_provider_id as string,
+    embeddingProviderId: r.embedding_provider_id as string,
+    active: (r.active as number) === 1,
+    createdAt: r.created_at as string,
+  };
+}
+
 export function listSkills(): AgentSkill[] {
   return (db().prepare("SELECT * FROM agent_skills ORDER BY enabled DESC, created_at ASC").all() as Record<string, unknown>[]).map(rowToSkill);
 }
@@ -1036,11 +1049,92 @@ export function listProviders(): ModelProvider[] {
   return (db().prepare("SELECT * FROM model_providers ORDER BY id").all() as Record<string, unknown>[]).map(rowToProvider);
 }
 
+export function listAgentModelConfigs(): AgentModelConfig[] {
+  return (db().prepare("SELECT * FROM agent_model_configs ORDER BY active DESC, created_at ASC").all() as Record<string, unknown>[])
+    .map(rowToAgentModelConfig);
+}
+
+export function createAgentModelConfig(input: {
+  name: string;
+  thinkingProviderId: string;
+  executorProviderId: string;
+  embeddingProviderId: string;
+}): AgentModelConfig {
+  for (const providerId of [input.thinkingProviderId, input.executorProviderId, input.embeddingProviderId]) {
+    if (!db().prepare("SELECT 1 FROM model_providers WHERE id = ? AND enabled = 1").get(providerId)) {
+      throw new Error(`模型账号不存在或未启用：${providerId}`);
+    }
+  }
+  const id = `agent-config-${randomUUID()}`;
+  const hasActive = Boolean(db().prepare("SELECT 1 FROM agent_model_configs WHERE active = 1").get());
+  db().prepare(
+    "INSERT INTO agent_model_configs (id, name, thinking_provider_id, executor_provider_id, embedding_provider_id, active) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(id, input.name.trim(), input.thinkingProviderId, input.executorProviderId, input.embeddingProviderId, hasActive ? 0 : 1);
+  return rowToAgentModelConfig(db().prepare("SELECT * FROM agent_model_configs WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function activateAgentModelConfig(id: string): AgentModelConfig | undefined {
+  if (!db().prepare("SELECT 1 FROM agent_model_configs WHERE id = ?").get(id)) return undefined;
+  const transaction = db().transaction(() => {
+    db().prepare("UPDATE agent_model_configs SET active = 0").run();
+    db().prepare("UPDATE agent_model_configs SET active = 1 WHERE id = ?").run(id);
+  });
+  transaction();
+  return rowToAgentModelConfig(db().prepare("SELECT * FROM agent_model_configs WHERE id = ?").get(id) as Record<string, unknown>);
+}
+
+export function deleteAgentModelConfig(id: string): boolean {
+  const row = db().prepare("SELECT active FROM agent_model_configs WHERE id = ?").get(id) as { active: number } | undefined;
+  if (!row) return false;
+  db().prepare("DELETE FROM agent_model_configs WHERE id = ?").run(id);
+  if (row.active === 1) {
+    const next = db().prepare("SELECT id FROM agent_model_configs ORDER BY created_at ASC LIMIT 1").get() as { id: string } | undefined;
+    if (next) activateAgentModelConfig(next.id);
+  }
+  return true;
+}
+
+export function getActiveAgentModelConfig(): AgentModelConfig | undefined {
+  const row = db().prepare("SELECT * FROM agent_model_configs WHERE active = 1 LIMIT 1").get() as Record<string, unknown> | undefined;
+  return row ? rowToAgentModelConfig(row) : undefined;
+}
+
 export function getRuntimeProvider(id?: string): AgentRuntimeProvider | undefined {
-  const row = id
-    ? db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(id)
+  const activeProviderId = !id ? getActiveAgentModelConfig()?.executorProviderId : undefined;
+  const resolvedId = id || activeProviderId;
+  const row = resolvedId
+    ? db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(resolvedId)
     : db().prepare("SELECT * FROM model_providers WHERE enabled = 1 ORDER BY id LIMIT 1").get();
   return row ? rowToRuntimeProvider(row as Record<string, unknown>) : undefined;
+}
+
+export function getAgentRuntimeProviders(persona?: AgentPersona): {
+  provider?: AgentRuntimeProvider;
+  thinkingProvider?: AgentRuntimeProvider;
+} {
+  const config = getActiveAgentModelConfig();
+  if (!config) {
+    return {
+      provider: getRuntimeProvider(persona?.providerId) ?? getRuntimeProvider(),
+      thinkingProvider: persona?.thinkingProviderId ? getRuntimeProvider(persona.thinkingProviderId) : undefined,
+    };
+  }
+  const executor = getRuntimeProvider(config.executorProviderId);
+  const thinking = getRuntimeProvider(config.thinkingProviderId);
+  const embedding = getRuntimeProvider(config.embeddingProviderId);
+  const withEmbedding = (base?: AgentRuntimeProvider) => base && embedding
+    ? {
+      ...base,
+      embeddingBaseUrl: embedding.embeddingBaseUrl || embedding.baseUrl,
+      embeddingModel: embedding.embeddingModel,
+      embeddingConfigured: embedding.embeddingConfigured,
+      embeddingApiKey: embedding.embeddingApiKey || embedding.apiKey,
+    }
+    : base;
+  return {
+    provider: withEmbedding(executor),
+    thinkingProvider: withEmbedding(thinking),
+  };
 }
 
 export function createProvider(input: {
@@ -1509,13 +1603,10 @@ export async function addMessage(conversationId: string, input: AddMessageReques
   const persona = personas.find((item) => item.id === input.personaId) ?? personas[0];
   const selectedSkillIds = input.skillIds?.length ? input.skillIds : persona?.defaultSkillIds ?? [];
   const selectedSkills = skills.filter((item) => selectedSkillIds.includes(item.id));
-  const provider = getRuntimeProvider(persona?.providerId) ?? getRuntimeProvider();
+  const { provider, thinkingProvider } = getAgentRuntimeProviders(persona);
   if (!provider) {
     throw new Error("NO_PROVIDER: 没有找到可用的 AI 模型账号，请在设置中添加并启用一个模型");
   }
-  const thinkingProvider = persona?.thinkingProviderId
-    ? getRuntimeProvider(persona.thinkingProviderId)
-    : undefined;
   const contextLabel =
     input.contextScope === "selected_projects"
       ? `结合 ${input.contextProjectIds?.length ?? 0} 个指定项目资料`
