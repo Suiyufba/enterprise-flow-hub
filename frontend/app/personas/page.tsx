@@ -131,13 +131,13 @@ export default function PersonasPage() {
               <div className="settings-edit-form">
                 <select className="page-input" value={pProviderId} onChange={(e) => setPProviderId(e.target.value)}>
                   <option value="">选择回复模型...</option>
-                  {providers.map((p) => (
+                  {providers.filter((p) => p.type === "chat").map((p) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.model})</option>
                   ))}
                 </select>
                 <select className="page-input" value={pThinkingProviderId} onChange={(e) => setPThinkingProviderId(e.target.value)}>
                   <option value="">思考模型（可选）</option>
-                  {providers.map((p) => (
+                  {providers.filter((p) => p.type === "chat").map((p) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.model})</option>
                   ))}
                 </select>
@@ -167,13 +167,13 @@ export default function PersonasPage() {
                     <textarea className="page-textarea" value={epPrompt} onChange={(e) => setEpPrompt(e.target.value)} placeholder="System Prompt" rows={3} />
                     <select className="page-input" value={epProviderId} onChange={(e) => setEpProviderId(e.target.value)}>
                       <option value="">选择回复模型...</option>
-                      {providers.map((prov) => (
+                      {providers.filter((prov) => prov.type === "chat").map((prov) => (
                         <option key={prov.id} value={prov.id}>{prov.name} ({prov.model})</option>
                       ))}
                     </select>
                     <select className="page-input" value={epThinkingProviderId} onChange={(e) => setEpThinkingProviderId(e.target.value)}>
                       <option value="">思考模型（可选）</option>
-                      {providers.map((prov) => (
+                      {providers.filter((prov) => prov.type === "chat").map((prov) => (
                         <option key={prov.id} value={prov.id}>{prov.name} ({prov.model})</option>
                       ))}
                     </select>

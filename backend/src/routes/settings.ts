@@ -25,12 +25,10 @@ import { requireAdminActor } from "./auth-context.js";
 
 const CreateProviderSchema = z.object({
   name: z.string().min(1).max(60),
+  type: z.enum(["chat", "embedding"]),
   baseUrl: z.string().min(1).max(200),
   model: z.string().min(1).max(60),
   apiKey: z.string().min(1).max(200),
-  embeddingBaseUrl: z.string().max(200).optional(),
-  embeddingModel: z.string().max(100).optional(),
-  embeddingApiKey: z.string().max(200).optional(),
 });
 
 const UpdateProviderSchema = z.object({
@@ -38,9 +36,6 @@ const UpdateProviderSchema = z.object({
   baseUrl: z.string().min(1).max(200).optional(),
   model: z.string().min(1).max(60).optional(),
   apiKey: z.string().min(1).max(200).optional(),
-  embeddingBaseUrl: z.string().max(200).optional(),
-  embeddingModel: z.string().max(100).optional(),
-  embeddingApiKey: z.string().max(200).optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -119,9 +114,13 @@ export async function settingsRoutes(app: FastifyInstance) {
 
   app.delete("/settings/providers/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const ok = deleteProvider(id);
-    if (!ok) return reply.status(404).send({ error: "Provider not found" });
-    return reply.status(204).send();
+    try {
+      const ok = deleteProvider(id);
+      if (!ok) return reply.status(404).send({ error: "Provider not found" });
+      return reply.status(204).send();
+    } catch (error) {
+      return reply.status(409).send({ error: error instanceof Error ? error.message : "模型仍被配置使用" });
+    }
   });
 
   app.patch("/settings/providers/:id", async (request, reply) => {

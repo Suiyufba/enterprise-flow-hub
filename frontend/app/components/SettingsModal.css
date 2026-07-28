@@ -138,6 +138,7 @@
 }
 
 .settings-config-section {
+  order: -2;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -145,6 +146,34 @@
   border: 1px solid var(--c-303030);
   border-radius: 12px;
   background: var(--c-181818);
+}
+
+.settings-model-create-form {
+  order: -1;
+  padding: 14px;
+  border: 1px solid var(--c-303030);
+  border-radius: 12px;
+  background: var(--c-181818);
+}
+
+.settings-model-type {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.settings-model-type.chat {
+  background: var(--c-1a2e22);
+  color: var(--c-6ecf8a);
+}
+
+.settings-model-type.embedding {
+  background: color-mix(in srgb, var(--c-4a90e6) 16%, transparent);
+  color: var(--c-4a90e6);
 }
 
 .settings-config-heading strong,

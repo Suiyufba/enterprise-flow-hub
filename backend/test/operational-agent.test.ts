@@ -76,24 +76,24 @@ const routingTools = [
 test("Agent model configs switch Think, Executor and Embedding as one active profile", () => {
   const think = store.createProvider({
     name: "Think Test",
+    type: "chat",
     baseUrl: "https://think.example/v1",
     model: "think-model",
     apiKey: "test-key",
   });
   const executor = store.createProvider({
     name: "Executor Test",
+    type: "chat",
     baseUrl: "https://executor.example/v1",
     model: "executor-model",
     apiKey: "test-key",
   });
   const embedding = store.createProvider({
     name: "Embedding Test",
-    baseUrl: "https://chat.example/v1",
-    model: "chat-model",
-    apiKey: "test-key",
-    embeddingBaseUrl: "https://embedding.example/v1",
-    embeddingModel: "embedding-model",
-    embeddingApiKey: "embedding-key",
+    type: "embedding",
+    baseUrl: "https://embedding.example/v1",
+    model: "embedding-model",
+    apiKey: "embedding-key",
   });
   const first = store.createAgentModelConfig({
     name: "配置 1",
@@ -351,7 +351,7 @@ test("Feishu summaries retain action and question sections when the model omits 
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 22);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 23);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
   for (const table of tables) {
     assert.equal((db.prepare(`PRAGMA foreign_key_list(\"${table.name}\")`).all() as unknown[]).length, 0, `${table.name} should not have database foreign keys`);
@@ -361,6 +361,7 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.ok((db.prepare("PRAGMA table_info(enterprises)").all() as Array<{ name: string }>).some((column) => column.name === "tags"));
   assert.ok((db.prepare("PRAGMA table_info(automations)").all() as Array<{ name: string }>).some((column) => column.name === "workflow_graph"));
   assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "embedding_model"));
+  assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "provider_type"));
   assert.ok((db.prepare("PRAGMA table_info(agent_model_configs)").all() as Array<{ name: string }>).some((column) => column.name === "executor_provider_id"));
   for (const table of ["customers", "suppliers", "products", "orders", "payments", "invoices", "tasks", "files"]) {
     assert.ok((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((column) => column.name === "project_id"));

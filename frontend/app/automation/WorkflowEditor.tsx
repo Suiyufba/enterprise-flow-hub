@@ -188,7 +188,7 @@ export function WorkflowEditor({ id: existingId }: { id?: string }) {
   const { workspace, refresh: refreshWorkspace } = useWorkspace();
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const configuredProviders = useMemo(
-    () => workspace.providers.filter((provider) => provider.enabled && provider.configured),
+    () => workspace.providers.filter((provider) => provider.type === "chat" && provider.enabled && provider.configured),
     [workspace.providers],
   );
   const notificationPlugins = useMemo(

@@ -43,13 +43,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [configSaving, setConfigSaving] = useState(false);
 
   // Provider form
+  const [pType, setPType] = useState<ModelProvider["type"]>("chat");
   const [pName, setPName] = useState("");
   const [pBaseUrl, setPBaseUrl] = useState("");
   const [pModel, setPModel] = useState("");
   const [pApiKey, setPApiKey] = useState("");
-  const [pEmbeddingBaseUrl, setPEmbeddingBaseUrl] = useState("");
-  const [pEmbeddingModel, setPEmbeddingModel] = useState("");
-  const [pEmbeddingApiKey, setPEmbeddingApiKey] = useState("");
   const [testingId, setTestingId] = useState("");
   const [testResults, setTestResults] = useState<Record<string, string>>({});
 
@@ -59,9 +57,6 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [editBaseUrl, setEditBaseUrl] = useState("");
   const [editModel, setEditModel] = useState("");
   const [editApiKey, setEditApiKey] = useState("");
-  const [editEmbeddingBaseUrl, setEditEmbeddingBaseUrl] = useState("");
-  const [editEmbeddingModel, setEditEmbeddingModel] = useState("");
-  const [editEmbeddingApiKey, setEditEmbeddingApiKey] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [providerToDelete, setProviderToDelete] = useState<ModelProvider | null>(null);
   const [deletingProvider, setDeletingProvider] = useState(false);
@@ -111,10 +106,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   useEffect(() => {
-    const enabled = providers.filter((provider) => provider.enabled && provider.configured);
-    const embedding = enabled.filter((provider) => provider.embeddingConfigured);
-    if (!thinkingProviderId && enabled[0]) setThinkingProviderId(enabled[0].id);
-    if (!executorProviderId && enabled[0]) setExecutorProviderId(enabled[0].id);
+    const chat = providers.filter((provider) => provider.type === "chat" && provider.enabled && provider.configured);
+    const embedding = providers.filter((provider) => provider.type === "embedding" && provider.enabled && provider.configured);
+    if (!thinkingProviderId && chat[0]) setThinkingProviderId(chat[0].id);
+    if (!executorProviderId && chat[0]) setExecutorProviderId(chat[0].id);
     if (!embeddingProviderId && embedding[0]) setEmbeddingProviderId(embedding[0].id);
   }, [providers, thinkingProviderId, executorProviderId, embeddingProviderId]);
 
@@ -135,16 +130,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         method: "POST",
         body: JSON.stringify({
           name: pName,
+          type: pType,
           baseUrl: pBaseUrl,
           model: pModel,
           apiKey: pApiKey,
-          embeddingBaseUrl: pEmbeddingBaseUrl,
-          embeddingModel: pEmbeddingModel,
-          embeddingApiKey: pEmbeddingApiKey,
         }),
       });
       setPName(""); setPBaseUrl(""); setPModel(""); setPApiKey("");
-      setPEmbeddingBaseUrl(""); setPEmbeddingModel(""); setPEmbeddingApiKey("");
       setAddModels([]);
       await refresh();
     } catch { showToast("添加模型失败", "error"); }
@@ -215,12 +207,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     }
   }
 
-  function providerLabel(id: string, embedding = false) {
+  function providerLabel(id: string) {
     const provider = providers.find((item) => item.id === id);
     if (!provider) return "模型已移除";
-    return embedding
-      ? `${provider.name} · ${provider.embeddingModel || "本地向量"}`
-      : `${provider.name} · ${provider.model}`;
+    return `${provider.name} · ${provider.model}`;
   }
 
   async function deleteProvider() {
@@ -267,9 +257,6 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setEditBaseUrl(p.baseUrl);
     setEditModel(p.model);
     setEditApiKey("");
-    setEditEmbeddingBaseUrl(p.embeddingBaseUrl ?? "");
-    setEditEmbeddingModel(p.embeddingModel ?? "");
-    setEditEmbeddingApiKey("");
     setEditModels([]);
     setEditShowDropdown(false);
   }
@@ -286,11 +273,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         name: editName,
         baseUrl: editBaseUrl,
         model: editModel,
-        embeddingBaseUrl: editEmbeddingBaseUrl,
-        embeddingModel: editEmbeddingModel,
       };
       if (editApiKey.trim()) body.apiKey = editApiKey;
-      if (editEmbeddingApiKey.trim()) body.embeddingApiKey = editEmbeddingApiKey;
       await fetchJson(`/settings/providers/${editingId}`, {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -329,7 +313,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         </div>
 
         <div className="settings-tabs">
-          <button className={`settings-tab ${tab === "providers" ? "active" : ""}`} onClick={() => setTab("providers")} type="button">模型账号</button>
+          <button className={`settings-tab ${tab === "providers" ? "active" : ""}`} onClick={() => setTab("providers")} type="button">Agent 配置</button>
           <button className={`settings-tab ${tab === "agent" ? "active" : ""}`} onClick={() => setTab("agent")} type="button">Agent 内核</button>
         </div>
 
@@ -399,8 +383,18 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
         {tab === "providers" && (
           <div className="settings-body">
-            <div className="settings-form">
-              <input className="page-input" value={pName} onChange={(e) => setPName(e.target.value)} placeholder="自定义名称，如：我的 DeepSeek" />
+            <div className="settings-form settings-model-create-form">
+              <div className="settings-config-heading">
+                <div>
+                  <strong>添加独立模型</strong>
+                  <span>每条记录只保存一个模型。对话模型用于 Think / Executor，向量模型只用于 Embedding。</span>
+                </div>
+              </div>
+              <select className="page-select" value={pType} onChange={(event) => setPType(event.target.value as ModelProvider["type"])}>
+                <option value="chat">对话模型</option>
+                <option value="embedding">向量模型</option>
+              </select>
+              <input className="page-input" value={pName} onChange={(e) => setPName(e.target.value)} placeholder={pType === "chat" ? "名称，如：DeepSeek 执行模型" : "名称，如：Qwen3 向量模型"} />
               <input className="page-input" value={pBaseUrl} onChange={(e) => setPBaseUrl(e.target.value)} placeholder="API 地址，如：https://api.deepseek.com" />
               <div className="settings-model-row">
                 <input
@@ -408,7 +402,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   value={pModel}
                   onChange={(e) => { setPModel(e.target.value); setAddShowDropdown(false); }}
                   onFocus={() => { if (addModels.length > 0) setAddShowDropdown(true); }}
-                  placeholder="模型名称，如：deepseek-chat"
+                  placeholder={pType === "chat" ? "模型名称，如：deepseek-chat" : "向量模型名称，如：Qwen/Qwen3-Embedding-8B"}
                 />
                 <button
                   className="page-secondary-button settings-fetch-btn"
@@ -429,11 +423,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 </ul>
               )}
               <input className="page-input" value={pApiKey} onChange={(e) => setPApiKey(e.target.value)} placeholder="API Key，如：sk-xxxx" />
-              <div className="settings-section-label">Embedding 向量服务（可选）</div>
-              <input className="page-input" value={pEmbeddingBaseUrl} onChange={(e) => setPEmbeddingBaseUrl(e.target.value)} placeholder="Embedding API 地址；留空则复用上方地址" />
-              <input className="page-input" value={pEmbeddingModel} onChange={(e) => setPEmbeddingModel(e.target.value)} placeholder="Embedding 模型，如：text-embedding-v3" />
-              <input className="page-input" value={pEmbeddingApiKey} onChange={(e) => setPEmbeddingApiKey(e.target.value)} placeholder="Embedding API Key；留空则复用上方 Key" />
-              <button className="page-primary-button" onClick={addProvider} disabled={loading} type="button">添加模型</button>
+              <button className="page-primary-button" onClick={addProvider} disabled={loading} type="button">
+                {loading ? "保存中..." : `添加${pType === "chat" ? "对话" : "向量"}模型`}
+              </button>
             </div>
 
             <section className="settings-config-section">
@@ -448,7 +440,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <label>
                   <span>Think</span>
                   <select className="page-select" value={thinkingProviderId} onChange={(event) => setThinkingProviderId(event.target.value)}>
-                    {providers.filter((provider) => provider.enabled && provider.configured).map((provider) => (
+                    {providers.filter((provider) => provider.type === "chat" && provider.enabled && provider.configured).map((provider) => (
                       <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
                     ))}
                   </select>
@@ -456,7 +448,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <label>
                   <span>Executor</span>
                   <select className="page-select" value={executorProviderId} onChange={(event) => setExecutorProviderId(event.target.value)}>
-                    {providers.filter((provider) => provider.enabled && provider.configured).map((provider) => (
+                    {providers.filter((provider) => provider.type === "chat" && provider.enabled && provider.configured).map((provider) => (
                       <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
                     ))}
                   </select>
@@ -464,8 +456,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <label>
                   <span>Embedding</span>
                   <select className="page-select" value={embeddingProviderId} onChange={(event) => setEmbeddingProviderId(event.target.value)}>
-                    {providers.filter((provider) => provider.enabled && provider.embeddingConfigured).map((provider) => (
-                      <option key={provider.id} value={provider.id}>{provider.name} · {provider.embeddingModel}</option>
+                    {providers.filter((provider) => provider.type === "embedding" && provider.enabled && provider.configured).map((provider) => (
+                      <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
                     ))}
                   </select>
                 </label>
@@ -483,7 +475,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     <dl>
                       <div><dt>Think</dt><dd>{providerLabel(config.thinkingProviderId)}</dd></div>
                       <div><dt>Executor</dt><dd>{providerLabel(config.executorProviderId)}</dd></div>
-                      <div><dt>Embedding</dt><dd>{providerLabel(config.embeddingProviderId, true)}</dd></div>
+                      <div><dt>Embedding</dt><dd>{providerLabel(config.embeddingProviderId)}</dd></div>
                     </dl>
                     <div className="settings-card-actions">
                       <button className={config.active ? "page-primary-button" : "page-secondary-button"} onClick={() => activateAgentConfig(config.id)} disabled={configSaving || config.active} type="button">
@@ -498,7 +490,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </section>
 
             {providers.length === 0 && (
-              <div className="search-empty">暂无模型账号，请添加</div>
+              <div className="search-empty">暂无独立模型，请添加</div>
             )}
 
             <div className="settings-list">
@@ -506,6 +498,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <div className={`settings-card ${editingId === p.id ? "settings-card-editing" : ""}`} key={p.id}>
                   {editingId === p.id ? (
                     <div className="settings-edit-form">
+                      <span className={`settings-model-type ${p.type}`}>{p.type === "chat" ? "对话模型" : "向量模型"}</span>
                       <input className="page-input" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="自定义名称" />
                       <input className="page-input" value={editBaseUrl} onChange={(e) => setEditBaseUrl(e.target.value)} placeholder="API 地址" />
                       <div className="settings-model-row">
@@ -535,10 +528,6 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                         </ul>
                       )}
                       <input className="page-input" value={editApiKey} onChange={(e) => setEditApiKey(e.target.value)} placeholder="API Key（留空不修改）" />
-                      <div className="settings-section-label">Embedding 向量服务（可选）</div>
-                      <input className="page-input" value={editEmbeddingBaseUrl} onChange={(e) => setEditEmbeddingBaseUrl(e.target.value)} placeholder="Embedding API 地址；留空复用对话模型地址" />
-                      <input className="page-input" value={editEmbeddingModel} onChange={(e) => setEditEmbeddingModel(e.target.value)} placeholder="Embedding 模型；清空后使用本地向量召回" />
-                      <input className="page-input" value={editEmbeddingApiKey} onChange={(e) => setEditEmbeddingApiKey(e.target.value)} placeholder="Embedding API Key（留空不修改/复用）" />
                       <div className="settings-card-actions">
                         <button className="page-primary-button" onClick={saveEdit} disabled={editSaving} type="button">
                           {editSaving ? "保存中..." : "保存"}
@@ -549,20 +538,19 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   ) : (
                     <>
                       <div>
+                        <span className={`settings-model-type ${p.type}`}>{p.type === "chat" ? "对话模型" : "向量模型"}</span>
                         <strong>{p.name}</strong>
                         <span className="settings-meta">{p.model} @ {p.baseUrl}</span>
-                        <span className="settings-meta">
-                          向量：{p.embeddingConfigured ? `${p.embeddingModel} @ ${p.embeddingBaseUrl || p.baseUrl}` : "本地向量召回"}
-                        </span>
                         <span className={`settings-status ${p.configured ? "on" : "off"}`}>
                           {p.configured ? "已配置" : "未配置 Key"}
                         </span>
                       </div>
                       <div className="settings-card-actions">
-                        <button className="page-secondary-button" onClick={() => testProvider(p.id)} disabled={testingId === p.id}>
-                          {testingId === p.id ? "测试中..." : "测试连接"}
-                        </button>
-                        {p.embeddingModel && (
+                        {p.type === "chat" ? (
+                          <button className="page-secondary-button" onClick={() => testProvider(p.id)} disabled={testingId === p.id}>
+                            {testingId === p.id ? "测试中..." : "测试对话"}
+                          </button>
+                        ) : (
                           <button className="page-secondary-button" onClick={() => testEmbeddingProvider(p.id)} disabled={testingId === `${p.id}:embedding`}>
                             {testingId === `${p.id}:embedding` ? "测试中..." : "测试向量"}
                           </button>

@@ -580,7 +580,9 @@ export function getNotificationWebhook(pluginId?: string): { pluginId: string; u
 }
 
 function isProviderUsable(id: string): boolean {
-  const row = db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(id) as Record<string, unknown> | undefined;
+  const row = db()
+    .prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1 AND provider_type = 'chat'")
+    .get(id) as Record<string, unknown> | undefined;
   if (!row) return false;
   return Boolean(row.api_key_env);
 }
@@ -951,16 +953,12 @@ function rowToPersona(r: Record<string, unknown>): AgentPersona {
 }
 
 function rowToProvider(r: Record<string, unknown>): ModelProvider {
-  const embeddingBaseUrl = (r.embedding_base_url as string) || "";
-  const embeddingModel = (r.embedding_model as string) || "";
   return {
     id: r.id as string,
     name: r.name as string,
+    type: (r.provider_type as ModelProvider["type"]) || "chat",
     baseUrl: r.base_url as string,
     model: r.model as string,
-    embeddingBaseUrl: embeddingBaseUrl || undefined,
-    embeddingModel: embeddingModel || undefined,
-    embeddingConfigured: Boolean(embeddingModel && (r.embedding_api_key || r.api_key_env)),
     configured: Boolean(r.api_key_env),
     enabled: (r.enabled as number) === 1,
   };
@@ -970,7 +968,6 @@ function rowToRuntimeProvider(r: Record<string, unknown>): AgentRuntimeProvider 
   return {
     ...rowToProvider(r),
     apiKey: r.api_key_env as string,
-    embeddingApiKey: (r.embedding_api_key as string) || undefined,
   };
 }
 
@@ -1046,7 +1043,14 @@ export function listPersonas(): AgentPersona[] {
 }
 
 export function listProviders(): ModelProvider[] {
-  return (db().prepare("SELECT * FROM model_providers ORDER BY id").all() as Record<string, unknown>[]).map(rowToProvider);
+  return (
+    db()
+      .prepare(
+        `SELECT * FROM model_providers
+         ORDER BY CASE provider_type WHEN 'chat' THEN 0 ELSE 1 END, name, id`,
+      )
+      .all() as Record<string, unknown>[]
+  ).map(rowToProvider);
 }
 
 export function listAgentModelConfigs(): AgentModelConfig[] {
@@ -1060,11 +1064,12 @@ export function createAgentModelConfig(input: {
   executorProviderId: string;
   embeddingProviderId: string;
 }): AgentModelConfig {
-  for (const providerId of [input.thinkingProviderId, input.executorProviderId, input.embeddingProviderId]) {
-    if (!db().prepare("SELECT 1 FROM model_providers WHERE id = ? AND enabled = 1").get(providerId)) {
-      throw new Error(`模型账号不存在或未启用：${providerId}`);
-    }
-  }
+  const thinking = db().prepare("SELECT provider_type FROM model_providers WHERE id = ? AND enabled = 1").get(input.thinkingProviderId) as { provider_type: string } | undefined;
+  const executor = db().prepare("SELECT provider_type FROM model_providers WHERE id = ? AND enabled = 1").get(input.executorProviderId) as { provider_type: string } | undefined;
+  const embedding = db().prepare("SELECT provider_type FROM model_providers WHERE id = ? AND enabled = 1").get(input.embeddingProviderId) as { provider_type: string } | undefined;
+  if (thinking?.provider_type !== "chat") throw new Error("Think 必须选择对话模型");
+  if (executor?.provider_type !== "chat") throw new Error("Executor 必须选择对话模型");
+  if (embedding?.provider_type !== "embedding") throw new Error("Embedding 必须选择向量模型");
   const id = `agent-config-${randomUUID()}`;
   const hasActive = Boolean(db().prepare("SELECT 1 FROM agent_model_configs WHERE active = 1").get());
   db().prepare(
@@ -1104,7 +1109,11 @@ export function getRuntimeProvider(id?: string): AgentRuntimeProvider | undefine
   const resolvedId = id || activeProviderId;
   const row = resolvedId
     ? db().prepare("SELECT * FROM model_providers WHERE id = ? AND enabled = 1").get(resolvedId)
-    : db().prepare("SELECT * FROM model_providers WHERE enabled = 1 ORDER BY id LIMIT 1").get();
+    : db()
+        .prepare(
+          "SELECT * FROM model_providers WHERE enabled = 1 AND provider_type = 'chat' ORDER BY id LIMIT 1",
+        )
+        .get();
   return row ? rowToRuntimeProvider(row as Record<string, unknown>) : undefined;
 }
 
@@ -1125,10 +1134,10 @@ export function getAgentRuntimeProviders(persona?: AgentPersona): {
   const withEmbedding = (base?: AgentRuntimeProvider) => base && embedding
     ? {
       ...base,
-      embeddingBaseUrl: embedding.embeddingBaseUrl || embedding.baseUrl,
-      embeddingModel: embedding.embeddingModel,
-      embeddingConfigured: embedding.embeddingConfigured,
-      embeddingApiKey: embedding.embeddingApiKey || embedding.apiKey,
+      embeddingBaseUrl: embedding.baseUrl,
+      embeddingModel: embedding.model,
+      embeddingConfigured: embedding.configured,
+      embeddingApiKey: embedding.apiKey,
     }
     : base;
   return {
@@ -1139,30 +1148,30 @@ export function getAgentRuntimeProviders(persona?: AgentPersona): {
 
 export function createProvider(input: {
   name: string;
+  type: ModelProvider["type"];
   baseUrl: string;
   model: string;
   apiKey: string;
-  embeddingBaseUrl?: string;
-  embeddingModel?: string;
-  embeddingApiKey?: string;
 }): ModelProvider {
   const id = `provider-${randomUUID()}`;
   db()
-    .prepare("INSERT INTO model_providers (id, name, base_url, model, api_key_env, embedding_base_url, embedding_model, embedding_api_key, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)")
+    .prepare("INSERT INTO model_providers (id, name, provider_type, base_url, model, api_key_env, enabled) VALUES (?, ?, ?, ?, ?, ?, 1)")
     .run(
       id,
       input.name.trim(),
+      input.type,
       input.baseUrl.trim(),
       input.model.trim(),
       input.apiKey.trim(),
-      input.embeddingBaseUrl?.trim() || "",
-      input.embeddingModel?.trim() || "",
-      input.embeddingApiKey?.trim() || "",
     );
   return rowToProvider(db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown>);
 }
 
 export function deleteProvider(id: string): boolean {
+  const inConfig = db().prepare(
+    "SELECT 1 FROM agent_model_configs WHERE thinking_provider_id = ? OR executor_provider_id = ? OR embedding_provider_id = ? LIMIT 1",
+  ).get(id, id, id);
+  if (inConfig) throw new Error("该模型仍被 Agent 配置使用，请先删除或切换对应配置");
   const result = db().prepare("DELETE FROM model_providers WHERE id = ?").run(id);
   return result.changes > 0;
 }
@@ -1176,21 +1185,15 @@ export function updateProvider(id: string, input: UpdateProviderRequest): ModelP
     base_url: input.baseUrl ?? current.baseUrl,
     model: input.model ?? current.model,
     api_key_env: input.apiKey !== undefined ? input.apiKey : row.api_key_env,
-    embedding_base_url: input.embeddingBaseUrl !== undefined ? input.embeddingBaseUrl.trim() : row.embedding_base_url,
-    embedding_model: input.embeddingModel !== undefined ? input.embeddingModel.trim() : row.embedding_model,
-    embedding_api_key: input.embeddingApiKey !== undefined ? input.embeddingApiKey.trim() : row.embedding_api_key,
     enabled: input.enabled !== undefined ? (input.enabled ? 1 : 0) : row.enabled,
   };
   db()
-    .prepare("UPDATE model_providers SET name=?, base_url=?, model=?, api_key_env=?, embedding_base_url=?, embedding_model=?, embedding_api_key=?, enabled=? WHERE id=?")
+    .prepare("UPDATE model_providers SET name=?, base_url=?, model=?, api_key_env=?, enabled=? WHERE id=?")
     .run(
       next.name,
       next.base_url,
       next.model,
       next.api_key_env,
-      next.embedding_base_url,
-      next.embedding_model,
-      next.embedding_api_key,
       next.enabled,
       id,
     );
@@ -1217,6 +1220,7 @@ export async function fetchProviderModels(id: string): Promise<string[]> {
 export async function testProviderConnection(id: string): Promise<{ ok: boolean; message: string }> {
   const provider = db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!provider) return { ok: false, message: "Provider not found" };
+  if (provider.provider_type !== "chat") return { ok: false, message: "该记录是向量模型，请使用向量测试" };
   const apiKey = provider.api_key_env as string;
   if (!apiKey) return { ok: false, message: "API Key 未配置" };
   try {
@@ -1237,11 +1241,12 @@ export async function testProviderConnection(id: string): Promise<{ ok: boolean;
 export async function testProviderEmbeddingConnection(id: string): Promise<{ ok: boolean; message: string }> {
   const provider = db().prepare("SELECT * FROM model_providers WHERE id = ?").get(id) as Record<string, unknown> | undefined;
   if (!provider) return { ok: false, message: "Provider not found" };
-  const model = String(provider.embedding_model || "").trim();
-  if (!model) return { ok: false, message: "Embedding 模型未配置" };
-  const apiKey = String(provider.embedding_api_key || provider.api_key_env || "").trim();
+  if (provider.provider_type !== "embedding") return { ok: false, message: "该记录是对话模型，请使用连接测试" };
+  const model = String(provider.model || "").trim();
+  if (!model) return { ok: false, message: "向量模型未配置" };
+  const apiKey = String(provider.api_key_env || "").trim();
   if (!apiKey) return { ok: false, message: "Embedding API Key 未配置" };
-  const baseUrl = String(provider.embedding_base_url || provider.base_url || "").replace(/\/$/, "");
+  const baseUrl = String(provider.base_url || "").replace(/\/$/, "");
   try {
     const res = await fetch(`${baseUrl}/v1/embeddings`, {
       method: "POST",
