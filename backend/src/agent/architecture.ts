@@ -249,6 +249,10 @@ export function markToolCall(
     status: "running",
     detail: `正在调用 ${toolName}`,
   });
+  next = patchStep(next, "verify", {
+    status: "pending",
+    detail: "等待本轮工具执行完成后校验",
+  });
   return next;
 }
 

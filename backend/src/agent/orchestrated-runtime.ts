@@ -62,6 +62,7 @@ export class OrchestratedAgentRuntime implements AgentRuntime {
       if (event.type === "plan_update") continue;
 
       if (event.type === "tool_call") {
+        answerStarted = false;
         planSteps = markToolCall(planSteps, event.toolName);
         yield { type: "plan_update", planSteps };
         yield event;
