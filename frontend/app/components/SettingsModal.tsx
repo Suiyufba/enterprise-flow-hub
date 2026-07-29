@@ -382,36 +382,69 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         )}
 
         {tab === "providers" && (
-          <div className="settings-body">
+          <div className="settings-body settings-providers-body">
+            <div className="settings-provider-intro">
+              <div className="settings-provider-intro-icon"><AppIcon name="settings" /></div>
+              <div>
+                <strong>模型与运行方案</strong>
+                <span>先维护独立模型，再将 Think、Executor 与 Embedding 组合成可随时切换的 Agent 运行方案。</span>
+              </div>
+              <div className="settings-provider-summary">
+                <span>{agentConfigs.length} 套方案</span>
+                <span>{providers.filter((provider) => provider.type === "chat").length} 个对话模型</span>
+                <span>{providers.filter((provider) => provider.type === "embedding").length} 个向量模型</span>
+              </div>
+            </div>
             <div className="settings-form settings-model-create-form">
               <div className="settings-config-heading">
-                <div>
+                <div className="settings-section-title">
+                  <span className="settings-section-index">02</span>
+                  <div>
                   <strong>添加独立模型</strong>
                   <span>每条记录只保存一个模型。对话模型用于 Think / Executor，向量模型只用于 Embedding。</span>
+                  </div>
                 </div>
               </div>
-              <select className="page-select" value={pType} onChange={(event) => setPType(event.target.value as ModelProvider["type"])}>
-                <option value="chat">对话模型</option>
-                <option value="embedding">向量模型</option>
-              </select>
-              <input className="page-input" value={pName} onChange={(e) => setPName(e.target.value)} placeholder={pType === "chat" ? "名称，如：DeepSeek 执行模型" : "名称，如：Qwen3 向量模型"} />
-              <input className="page-input" value={pBaseUrl} onChange={(e) => setPBaseUrl(e.target.value)} placeholder="API 地址，如：https://api.deepseek.com" />
-              <div className="settings-model-row">
-                <input
-                  className="page-input"
-                  value={pModel}
-                  onChange={(e) => { setPModel(e.target.value); setAddShowDropdown(false); }}
-                  onFocus={() => { if (addModels.length > 0) setAddShowDropdown(true); }}
-                  placeholder={pType === "chat" ? "模型名称，如：deepseek-chat" : "向量模型名称，如：Qwen/Qwen3-Embedding-8B"}
-                />
-                <button
-                  className="page-secondary-button settings-fetch-btn"
-                  onClick={fetchAddModels}
-                  disabled={addFetchingModels || !pBaseUrl.trim() || !pApiKey.trim()}
-                  type="button"
-                >
-                  {addFetchingModels ? "获取中..." : "获取模型"}
-                </button>
+              <div className="settings-provider-form-grid">
+                <label className="settings-field">
+                  <span>模型类型</span>
+                  <select className="page-select" value={pType} onChange={(event) => setPType(event.target.value as ModelProvider["type"])}>
+                    <option value="chat">对话模型</option>
+                    <option value="embedding">向量模型</option>
+                  </select>
+                </label>
+                <label className="settings-field">
+                  <span>显示名称</span>
+                  <input className="page-input" value={pName} onChange={(e) => setPName(e.target.value)} placeholder={pType === "chat" ? "如：DeepSeek 执行模型" : "如：Qwen3 向量模型"} />
+                </label>
+                <label className="settings-field settings-field-wide">
+                  <span>API 地址</span>
+                  <input className="page-input" value={pBaseUrl} onChange={(e) => setPBaseUrl(e.target.value)} placeholder="https://api.deepseek.com" />
+                </label>
+                <label className="settings-field settings-field-wide">
+                  <span>模型名称</span>
+                  <div className="settings-model-row">
+                    <input
+                      className="page-input"
+                      value={pModel}
+                      onChange={(e) => { setPModel(e.target.value); setAddShowDropdown(false); }}
+                      onFocus={() => { if (addModels.length > 0) setAddShowDropdown(true); }}
+                      placeholder={pType === "chat" ? "如：deepseek-chat" : "如：Qwen/Qwen3-Embedding-8B"}
+                    />
+                    <button
+                      className="page-secondary-button settings-fetch-btn"
+                      onClick={fetchAddModels}
+                      disabled={addFetchingModels || !pBaseUrl.trim() || !pApiKey.trim()}
+                      type="button"
+                    >
+                      {addFetchingModels ? "获取中..." : "获取模型"}
+                    </button>
+                  </div>
+                </label>
+                <label className="settings-field settings-field-wide">
+                  <span>API Key</span>
+                  <input className="page-input" value={pApiKey} onChange={(e) => setPApiKey(e.target.value)} placeholder="sk-xxxx" type="password" autoComplete="new-password" />
+                </label>
               </div>
               {addShowDropdown && addModels.length > 0 && (
                 <ul className="settings-model-dropdown">
@@ -422,23 +455,31 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   ))}
                 </ul>
               )}
-              <input className="page-input" value={pApiKey} onChange={(e) => setPApiKey(e.target.value)} placeholder="API Key，如：sk-xxxx" />
-              <button className="page-primary-button" onClick={addProvider} disabled={loading} type="button">
-                {loading ? "保存中..." : `添加${pType === "chat" ? "对话" : "向量"}模型`}
-              </button>
+              <div className="settings-form-footer">
+                <span>保存后可先测试连接，再加入运行方案。</span>
+                <button className="page-primary-button" onClick={addProvider} disabled={loading} type="button">
+                  <AppIcon name="plus" /> {loading ? "保存中..." : `添加${pType === "chat" ? "对话" : "向量"}模型`}
+                </button>
+              </div>
             </div>
 
             <section className="settings-config-section">
               <div className="settings-config-heading">
-                <div>
+                <div className="settings-section-title">
+                  <span className="settings-section-index">01</span>
+                  <div>
                   <strong>Agent 运行配置</strong>
                   <span>一套配置同时指定 Think、Executor 和 Embedding；新对话与已有对话都会使用当前启用项。</span>
+                  </div>
                 </div>
               </div>
               <div className="settings-config-builder">
-                <input className="page-input" value={configName} onChange={(event) => setConfigName(event.target.value)} placeholder="配置名称，如：配置 1 / 高质量分析" />
+                <label className="settings-config-name-field">
+                  <span>方案名称</span>
+                  <input className="page-input" value={configName} onChange={(event) => setConfigName(event.target.value)} placeholder="如：高质量分析" />
+                </label>
                 <label>
-                  <span>Think</span>
+                  <span>Think · 思考模型</span>
                   <select className="page-select" value={thinkingProviderId} onChange={(event) => setThinkingProviderId(event.target.value)}>
                     {providers.filter((provider) => provider.type === "chat" && provider.enabled && provider.configured).map((provider) => (
                       <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
@@ -446,7 +487,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   </select>
                 </label>
                 <label>
-                  <span>Executor</span>
+                  <span>Executor · 执行模型</span>
                   <select className="page-select" value={executorProviderId} onChange={(event) => setExecutorProviderId(event.target.value)}>
                     {providers.filter((provider) => provider.type === "chat" && provider.enabled && provider.configured).map((provider) => (
                       <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
@@ -454,7 +495,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   </select>
                 </label>
                 <label>
-                  <span>Embedding</span>
+                  <span>Embedding · 向量模型</span>
                   <select className="page-select" value={embeddingProviderId} onChange={(event) => setEmbeddingProviderId(event.target.value)}>
                     {providers.filter((provider) => provider.type === "embedding" && provider.enabled && provider.configured).map((provider) => (
                       <option key={provider.id} value={provider.id}>{provider.name} · {provider.model}</option>
@@ -462,20 +503,23 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   </select>
                 </label>
                 <button className="page-primary-button" onClick={createAgentConfig} disabled={configSaving} type="button">
-                  {configSaving ? "处理中..." : "保存为新配置"}
+                  <AppIcon name="plus" /> {configSaving ? "处理中..." : "保存方案"}
                 </button>
               </div>
               <div className="settings-config-list">
                 {agentConfigs.map((config) => (
                   <article className={`settings-config-card ${config.active ? "active" : ""}`} key={config.id}>
                     <div className="settings-config-card-title">
-                      <strong>{config.name}</strong>
-                      <span>{config.active ? "当前使用" : "未启用"}</span>
+                      <div>
+                        <span className="settings-config-kicker">运行方案</span>
+                        <strong>{config.name}</strong>
+                      </div>
+                      <span className="settings-config-state">{config.active ? "当前使用" : "未启用"}</span>
                     </div>
                     <dl>
-                      <div><dt>Think</dt><dd>{providerLabel(config.thinkingProviderId)}</dd></div>
-                      <div><dt>Executor</dt><dd>{providerLabel(config.executorProviderId)}</dd></div>
-                      <div><dt>Embedding</dt><dd>{providerLabel(config.embeddingProviderId)}</dd></div>
+                      <div><dt><AppIcon name="spark" /> Think</dt><dd>{providerLabel(config.thinkingProviderId)}</dd></div>
+                      <div><dt><AppIcon name="automation" /> Executor</dt><dd>{providerLabel(config.executorProviderId)}</dd></div>
+                      <div><dt><AppIcon name="search" /> Embedding</dt><dd>{providerLabel(config.embeddingProviderId)}</dd></div>
                     </dl>
                     <div className="settings-card-actions">
                       <button className={config.active ? "page-primary-button" : "page-secondary-button"} onClick={() => activateAgentConfig(config.id)} disabled={configSaving || config.active} type="button">
@@ -488,6 +532,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 {agentConfigs.length === 0 && <div className="settings-config-empty">还没有运行配置。创建第一套后会自动启用。</div>}
               </div>
             </section>
+
+            <div className="settings-library-heading">
+              <div>
+                <strong>已添加模型</strong>
+                <span>测试连接、编辑参数或移除不再使用的模型。</span>
+              </div>
+              <span className="settings-library-count">{providers.length}</span>
+            </div>
 
             {providers.length === 0 && (
               <div className="search-empty">暂无独立模型，请添加</div>
