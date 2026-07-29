@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { AgentModelConfig, ModelProvider } from "shared";
 import { fetchJson } from "../lib/api";
 import { useToast } from "../lib/toast-context";
@@ -30,6 +31,15 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       duration: 500,
       ease: spring({ mass: 1, stiffness: 80, damping: 12, velocity: 0 }),
     });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [open]);
 
   const [tab, setTab] = useState<Tab>("providers");
@@ -304,11 +314,18 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="settings-overlay" onClick={onClose} ref={overlayRef}>
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()} ref={contentRef}>
+      <div
+        className="settings-modal"
+        onClick={(e) => e.stopPropagation()}
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-modal-title"
+      >
         <div className="settings-header">
-          <h2>设置</h2>
+          <h2 id="settings-modal-title">设置</h2>
           <button className="settings-close" onClick={onClose} type="button" aria-label="关闭设置"><AppIcon name="x" /></button>
         </div>
 
@@ -631,6 +648,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         onConfirm={deleteProvider}
         onCancel={() => setProviderToDelete(null)}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
