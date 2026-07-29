@@ -1,5 +1,5 @@
 import { getDb } from "../db/index.js";
-import { markProcessed, onAnyEvent } from "../events/emitter.js";
+import { onAnyEvent } from "../events/emitter.js";
 import { evaluateCondition } from "../store/rules.js";
 import { randomUUID } from "node:crypto";
 import { notifyExecute } from "../tools/executors/notify.js";
@@ -19,6 +19,7 @@ interface RuleRow {
   action_type: string;
   action_config: string;
   enabled: number;
+  created_at: string;
 }
 
 export function setupRulesExecutor(): void {
@@ -28,9 +29,10 @@ export function setupRulesExecutor(): void {
     if (!enterpriseId) return;
 
     const rows = db()
-      .prepare("SELECT * FROM rules WHERE enterprise_id = ? AND object_type = ? AND trigger_event = ? AND enabled = 1")
-      .all(enterpriseId, event.objectType, event.eventType) as RuleRow[];
+      .prepare("SELECT * FROM rules WHERE enterprise_id = ? AND object_type = ? AND trigger_event = ? AND enabled = 1 AND created_at <= ?")
+      .all(enterpriseId, event.objectType, event.eventType, event.createdAt) as RuleRow[];
 
+    const failures: string[] = [];
     for (const row of rows) {
       const condition = JSON.parse(row.condition_expr || "{}");
       const matched = evaluateCondition(
@@ -39,16 +41,39 @@ export function setupRulesExecutor(): void {
       );
 
       if (!matched) continue;
+      const now = new Date().toISOString();
+      db().prepare(`
+        INSERT OR IGNORE INTO rule_event_runs
+          (event_id, rule_id, status, attempts, error_message, created_at, updated_at)
+        VALUES (?, ?, 'pending', 0, '', ?, ?)
+      `).run(event.id, row.id, now, now);
+      const previous = db().prepare(
+        "SELECT status FROM rule_event_runs WHERE event_id=? AND rule_id=?",
+      ).get(event.id, row.id) as { status: string };
+      if (previous.status === "success") continue;
 
       try {
         await executeAction(row, event);
+        const completedAt = new Date().toISOString();
+        db().prepare(`
+          UPDATE rule_event_runs
+          SET status='success', attempts=attempts+1, error_message='', updated_at=?, completed_at=?
+          WHERE event_id=? AND rule_id=?
+        `).run(completedAt, completedAt, event.id, row.id);
         console.log(`[rules] Rule "${row.name}" matched event "${event.eventType}" — action executed`);
       } catch (e) {
-        console.error(`[rules] Rule "${row.name}" action failed:`, e instanceof Error ? e.message : e);
+        const message = e instanceof Error ? e.message : String(e);
+        db().prepare(`
+          UPDATE rule_event_runs
+          SET status='failed', attempts=attempts+1, error_message=?, updated_at=?
+          WHERE event_id=? AND rule_id=?
+        `).run(message, new Date().toISOString(), event.id, row.id);
+        failures.push(`${row.name}: ${message}`);
+        console.error(`[rules] Rule "${row.name}" action failed:`, message);
       }
     }
-    markProcessed(event.id);
-  });
+    if (failures.length > 0) throw new Error(failures.join("; "));
+  }, "rules-executor");
 }
 
 async function executeAction(row: RuleRow, event: BusinessEvent): Promise<void> {

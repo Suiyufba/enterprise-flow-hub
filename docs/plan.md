@@ -1,5 +1,9 @@
 # Screenshot-to-Workflow Plan
 
+> [!IMPORTANT]
+> **历史方案文档**：本文记录 2026-05 的截图诊断 MVP 假设，不再代表当前产品架构。
+> 当前产品已经演进为可查询和操作企业业务数据的 Agent 工作台。请以 [当前架构与领域模型](./current-architecture.md) 和 [当前 Schema](./current-schema.md) 为准。
+
 ## 1. Core Idea
 
 Enterprise Flow Hub should start as a screenshot-first AI workflow analyst.

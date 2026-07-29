@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after } from "node:test";
@@ -21,8 +21,10 @@ const { createFile, getUploadRoot } = await import("../src/store/files.js");
 const { buildChatAttachmentContext } = await import("../src/ai/file-extractor.js");
 const { registerTool } = await import("../src/tools/registry.js");
 const { createRule } = await import("../src/store/rules.js");
-const { emitEvent } = await import("../src/events/emitter.js");
+const { drainBusinessEvents, emitEvent, onEvent } = await import("../src/events/emitter.js");
 const { setupRulesExecutor } = await import("../src/rules/executor.js");
+const { drainIntegrationRuns, registerIntegration } = await import("../src/integration/queue.js");
+const { drainMaintenanceRuns, registerDailyMaintenanceTask } = await import("../src/maintenance/scheduler.js");
 const Fastify = (await import("fastify")).default;
 const { dashboardRoutes } = await import("../src/routes/dashboard.js");
 const { ordersRoutes } = await import("../src/routes/orders.js");
@@ -351,7 +353,8 @@ test("Feishu summaries retain action and question sections when the model omits 
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 24);
+  const migrationCount = readdirSync(join(process.cwd(), "src", "db", "migrations")).filter((file) => file.endsWith(".sql")).length;
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, migrationCount);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
   for (const table of tables) {
     assert.equal((db.prepare(`PRAGMA foreign_key_list(\"${table.name}\")`).all() as unknown[]).length, 0, `${table.name} should not have database foreign keys`);
@@ -363,6 +366,10 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "embedding_model"));
   assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "provider_type"));
   assert.ok((db.prepare("PRAGMA table_info(agent_model_configs)").all() as Array<{ name: string }>).some((column) => column.name === "executor_provider_id"));
+  assert.ok(tables.some((table) => table.name === "automation_jobs"));
+  assert.ok(tables.some((table) => table.name === "automation_leases"));
+  assert.ok(tables.some((table) => table.name === "business_event_deliveries"));
+  assert.ok(tables.some((table) => table.name === "maintenance_runs"));
   assert.ok((db.prepare("PRAGMA table_info(conversations)").all() as Array<{ name: string }>).some((column) => column.name === "scope_project_ids"));
   for (const table of ["customers", "suppliers", "products", "orders", "payments", "invoices", "tasks", "files"]) {
     assert.ok((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((column) => column.name === "project_id"));
@@ -1000,6 +1007,138 @@ test("tool-call automation executes the real action and records output", async (
   assert.equal(result?.runCount, 1);
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n, before + 1);
   assert.equal((db.prepare("SELECT status FROM automation_runs WHERE automation_id=?").get(automation.id) as { status: string }).status, "success");
+});
+
+test("automation execution uses a persisted lease to block duplicate workers", async () => {
+  db.prepare(`
+    INSERT OR REPLACE INTO ai_tools (id,name,description,kind,status,risk,input_schema,example_prompt,created_at)
+    VALUES ('tool-test-slow','慢任务测试','验证持久化租约','cli','enabled','write','{}','',?)
+  `).run(new Date().toISOString());
+  registerTool("tool-test-slow", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    return JSON.stringify({ ok: true });
+  });
+  const automation = store.createAutomation({
+    projectId: "proj-qihang-growth",
+    name: "持久化租约测试",
+    trigger: "手动",
+    triggerType: "manual",
+    action: "执行慢任务",
+    actionType: "tool_call",
+    actionToolId: "tool-test-slow",
+  });
+  assert.ok(automation);
+  const first = scheduler.runAutomationNow(automation.id, { source: "lease-test" });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM automation_leases WHERE automation_id=?").get(automation.id) as { n: number }).n, 1);
+  await assert.rejects(
+    () => scheduler.runAutomationNow(automation.id, { source: "duplicate-worker" }),
+    /另一个实例执行/,
+  );
+  await first;
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM automation_leases WHERE automation_id=?").get(automation.id) as { n: number }).n, 0);
+});
+
+test("expired scheduled jobs are reclaimed and completed after a worker crash", async () => {
+  const before = (db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n;
+  const automation = store.createAutomation({
+    projectId: "proj-qihang-growth",
+    name: "崩溃恢复测试",
+    trigger: "每天9:00",
+    triggerType: "schedule",
+    action: "创建恢复待办",
+    actionType: "tool_call",
+    actionToolId: "tool-business-action",
+    actionInput: { operation: "create_task", title: "崩溃恢复待办" },
+  });
+  assert.ok(automation);
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO automation_jobs
+      (id,automation_id,trigger_source,trigger_event,dedupe_key,status,attempts,max_attempts,available_at,lease_owner,lease_expires_at,created_at,updated_at)
+    VALUES ('ajob-recovery-test',?,'schedule','{}',?,'running',0,3,?,'dead-worker','2000-01-01T00:00:00.000Z',?,?)
+  `).run(automation.id, `recovery:${automation.id}`, now, now, now);
+  assert.equal(await scheduler.drainAutomationJobs(undefined, 1), 1);
+  assert.equal((db.prepare("SELECT status FROM automation_jobs WHERE id='ajob-recovery-test'").get() as { status: string }).status, "success");
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE enterprise_id='ent-qihang'").get() as { n: number }).n, before + 1);
+});
+
+test("expired integration runs are reclaimed exactly once", async () => {
+  let calls = 0;
+  registerIntegration("test-recovery", async () => {
+    calls += 1;
+    return { ok: true, response: "recovered" };
+  });
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO integration_runs
+      (id,integration_type,status,request_payload,response_payload,error_message,retry_count,max_retries,next_retry_at,created_at,lease_owner,lease_expires_at)
+    VALUES ('int-recovery-test','test-recovery','running','{}','','',0,3,?,?, 'dead-worker','2000-01-01T00:00:00.000Z')
+  `).run(now, now);
+  assert.equal(await drainIntegrationRuns(1), 1);
+  assert.equal(calls, 1);
+  assert.equal((db.prepare("SELECT status FROM integration_runs WHERE id='int-recovery-test'").get() as { status: string }).status, "success");
+});
+
+test("failed event deliveries resume without duplicating successful handlers", async () => {
+  const eventType = `durable-event-${Date.now()}`;
+  let stableCalls = 0;
+  let retryCalls = 0;
+  onEvent(eventType, () => { stableCalls += 1; }, `${eventType}:stable`);
+  onEvent(eventType, () => {
+    retryCalls += 1;
+    if (retryCalls === 1) throw new Error("transient event failure");
+  }, `${eventType}:retry`);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  const eventId = `evt-durable-${Date.now()}`;
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO business_events
+      (id,event_type,object_type,object_id,payload,source,created_at,processed,dispatch_status,attempt_count,max_attempts,available_at)
+    VALUES (?,?,'customer','cust-durable-event','{}','test',?,0,'pending',0,5,?)
+  `).run(eventId, eventType, now, now);
+
+  await drainBusinessEvents(undefined, 10);
+  assert.equal(stableCalls, 1);
+  assert.equal(retryCalls, 1);
+  assert.equal((db.prepare("SELECT processed FROM business_events WHERE id=?").get(eventId) as { processed: number }).processed, 0);
+
+  db.prepare(`
+    UPDATE business_event_deliveries
+    SET available_at=?, lease_expires_at=NULL
+    WHERE event_id=? AND status='failed'
+  `).run(new Date(Date.now() - 1_000).toISOString(), eventId);
+  await drainBusinessEvents(undefined, 10);
+
+  assert.equal(stableCalls, 1);
+  assert.equal(retryCalls, 2);
+  assert.equal((db.prepare("SELECT processed FROM business_events WHERE id=?").get(eventId) as { processed: number }).processed, 1);
+});
+
+test("expired maintenance jobs are reclaimed after a process crash", async () => {
+  const taskName = `maintenance-test-${Date.now()}`;
+  let executions = 0;
+  registerDailyMaintenanceTask({
+    name: taskName,
+    hour: 0,
+    minute: 0,
+    run: async () => { executions += 1; },
+  });
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO maintenance_runs
+      (task_name,schedule_slot,status,attempts,max_attempts,available_at,lease_owner,lease_expires_at,created_at,updated_at)
+    VALUES (?,?,'running',1,3,?,'crashed-worker',?,?,?)
+  `).run(taskName, "2026-07-30", now, new Date(Date.now() - 1_000).toISOString(), now, now);
+  const logger = { info() {}, error() {} };
+
+  assert.equal(await drainMaintenanceRuns(logger, 1), 1);
+  const row = db.prepare("SELECT status,attempts FROM maintenance_runs WHERE task_name=? AND schedule_slot=?")
+    .get(taskName, "2026-07-30") as { status: string; attempts: number };
+  assert.equal(row.status, "success");
+  assert.equal(row.attempts, 2);
+  assert.equal(executions, 1);
 });
 
 test("workflow editor graph survives create, update and reload", () => {

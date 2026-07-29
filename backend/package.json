@@ -8,7 +8,9 @@
     "build": "tsc -p tsconfig.json && mkdir -p dist/db/migrations && cp src/db/schema.sql src/db/seed.sql dist/db/ && cp src/db/migrations/*.sql dist/db/migrations/",
     "start": "node dist/main.js",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "schema:snapshot": "tsx scripts/generate-schema-snapshot.ts",
+    "schema:check": "tsx scripts/generate-schema-snapshot.ts --check"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.87",

@@ -169,6 +169,8 @@ export function getDb(): Database.Database {
 
     db = new Database(DB_PATH);
     db.pragma("journal_mode = WAL");
+    db.pragma("synchronous = NORMAL");
+    db.pragma("busy_timeout = 5000");
     db.pragma("foreign_keys = OFF");
 
     const schema = readFileSync(join(__dirname, "schema.sql"), "utf-8");

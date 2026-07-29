@@ -19,6 +19,8 @@ import { businessActionExecute } from "./tools/executors/business-action.js";
 import { browserCheckExecute } from "./tools/executors/browser-check.js";
 import { runAllPersonaSummaries } from "./store.js";
 import { startAutomationScheduler } from "./automation/scheduler.js";
+import { startEventDispatcher } from "./events/emitter.js";
+import { registerDailyMaintenanceTask, startMaintenanceScheduler } from "./maintenance/scheduler.js";
 
 // Register tool executors so agent can actually execute tools
 registerTool("tool-csv-profile", csvProfile);
@@ -147,28 +149,16 @@ const host = process.env.HOST ?? "0.0.0.0";
 
 // Initialize rules engine event subscription
 setupRulesExecutor();
+registerDailyMaintenanceTask({
+  name: "persona-memory-summarization",
+  hour: 0,
+  minute: 0,
+  run: runAllPersonaSummaries,
+});
 
 await app.listen({ port, host });
+startEventDispatcher(app.log);
 startAutomationScheduler(app.log);
 startIntegrationScheduler();
+startMaintenanceScheduler(app.log);
 startFeishuEventStream(app.log);
-
-// Schedule daily midnight persona memory summarization
-function scheduleMidnight() {
-  const now = new Date();
-  const midnight = new Date(now);
-  midnight.setHours(24, 0, 0, 0);
-  const msUntilMidnight = midnight.getTime() - now.getTime();
-
-  setTimeout(async () => {
-    app.log.info("Running daily persona memory summarization...");
-    try {
-      await runAllPersonaSummaries();
-      app.log.info("Daily summarization complete.");
-    } catch (e) {
-      app.log.error({ err: e }, "Daily summarization failed");
-    }
-    scheduleMidnight(); // schedule next run
-  }, msUntilMidnight);
-}
-scheduleMidnight();
