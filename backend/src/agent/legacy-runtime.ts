@@ -25,6 +25,8 @@ export class LegacyAgentRuntime implements AgentRuntime {
             ...toolInput,
             _enterpriseId: input.context.enterpriseId,
             _projectId: input.context.projectId,
+            _enterpriseIds: input.context.enterpriseIds ?? [input.context.enterpriseId],
+            _projectIds: input.context.projectIds ?? [input.context.projectId],
             _conversationId: input.sessionId,
             _agentReason: options.reason,
           },

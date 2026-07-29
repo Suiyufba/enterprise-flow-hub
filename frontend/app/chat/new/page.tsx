@@ -78,50 +78,53 @@ export default function Home() {
   const filteredProjects = workspace?.projects.filter((p) => p.enterpriseId === enterpriseId) ?? [];
 
   useEffect(() => {
-    if (workspace.enterprises[0] && !enterpriseId) {
-      setEnterpriseId(workspace.enterprises[0].id);
-    }
     const urlProjectId = new URLSearchParams(window.location.search).get("projectId");
     if (urlProjectId && workspace.projects.some((p) => p.id === urlProjectId)) {
       setProjectId(urlProjectId);
       const proj = workspace.projects.find((p) => p.id === urlProjectId);
       if (proj) setEnterpriseId(proj.enterpriseId);
-    } else if (workspace.projects[0] && !projectId) {
-      setProjectId(workspace.projects[0].id);
     }
-    if (workspace.personas[0] && !personaId) {
-      setPersonaId(workspace.personas[0].id);
-    }
-  }, [enterpriseId, personaId, projectId, workspace.projects, workspace.personas, workspace.enterprises]);
+  }, [workspace.projects]);
 
   async function submit() {
     if ((!need.trim() && attachments.length === 0) || loading) return;
     setLoading(true);
 
     try {
-      // 1. Create a conversation so it persists in the sidebar
-      if (!enterpriseId) {
+      // A conversation keeps one anchor project for files and sidebar grouping,
+      // while its persisted scope may include every visible project/subcategory.
+      const scopeProjects = projectId
+        ? workspace.projects.filter((project) => project.id === projectId)
+        : enterpriseId
+          ? workspace.projects.filter((project) => project.enterpriseId === enterpriseId)
+          : workspace.projects;
+      const anchorProject = scopeProjects[0];
+      if (!anchorProject) {
         setLoading(false);
-        showToast("请先选择企业", "error");
+        showToast("当前没有可用项目", "error");
         return;
       }
+      const scopeEnterpriseIds = [...new Set(scopeProjects.map((project) => project.enterpriseId))];
+      const scopeProjectIds = scopeProjects.map((project) => project.id);
 
-      const alignedAttachments = await alignChatAttachments(attachments, projectId);
+      const alignedAttachments = await alignChatAttachments(attachments, anchorProject.id);
       setAttachments(alignedAttachments);
       const conversation = await fetchJson<ConversationDetail>("/conversations", {
         method: "POST",
         body: JSON.stringify({
-          enterpriseId,
-          projectId,
+          enterpriseId: anchorProject.enterpriseId,
+          projectId: anchorProject.id,
+          scopeEnterpriseIds,
+          scopeProjectIds,
+          personaId,
           title: need.trim().slice(0, 30) || `分析 ${alignedAttachments[0]?.filename ?? "附件"}`,
         }),
       });
 
       // Immediately navigate to chat page with initial message
       const msg = encodeURIComponent(need.trim() || "请分析本轮上传的附件。");
-      const persona = personaId ? `&personaId=${encodeURIComponent(personaId)}` : "";
       const files = alignedAttachments.length ? `&fileIds=${encodeURIComponent(alignedAttachments.map((file) => file.id).join(","))}` : "";
-      router.push(`/chat/${conversation.id}?msg=${msg}${persona}${files}`);
+      router.push(`/chat/${conversation.id}?msg=${msg}${files}`);
     } catch (e) {
       let errMsg = "创建对话失败，请重试";
       try {
@@ -206,23 +209,22 @@ export default function Home() {
         <div className="chat-composer-controls">
           <ChatAttachmentPicker
             ref={attachmentPickerRef}
-            projectId={projectId}
+            projectId={projectId || filteredProjects[0]?.id || workspace.projects[0]?.id || ""}
             files={attachments}
             onChange={setAttachments}
           />
           <div className="project-picker enterprise-picker">
             <AppIcon name="project" className="project-icon" />
             <select
-              aria-label="选择企业"
+                    aria-label="选择项目"
               className="project-select"
               value={enterpriseId}
               onChange={(e) => {
                 setEnterpriseId(e.target.value);
-                const first = workspace?.projects.find((p) => p.enterpriseId === e.target.value);
-                setProjectId(first?.id ?? "");
+                setProjectId("");
               }}
             >
-              <option value="">选择企业</option>
+              <option value="">全部项目</option>
               {workspace?.enterprises.map((ent) => (
                 <option key={ent.id} value={ent.id}>{ent.name}</option>
               ))}
@@ -231,26 +233,25 @@ export default function Home() {
           <div className="project-picker subproject-picker">
             <span className="project-picker-label">子类</span>
             <select
-              aria-label="选择项目"
+              aria-label="选择子类"
               className="project-select"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
               disabled={!enterpriseId}
             >
+              <option value="">{enterpriseId ? "全部子类" : "---"}</option>
               {filteredProjects.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}</option>
               ))}
-              {filteredProjects.length === 0 && (
-                <option value="">{enterpriseId ? "暂无项目" : "请先选企业"}</option>
-              )}
             </select>
           </div>
           <select
             className="access-select"
             value={personaId}
             onChange={(e) => setPersonaId(e.target.value)}
-            aria-label="选择角色"
+                    aria-label="选择专员"
           >
+            <option value="">不指定专员</option>
             {workspace?.personas.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}

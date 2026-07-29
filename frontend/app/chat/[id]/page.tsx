@@ -165,12 +165,20 @@ export default function ChatPage() {
       setDetail(d);
       setWorkspace(w);
       setLocalMessages((current) => current.length > 0 ? current : d.messages);
-      const requestedPersona = w.personas.find((persona) => persona.id === initialPersonaId);
-      if (requestedPersona || w.personas[0]) setPersonaId(requestedPersona?.id ?? w.personas[0].id);
+      const resolvedPersonaId = initialPersonaId !== null ? initialPersonaId : d.personaId;
+      if (resolvedPersonaId === "") {
+        setPersonaId("");
+      } else {
+        const requestedPersona = w.personas.find((persona) => persona.id === resolvedPersonaId);
+        if (requestedPersona || w.personas[0]) setPersonaId(requestedPersona?.id ?? w.personas[0].id);
+      }
       const currentProject = w.projects.find((project) => project.id === d.projectId);
       if (currentProject) {
-        setContextEnterpriseId(currentProject.enterpriseId);
-        setContextProjectIds(w.projects.filter((project) => project.enterpriseId === currentProject.enterpriseId).map((project) => project.id));
+        const scopedProjectIds = d.scopeProjectIds?.length ? d.scopeProjectIds : [d.projectId];
+        const scopedEnterpriseIds = d.scopeEnterpriseIds?.length ? d.scopeEnterpriseIds : [currentProject.enterpriseId];
+        setContextScope(scopedProjectIds.length === 1 ? "current_project" : "selected_projects");
+        setContextEnterpriseId(scopedEnterpriseIds.length === 1 ? scopedEnterpriseIds[0] : "");
+        setContextProjectIds(scopedProjectIds);
       }
     } catch {
       setError("加载对话失败");
@@ -218,7 +226,7 @@ export default function ChatPage() {
         const conn = connectSSE(`/conversations/${id}/messages/stream`, {
           content,
           fileIds: initialFileIds,
-          personaId: personaId || undefined,
+          personaId,
           skillIds: [],
           contextScope,
           contextProjectIds,
@@ -405,7 +413,11 @@ export default function ChatPage() {
 
   function updateContextEnterprise(enterpriseId: string) {
     setContextEnterpriseId(enterpriseId);
-    setContextProjectIds(workspace?.projects.filter((project) => project.enterpriseId === enterpriseId).map((project) => project.id) ?? []);
+    setContextProjectIds(
+      workspace?.projects
+        .filter((project) => !enterpriseId || project.enterpriseId === enterpriseId)
+        .map((project) => project.id) ?? [],
+    );
   }
 
   async function addTag() {
@@ -518,7 +530,7 @@ export default function ChatPage() {
       const conn = connectSSE(`/conversations/${id}/messages/stream`, {
         content: userContent,
         fileIds: currentAttachments.map((file) => file.id),
-        personaId: personaId || undefined,
+        personaId,
         skillIds: [],
         contextScope,
         contextProjectIds,
@@ -901,9 +913,7 @@ export default function ChatPage() {
             onChange={(e) => setPersonaId(e.target.value)}
             aria-label="选择角色"
           >
-            {workspace?.personas.length === 0 && (
-              <option value="">系统默认角色</option>
-            )}
+            <option value="">不指定专员</option>
             {workspace?.personas.map((persona) => (
               <option key={persona.id} value={persona.id}>
                 {persona.name}
@@ -926,6 +936,7 @@ export default function ChatPage() {
               onChange={(e) => updateContextEnterprise(e.target.value)}
               aria-label="选择要结合的企业资料"
             >
+              <option value="">全部项目</option>
               {workspace?.enterprises.map((enterprise) => (
                 <option key={enterprise.id} value={enterprise.id}>
                   {enterprise.name}

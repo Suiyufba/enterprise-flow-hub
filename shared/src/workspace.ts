@@ -82,6 +82,9 @@ export const ConversationSchema = z.object({
   id: z.string(),
   enterpriseId: z.string(),
   projectId: z.string(),
+  scopeEnterpriseIds: z.array(z.string()).optional(),
+  scopeProjectIds: z.array(z.string()).optional(),
+  personaId: z.string().optional(),
   title: z.string(),
   tags: z.array(z.string()),
   createdAt: z.string(),
@@ -381,6 +384,9 @@ export const PluginConfigResponseSchema = z.object({
 export const CreateConversationRequestSchema = z.object({
   enterpriseId: z.string(),
   projectId: z.string(),
+  scopeEnterpriseIds: z.array(z.string()).optional(),
+  scopeProjectIds: z.array(z.string()).optional(),
+  personaId: z.string().optional(),
   title: z.string().min(1).max(120),
 });
 

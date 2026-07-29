@@ -211,12 +211,20 @@ export class ClaudeCodeRuntime implements AgentRuntime {
       ...input.orchestration?.preferredToolIds ?? [],
       ...input.skills.flatMap((skill) => skill.toolIds),
     ]);
+    const broadProjectScope = (input.context.projectIds?.length ?? 1) !== 1;
+    const singleProjectTools = new Set([
+      "tool-business-action",
+      "tool-create-library-item",
+      "tool-create-automation",
+      "tool-csv-profile",
+    ]);
     const enabledTools = input.tools.filter((definition) =>
       definition.status === "enabled"
       && definition.risk !== "admin"
       && permittedToolIds.has(definition.id)
       && input.orchestration?.route !== "conversation"
       && input.orchestration?.intent !== "feishu"
+      && (!broadProjectScope || !singleProjectTools.has(definition.id))
       // A request for live Feishu group content must not silently fall back to
       // EFH's database or library. Those sources are not a replica of Feishu.
       && (!feishuGroupLookup || !["tool-business-query", "tool-mcp-company-context"].includes(definition.id)),
@@ -240,6 +248,8 @@ export class ClaudeCodeRuntime implements AgentRuntime {
           ...(args as Record<string, unknown>),
           _enterpriseId: input.context.enterpriseId,
           _projectId: input.context.projectId,
+          _enterpriseIds: input.context.enterpriseIds ?? [input.context.enterpriseId],
+          _projectIds: input.context.projectIds ?? [input.context.projectId],
           _conversationId: input.sessionId,
         };
         pendingEvents.push({

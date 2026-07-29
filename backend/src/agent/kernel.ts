@@ -33,6 +33,8 @@ export type AgentKernelContext = {
   projectContext: string;
   enterpriseId: string;
   projectId: string;
+  enterpriseIds?: string[];
+  projectIds?: string[];
   historyNote?: string;
 };
 

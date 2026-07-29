@@ -398,6 +398,9 @@ export async function workspaceRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.flatten() });
     }
     if (!canAccessEnterprise(request, parsed.data.enterpriseId, reply)) return;
+    for (const enterpriseId of parsed.data.scopeEnterpriseIds ?? [parsed.data.enterpriseId]) {
+      if (!canAccessEnterprise(request, enterpriseId, reply)) return;
+    }
     const detail = createConversation(parsed.data);
     if (!detail) {
       return reply.status(400).send({ error: "Project does not belong to enterprise" });
@@ -548,22 +551,45 @@ export async function workspaceRoutes(app: FastifyInstance) {
     const personas = listPersonas();
     const skills = listSkills();
     const tools = listTools();
-    const persona = personas.find((item) => item.id === parsed.data.personaId) ?? personas[0];
+    const requestedPersonaId = parsed.data.personaId !== undefined
+      ? parsed.data.personaId
+      : before.personaId;
+    const persona = requestedPersonaId === ""
+      ? undefined
+      : personas.find((item) => item.id === requestedPersonaId) ?? personas[0];
     const selectedSkillIds = parsed.data.skillIds?.length ? parsed.data.skillIds : persona?.defaultSkillIds ?? [];
     const selectedSkills = skills.filter((item) => selectedSkillIds.includes(item.id));
     const { provider, thinkingProvider } = getAgentRuntimeProviders(persona);
     if (!provider) {
       return reply.status(400).send({ error: "没有找到可用的 AI 模型账号" });
     }
-    const contextLabel =
-      parsed.data.contextScope === "selected_projects"
-        ? `结合 ${parsed.data.contextProjectIds?.length ?? 0} 个指定项目资料`
-        : "仅分析当前项目资料";
-    const contextProjectIds =
+    const requestedContextProjectIds =
       parsed.data.contextScope === "selected_projects" && parsed.data.contextProjectIds?.length
         ? parsed.data.contextProjectIds
-        : [before.projectId];
-    const projectContext = buildProjectContext(before.enterpriseId, contextProjectIds);
+        : before.scopeProjectIds?.length
+          ? before.scopeProjectIds
+          : [before.projectId];
+    const workspace = getWorkspace();
+    const contextProjects = workspace.projects.filter((project) =>
+      requestedContextProjectIds.includes(project.id)
+      && (actor?.role === "admin" || !actor?.enterpriseId || actor.enterpriseId === project.enterpriseId),
+    );
+    const contextProjectIds = contextProjects.map((project) => project.id);
+    if (contextProjectIds.length === 0) {
+      return reply.status(400).send({ error: "当前对话没有可访问的项目范围" });
+    }
+    const contextEnterpriseIds = [...new Set(contextProjects.map((project) => project.enterpriseId))];
+    const contextLabel = contextEnterpriseIds.length > 1
+      ? `分析全部 ${contextEnterpriseIds.length} 个项目、共 ${contextProjectIds.length} 个业务子类`
+      : contextProjectIds.length > 1
+        ? `分析当前项目的全部 ${contextProjectIds.length} 个业务子类`
+        : "仅分析当前业务子类";
+    const projectContext = contextEnterpriseIds.map((enterpriseId) => {
+      const enterpriseProjectIds = contextProjects
+        .filter((project) => project.enterpriseId === enterpriseId)
+        .map((project) => project.id);
+      return buildProjectContext(enterpriseId, enterpriseProjectIds);
+    }).filter(Boolean).join("\n\n---\n\n");
 
     // Load history
     const { db } = await import("../store.js");
@@ -667,8 +693,10 @@ export async function workspaceRoutes(app: FastifyInstance) {
           conversationTitle: before.title,
           contextLabel,
           projectContext,
-          enterpriseId: before.enterpriseId,
-          projectId: before.projectId,
+          enterpriseId: contextEnterpriseIds.length === 1 ? contextEnterpriseIds[0] : before.enterpriseId,
+          projectId: contextProjectIds.length === 1 ? contextProjectIds[0] : "",
+          enterpriseIds: contextEnterpriseIds,
+          projectIds: contextProjectIds,
         },
         sessionId: id,
         abortController,

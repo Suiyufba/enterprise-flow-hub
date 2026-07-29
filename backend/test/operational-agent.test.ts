@@ -351,7 +351,7 @@ test("Feishu summaries retain action and question sections when the model omits 
 test("fresh database applies all migrations and operational MCP definitions", () => {
   assert.equal((db.pragma("integrity_check")[0] as { integrity_check: string }).integrity_check, "ok");
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM enterprises").get() as { n: number }).n, 2);
-  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 23);
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM _migrations").get() as { n: number }).n, 24);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
   for (const table of tables) {
     assert.equal((db.prepare(`PRAGMA foreign_key_list(\"${table.name}\")`).all() as unknown[]).length, 0, `${table.name} should not have database foreign keys`);
@@ -363,6 +363,7 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "embedding_model"));
   assert.ok((db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name: string }>).some((column) => column.name === "provider_type"));
   assert.ok((db.prepare("PRAGMA table_info(agent_model_configs)").all() as Array<{ name: string }>).some((column) => column.name === "executor_provider_id"));
+  assert.ok((db.prepare("PRAGMA table_info(conversations)").all() as Array<{ name: string }>).some((column) => column.name === "scope_project_ids"));
   for (const table of ["customers", "suppliers", "products", "orders", "payments", "invoices", "tasks", "files"]) {
     assert.ok((db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).some((column) => column.name === "project_id"));
   }
@@ -381,6 +382,42 @@ test("fresh database applies all migrations and operational MCP definitions", ()
   assert.equal(
     (db.prepare("SELECT COUNT(*) AS n FROM agent_personas WHERE default_skill_ids IS NULL OR default_skill_ids IN ('','[]')").get() as { n: number }).n,
     0,
+  );
+});
+
+test("conversation keeps all-project scope and an explicit no-persona selection", async () => {
+  const conversation = store.createConversation({
+    enterpriseId: "ent-qihang",
+    projectId: "proj-qihang-growth",
+    scopeEnterpriseIds: ["ent-qihang", "ent-yunshan"],
+    scopeProjectIds: ["proj-qihang-growth", "proj-qihang-daily", "proj-yunshan-orders"],
+    personaId: "",
+    title: "全部项目范围",
+  });
+  assert.ok(conversation);
+  assert.deepEqual(conversation.scopeEnterpriseIds, ["ent-qihang", "ent-yunshan"]);
+  assert.deepEqual(conversation.scopeProjectIds, ["proj-qihang-growth", "proj-qihang-daily", "proj-yunshan-orders"]);
+  assert.equal(conversation.personaId, "");
+
+  const result = JSON.parse(await businessQueryExecute({
+    _enterpriseId: "ent-qihang",
+    _enterpriseIds: ["ent-qihang", "ent-yunshan"],
+    _projectIds: ["proj-qihang-growth", "proj-qihang-daily", "proj-yunshan-orders"],
+    resource: "dashboard",
+  })) as { scope: string; enterpriseCount: number; results: unknown[] };
+  assert.equal(result.scope, "all_projects");
+  assert.equal(result.enterpriseCount, 2);
+  assert.equal(result.results.length, 2);
+
+  await assert.rejects(
+    businessActionExecute({
+      _enterpriseId: "ent-qihang",
+      _enterpriseIds: ["ent-qihang", "ent-yunshan"],
+      _projectIds: ["proj-qihang-growth", "proj-qihang-daily", "proj-yunshan-orders"],
+      operation: "create_task",
+      title: "范围不明确",
+    }),
+    /选择一个具体业务子类/,
   );
 });
 

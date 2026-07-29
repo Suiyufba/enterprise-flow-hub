@@ -142,6 +142,42 @@ function customerValueRanking(enterpriseId: string, limit: number | undefined, p
 
 export async function businessQueryExecute(input: Record<string, unknown>): Promise<string> {
   const enterpriseId = typeof input._enterpriseId === "string" ? input._enterpriseId : "";
+  const enterpriseIds = Array.isArray(input._enterpriseIds)
+    ? [...new Set(input._enterpriseIds.filter((item): item is string => typeof item === "string" && Boolean(item)))]
+    : [];
+  if (enterpriseIds.length > 1) {
+    const requestedProjectIds = Array.isArray(input._projectIds)
+      ? input._projectIds.filter((item): item is string => typeof item === "string" && Boolean(item))
+      : [];
+    const projectRows = requestedProjectIds.length
+      ? getDb().prepare(
+        `SELECT id, enterprise_id FROM projects WHERE id IN (${requestedProjectIds.map(() => "?").join(",")})`,
+      ).all(...requestedProjectIds) as Array<{ id: string; enterprise_id: string }>
+      : [];
+    const results = [];
+    for (const scopedEnterpriseId of enterpriseIds) {
+      const scopedProjectIds = projectRows
+        .filter((project) => project.enterprise_id === scopedEnterpriseId)
+        .map((project) => project.id);
+      const output = await businessQueryExecute({
+        ...input,
+        _enterpriseId: scopedEnterpriseId,
+        _enterpriseIds: [scopedEnterpriseId],
+        _projectId: scopedProjectIds.length === 1 ? scopedProjectIds[0] : "",
+        _projectIds: scopedProjectIds,
+      });
+      results.push({
+        enterpriseId: scopedEnterpriseId,
+        result: JSON.parse(output) as unknown,
+      });
+    }
+    return JSON.stringify({
+      ok: true,
+      scope: "all_projects",
+      enterpriseCount: enterpriseIds.length,
+      results,
+    });
+  }
   const resource = typeof input.resource === "string" ? input.resource.trim().toLowerCase() : "dashboard";
   if (!enterpriseId) throw new Error("缺少当前企业上下文");
   const requestedProjectId = typeof input._projectId === "string" && input._projectId ? input._projectId : undefined;

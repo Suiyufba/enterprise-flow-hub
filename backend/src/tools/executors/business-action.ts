@@ -105,6 +105,12 @@ export async function businessActionExecute(input: Record<string, unknown>): Pro
   const enterpriseId = text(input, "_enterpriseId");
   const operation = text(input, "operation");
   if (!enterpriseId) throw new Error("缺少当前企业上下文");
+  const projectIds = Array.isArray(input._projectIds)
+    ? input._projectIds.filter((item): item is string => typeof item === "string" && Boolean(item))
+    : undefined;
+  if (projectIds && projectIds.length !== 1) {
+    throw new Error("修改业务数据前需要选择一个具体业务子类");
+  }
   const projectId = resolveProjectId(enterpriseId, text(input, "_projectId") || undefined);
 
   if (operation === "create_task") {

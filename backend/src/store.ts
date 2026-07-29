@@ -1399,6 +1399,9 @@ function rowToConversation(r: Record<string, unknown>): Conversation {
     id: r.id as string,
     enterpriseId: r.enterprise_id as string,
     projectId: r.project_id as string,
+    scopeEnterpriseIds: jsonParse<string[]>(r.scope_enterprise_ids as string, [r.enterprise_id as string]),
+    scopeProjectIds: jsonParse<string[]>(r.scope_project_ids as string, [r.project_id as string]),
+    personaId: (r.persona_id as string | null) ?? undefined,
     title: r.title as string,
     tags: jsonParse<string[]>(r.tags as string, []),
     createdAt: r.created_at as string,
@@ -1437,11 +1440,27 @@ export function createConversation(input: CreateConversationRequest): Conversati
   if (!projectBelongsToEnterprise(input.projectId, input.enterpriseId)) {
     return undefined;
   }
+  const requestedEnterpriseIds = input.scopeEnterpriseIds?.filter(Boolean) ?? [];
+  const requestedProjectIds = input.scopeProjectIds?.filter(Boolean) ?? [];
+  const scopeEnterpriseIds = [...new Set(requestedEnterpriseIds.length ? requestedEnterpriseIds : [input.enterpriseId])];
+  const scopeProjectIds = [...new Set(requestedProjectIds.length ? requestedProjectIds : [input.projectId])];
+  const scopedProjects = db()
+    .prepare(`SELECT id, enterprise_id FROM projects WHERE id IN (${scopeProjectIds.map(() => "?").join(",")})`)
+    .all(...scopeProjectIds) as Array<{ id: string; enterprise_id: string }>;
+  if (
+    scopedProjects.length !== scopeProjectIds.length
+    || scopedProjects.some((project) => !scopeEnterpriseIds.includes(project.enterprise_id))
+  ) {
+    return undefined;
+  }
 
   const conversation: Conversation = {
     id: `chat-${randomUUID()}`,
     enterpriseId: input.enterpriseId,
     projectId: input.projectId,
+    scopeEnterpriseIds,
+    scopeProjectIds,
+    personaId: input.personaId,
     title: input.title.trim(),
     tags: [],
     createdAt: new Date().toISOString(),
@@ -1449,10 +1468,20 @@ export function createConversation(input: CreateConversationRequest): Conversati
 
   db()
     .prepare(
-      `INSERT INTO conversations (id, enterprise_id, project_id, title, tags, created_at)
-       VALUES (?, ?, ?, ?, '[]', ?)`,
+      `INSERT INTO conversations (
+         id, enterprise_id, project_id, scope_enterprise_ids, scope_project_ids, persona_id, title, tags, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, '[]', ?)`,
     )
-    .run(conversation.id, conversation.enterpriseId, conversation.projectId, conversation.title, conversation.createdAt);
+    .run(
+      conversation.id,
+      conversation.enterpriseId,
+      conversation.projectId,
+      JSON.stringify(scopeEnterpriseIds),
+      JSON.stringify(scopeProjectIds),
+      conversation.personaId ?? null,
+      conversation.title,
+      conversation.createdAt,
+    );
 
   return { ...conversation, messages: [] };
 }
@@ -1478,11 +1507,14 @@ export function updateConversation(id: string, input: UpdateConversationRequest)
     .all(id) as Record<string, unknown>[];
 
   return {
-    id: current.id,
-    enterpriseId: current.enterpriseId,
-    projectId,
-    title,
-    tags,
+      id: current.id,
+      enterpriseId: current.enterpriseId,
+      projectId,
+      scopeEnterpriseIds: current.scopeEnterpriseIds,
+      scopeProjectIds: current.scopeProjectIds,
+      personaId: current.personaId,
+      title,
+      tags,
     createdAt: current.createdAt,
     messages: messages.map(rowToMessage),
   };
@@ -1605,22 +1637,35 @@ export async function addMessage(conversationId: string, input: AddMessageReques
   const personas = listPersonas();
   const skills = listSkills();
   const tools = listTools();
-  const persona = personas.find((item) => item.id === input.personaId) ?? personas[0];
+  const requestedPersonaId = input.personaId !== undefined ? input.personaId : conversation.personaId;
+  const persona = requestedPersonaId === ""
+    ? undefined
+    : personas.find((item) => item.id === requestedPersonaId) ?? personas[0];
   const selectedSkillIds = input.skillIds?.length ? input.skillIds : persona?.defaultSkillIds ?? [];
   const selectedSkills = skills.filter((item) => selectedSkillIds.includes(item.id));
   const { provider, thinkingProvider } = getAgentRuntimeProviders(persona);
   if (!provider) {
     throw new Error("NO_PROVIDER: 没有找到可用的 AI 模型账号，请在设置中添加并启用一个模型");
   }
-  const contextLabel =
-    input.contextScope === "selected_projects"
-      ? `结合 ${input.contextProjectIds?.length ?? 0} 个指定项目资料`
-      : "仅分析当前项目资料";
   const contextProjectIds =
     input.contextScope === "selected_projects" && input.contextProjectIds?.length
       ? input.contextProjectIds
-      : [conversation.projectId];
-  const projectContext = buildProjectContext(conversation.enterpriseId, contextProjectIds);
+      : conversation.scopeProjectIds?.length
+        ? conversation.scopeProjectIds
+        : [conversation.projectId];
+  const contextProjects = db()
+    .prepare(`SELECT id, enterprise_id FROM projects WHERE id IN (${contextProjectIds.map(() => "?").join(",")})`)
+    .all(...contextProjectIds) as Array<{ id: string; enterprise_id: string }>;
+  const contextEnterpriseIds = [...new Set(contextProjects.map((project) => project.enterprise_id))];
+  const contextLabel = contextEnterpriseIds.length > 1
+    ? `分析全部 ${contextEnterpriseIds.length} 个项目、共 ${contextProjects.length} 个业务子类`
+    : contextProjects.length > 1
+      ? `分析当前项目的全部 ${contextProjects.length} 个业务子类`
+      : "仅分析当前业务子类";
+  const projectContext = contextEnterpriseIds.map((enterpriseId) => buildProjectContext(
+    enterpriseId,
+    contextProjects.filter((project) => project.enterprise_id === enterpriseId).map((project) => project.id),
+  )).filter(Boolean).join("\n\n---\n\n");
   const planSteps = buildAgentPlan({
     contextLabel,
     projectCount: contextProjectIds.length,
@@ -1664,8 +1709,10 @@ export async function addMessage(conversationId: string, input: AddMessageReques
         conversationTitle: conversation.title,
         contextLabel,
         projectContext,
-        enterpriseId: conversation.enterpriseId,
-        projectId: conversation.projectId,
+        enterpriseId: contextEnterpriseIds.length === 1 ? contextEnterpriseIds[0] : conversation.enterpriseId,
+        projectId: contextProjects.length === 1 ? contextProjects[0].id : "",
+        enterpriseIds: contextEnterpriseIds,
+        projectIds: contextProjects.map((project) => project.id),
         historyNote,
       },
       sessionId: conversationId,
