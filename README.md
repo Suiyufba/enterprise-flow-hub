@@ -46,8 +46,10 @@ Enterprise Flow Hub 是面向企业业务操作的 Agent 工作台。用户在�
 | P0 | 前端最小测试套件（api / workspace-context / workflow-graph，vitest + Testing Library） | ✅ 已完成 |
 | P0 | 后端持久化并发测试（租约接管、任务去重、重试至 dead、事件投递至 dead） | ✅ 已完成 |
 | P1 | 修复测试暴露的 runTool 非字符串输出崩溃问题 | ✅ 已完成 |
+| P2 | 前端核心交互测试（WorkflowEditor 渲染交互、SSE 聊天流、Auth 状态机） | ✅ 已完成（前端共 39 tests） |
 | P2 | PostgreSQL 迁移（见评估文档；仅在触发信号出现时启动） | ⏳ 待触发 |
-| P2 | 前端核心交互测试（WorkflowEditor 渲染、聊天流） | ⏳ 待排期 |
+| P3 | E2E 冒烟测试（Playwright：登录 → 对话 → 自动化保存主链路） | ⏳ 待排期 |
+| P3 | 聊天消息组件与 Markdown 渲染测试 | ⏳ 待排期 |
 
 ## Verification
 

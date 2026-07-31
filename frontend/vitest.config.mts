@@ -9,7 +9,7 @@ export default defineConfig({
     alias: {
       // The workspace package points at raw TS source; let Vitest resolve it
       // directly instead of relying on Next.js's transpilation.
-      shared: path.resolve(__dirname, "../shared/src/index.ts"),
+      shared: path.resolve(import.meta.dirname, "../shared/src/index.ts"),
     },
   },
   test: {
