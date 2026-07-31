@@ -21,3 +21,11 @@ output/
 tmp/
 screenshots/
 audit-screenshots/
+
+# Playwright E2E artifacts
+e2e/.tmp/
+playwright-report/
+test-results/
+
+# Backend E2E temp DB
+backend/e2e/.tmp/
