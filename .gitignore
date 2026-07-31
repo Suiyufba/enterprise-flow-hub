@@ -14,3 +14,10 @@ coverage/
 backend/data/
 .claude/
 *.tsbuildinfo
+
+# Generated test/audit artifacts
+.playwright-cli/
+output/
+tmp/
+screenshots/
+audit-screenshots/
