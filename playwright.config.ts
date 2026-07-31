@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { join } from "node:path";
 
 const FRONTEND_URL = process.env.E2E_FRONTEND_URL ?? "http://localhost:3000";
 const BACKEND_URL = process.env.E2E_BACKEND_URL ?? "http://localhost:4000";
@@ -32,13 +33,16 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: {
-        DB_PATH: "e2e/.tmp/efh-e2e.db",
+        DB_PATH: join(__dirname, "backend/e2e/.tmp/efh-e2e.db"),
         AGENT_RUNTIME: "legacy",
         AGENT_FALLBACK_RUNTIME: "legacy",
         AGENT_ORCHESTRATION: "off",
         DEEPSEEK_API_KEY: "stub-key",
         DEEPSEEK_BASE_URL: STUB_URL,
         STUB_AI_URL: STUB_URL,
+        AUTOMATION_POLL_MS: "1000",
+        AUTOMATION_JOB_POLL_MS: "500",
+        AUTOMATION_JOB_LEASE_MS: "30000",
       },
     },
     {
