@@ -25,6 +25,29 @@ Enterprise Flow Hub 是面向企业业务操作的 Agent 工作台。用户在�
 - [当前数据库 Schema](docs/current-schema.md)
 - [API 文档](docs/api.md)
 - [历史截图诊断 MVP 方案](docs/plan.md)
+- [PostgreSQL 迁移评估](docs/postgresql-migration-assessment.md)
+
+## Deployment Boundary（部署边界）
+
+当前生产部署为**单机 Docker Compose + 共享 SQLite WAL 数据卷 + Nginx**。多后端副本共享同一 SQLite 数据库在单机本地磁盘上是安全的（应用层通过 IMMEDIATE 短事务、持久化租约、心跳与去重键协调竞争）。
+
+**不要**把 SQLite 数据文件放到不保证 POSIX 锁语义的普通网络文件系统（NFS/SMB 等），**不要**跨多台物理机共享同一个 SQLite 文件。出现以下任一信号时，按 [PostgreSQL 迁移评估](docs/postgresql-migration-assessment.md) 启动迁移：
+
+1. 需要将后端副本部署到不同物理机；
+2. 单库预计超过 ~20GB 或持续写入 QPS > 500；
+3. 客户要求使用托管数据库。
+
+## Roadmap（当前计划）
+
+| 优先级 | 事项 | 状态 |
+| --- | --- | --- |
+| P0 | 仓库卫生：忽略生成产物（.playwright-cli/output/tmp/screenshots），提交积压改动 | ✅ 已完成 |
+| P0 | CI 质量关卡：lint + 后端测试 + schema:check + 前后端构建（ci.yml，deploy 前置 checks） | ✅ 已完成 |
+| P0 | 前端最小测试套件（api / workspace-context / workflow-graph，vitest + Testing Library） | ✅ 已完成 |
+| P0 | 后端持久化并发测试（租约接管、任务去重、重试至 dead、事件投递至 dead） | ✅ 已完成 |
+| P1 | 修复测试暴露的 runTool 非字符串输出崩溃问题 | ✅ 已完成 |
+| P2 | PostgreSQL 迁移（见评估文档；仅在触发信号出现时启动） | ⏳ 待触发 |
+| P2 | 前端核心交互测试（WorkflowEditor 渲染、聊天流） | ⏳ 待排期 |
 
 ## Verification
 
