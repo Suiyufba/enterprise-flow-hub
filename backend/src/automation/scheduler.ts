@@ -142,7 +142,7 @@ async function executeAutomation(automation: Automation, event?: Record<string, 
   throw new Error(`动作类型 ${automation.actionType} 尚未接入执行器，已阻止假运行`);
 }
 
-function acquireAutomationLease(automationId: string, ownerId: string): boolean {
+export function acquireAutomationLease(automationId: string, ownerId: string): boolean {
   const now = new Date();
   const nowIso = now.toISOString();
   const expires = new Date(now.getTime() + JOB_LEASE_MS).toISOString();
@@ -249,7 +249,7 @@ function scheduleDedupeKey(automation: Automation, now: Date, timeZone: string):
   return `schedule:${automation.id}:${slot}`;
 }
 
-function enqueueScheduledAutomation(automation: Automation, now: Date, timeZone: string): boolean {
+export function enqueueScheduledAutomation(automation: Automation, now: Date, timeZone: string): boolean {
   const active = db().prepare(`
     SELECT id FROM automation_jobs
     WHERE automation_id=? AND status IN ('pending','running','failed')

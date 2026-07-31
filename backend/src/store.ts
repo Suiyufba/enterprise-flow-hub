@@ -890,7 +890,10 @@ async function executeToolOutput(tool: ToolDefinition, input: Record<string, unk
   }
 
   try {
-    return await executor(input);
+    const result = await executor(input);
+    // Executors may return objects; the ToolRun contract requires a string.
+    // Binding a raw object to SQLite would crash runTool's result insert.
+    return typeof result === "string" ? result : JSON.stringify(result);
   } catch (error) {
     return JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "工具执行失败" });
   }
