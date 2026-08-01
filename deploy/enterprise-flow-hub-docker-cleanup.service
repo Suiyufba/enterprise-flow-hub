@@ -6,7 +6,7 @@ After=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/opt/enterprise-flow-hub/cleanup-docker-images.sh --all --until 168h
+ExecStart=/opt/enterprise-flow-hub/cleanup-docker-images.sh --all --until 168h --keep-latest 2
 Nice=19
 IOSchedulingClass=idle
 IOSchedulingPriority=7

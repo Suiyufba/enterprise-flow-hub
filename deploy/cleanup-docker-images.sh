@@ -7,17 +7,20 @@ LOCK_FILE="/opt/enterprise-flow-hub/.cleanup-docker-images.lock"
 usage() {
   cat <<'EOF'
 Usage:
-  ./cleanup-docker-images.sh [--all] [--until DURATION] [--volumes]
+  ./cleanup-docker-images.sh [--all] [--until DURATION] [--keep-latest COUNT] [--volumes]
 
 Options:
   --all      Remove all unused images, not only dangling images.
   --until    Only remove objects older than this Docker duration (default: 168h).
+  --keep-latest
+             Keep only the newest COUNT tagged releases for each repository used
+             by a running container. Running images are always protected by Docker.
   --volumes  Also remove unused anonymous Docker volumes. Do not use this
              unless you are sure important data is stored in named volumes.
 
 Examples:
   ./cleanup-docker-images.sh
-  ./cleanup-docker-images.sh --all --until 168h
+  ./cleanup-docker-images.sh --all --until 168h --keep-latest 2
   ./cleanup-docker-images.sh --all --until 720h --volumes
 EOF
 }
@@ -25,6 +28,7 @@ EOF
 PRUNE_IMAGES_FLAG=""
 PRUNE_VOLUMES_FLAG=""
 RETENTION="168h"
+KEEP_LATEST="0"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -40,6 +44,14 @@ while [ "$#" -gt 0 ]; do
       RETENTION="$2"
       shift 2
       ;;
+    --keep-latest)
+      if [ "$#" -lt 2 ] || [[ ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+        echo "--keep-latest requires a positive integer." >&2
+        exit 2
+      fi
+      KEEP_LATEST="$2"
+      shift 2
+      ;;
     --volumes)
       PRUNE_VOLUMES_FLAG="--volumes"
       shift
@@ -49,7 +61,7 @@ while [ "$#" -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "Unknown option: $arg" >&2
+      echo "Unknown option: $1" >&2
       usage >&2
       exit 2
       ;;
@@ -85,6 +97,39 @@ echo
 echo "== Removing stopped containers =="
 docker container prune -f --filter "until=24h"
 echo
+
+if [ "$KEEP_LATEST" -gt 0 ]; then
+  echo "== Keeping the newest ${KEEP_LATEST} releases per active repository =="
+  mapfile -t active_repositories < <(
+    docker ps --format '{{.Image}}' \
+      | sed -E 's/@sha256:.*$//; s/:[^/:]+$//' \
+      | awk 'NF && !seen[$0]++'
+  )
+
+  for repository in "${active_repositories[@]}"; do
+    mapfile -t tagged_images < <(
+      docker image ls "$repository" --format '{{.Repository}}:{{.Tag}}' \
+        | grep -v ':<none>$' \
+        | while IFS= read -r image; do
+            created="$(docker image inspect --format '{{.Created}}' "$image")"
+            printf '%s\t%s\n' "$created" "$image"
+          done \
+        | sort -r \
+        | cut -f2-
+    )
+
+    if [ "${#tagged_images[@]}" -le "$KEEP_LATEST" ]; then
+      echo "$repository: ${#tagged_images[@]} release(s), nothing to remove."
+      continue
+    fi
+
+    for image in "${tagged_images[@]:$KEEP_LATEST}"; do
+      echo "Removing superseded release: $image"
+      docker image rm "$image"
+    done
+  done
+  echo
+fi
 
 echo "== Removing unused Docker images older than ${RETENTION} =="
 docker image prune -f ${PRUNE_IMAGES_FLAG} --filter "until=${RETENTION}"
