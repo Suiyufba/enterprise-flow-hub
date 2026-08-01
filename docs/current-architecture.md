@@ -158,3 +158,19 @@ flowchart TD
 - 维护任务：`backend/src/maintenance/scheduler.ts`
 - 数据库初始化与迁移：`backend/src/db/index.ts`
 - 当前 Schema 快照：`backend/src/db/current-schema.sql`
+
+## 8. Docker 镜像定期清理
+
+生产服务器安装 `enterprise-flow-hub-docker-cleanup.timer`，默认每周日 04:10（Asia/Shanghai）执行，并随机错峰最多 20 分钟。清理范围为超过 168 小时且未被容器使用的镜像、超过 168 小时的构建缓存和超过 24 小时的停止容器；命名业务数据卷不在清理范围内。
+
+```bash
+# 查看下次执行时间
+systemctl list-timers enterprise-flow-hub-docker-cleanup.timer --all
+
+# 手动执行
+systemctl start enterprise-flow-hub-docker-cleanup.service
+
+# 查看结果
+systemctl show enterprise-flow-hub-docker-cleanup.service -p Result -p ExecMainStatus
+journalctl -u enterprise-flow-hub-docker-cleanup.service -n 100 --no-pager
+```

@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly Enterprise Flow Hub Docker image cleanup
+
+[Timer]
+OnCalendar=Sun *-*-* 04:10:00 Asia/Shanghai
+RandomizedDelaySec=20m
+Persistent=true
+AccuracySec=1m
+Unit=enterprise-flow-hub-docker-cleanup.service
+
+[Install]
+WantedBy=timers.target

@@ -192,7 +192,9 @@ jobs:
           )
           SSH_TARGET="${SSH_USER}@${SSH_HOST}"
           ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "sudo mkdir -p /opt/enterprise-flow-hub && sudo chown ${SSH_USER}:${SSH_USER} /opt/enterprise-flow-hub"
-          tar -C deploy -czf - docker-compose.yml nginx.conf backup-db.sh cleanup-docker-images.sh \
+          tar -C deploy -czf - \
+              docker-compose.yml nginx.conf backup-db.sh cleanup-docker-images.sh \
+              enterprise-flow-hub-docker-cleanup.service enterprise-flow-hub-docker-cleanup.timer \
             | ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "tar -xzf - -C /opt/enterprise-flow-hub/"
 
       - name: Deploy on server
@@ -241,6 +243,10 @@ jobs:
           fi
           chmod +x /opt/enterprise-flow-hub/backup-db.sh
           chmod +x /opt/enterprise-flow-hub/cleanup-docker-images.sh
+          sudo install -m 0644 /opt/enterprise-flow-hub/enterprise-flow-hub-docker-cleanup.service /etc/systemd/system/enterprise-flow-hub-docker-cleanup.service
+          sudo install -m 0644 /opt/enterprise-flow-hub/enterprise-flow-hub-docker-cleanup.timer /etc/systemd/system/enterprise-flow-hub-docker-cleanup.timer
+          sudo systemctl daemon-reload
+          sudo systemctl enable --now enterprise-flow-hub-docker-cleanup.timer
 
           cat > .env <<ENVEOF
           BACKEND_IMAGE=${BACKEND_IMAGE}
@@ -290,7 +296,6 @@ jobs:
             {
               cat /tmp/enterprise-flow-hub-cron
               echo "20 3 * * * /opt/enterprise-flow-hub/backup-db.sh >> /opt/enterprise-flow-hub/backups/backup.log 2>&1"
-              echo "10 4 * * 0 /opt/enterprise-flow-hub/cleanup-docker-images.sh --all >> /opt/enterprise-flow-hub/backups/docker-cleanup.log 2>&1"
             } | crontab -
             rm -f /tmp/enterprise-flow-hub-cron
           else

@@ -31,6 +31,8 @@ Enterprise Flow Hub 是面向企业业务操作的 Agent 工作台。用户在�
 
 当前生产部署为**单机 Docker Compose + 共享 SQLite WAL 数据卷 + Nginx**。多后端副本共享同一 SQLite 数据库在单机本地磁盘上是安全的（应用层通过 IMMEDIATE 短事务、持久化租约、心跳与去重键协调竞争）。
 
+服务器通过 `enterprise-flow-hub-docker-cleanup.timer` 每周清理超过 7 天且未被容器使用的 Docker 镜像和构建缓存。任务以最低 CPU/IO 优先级运行，不清理业务数据卷，并通过 `Persistent=true` 在服务器错过执行时间后补跑。
+
 **不要**把 SQLite 数据文件放到不保证 POSIX 锁语义的普通网络文件系统（NFS/SMB 等），**不要**跨多台物理机共享同一个 SQLite 文件。出现以下任一信号时，按 [PostgreSQL 迁移评估](docs/postgresql-migration-assessment.md) 启动迁移：
 
 1. 需要将后端副本部署到不同物理机；

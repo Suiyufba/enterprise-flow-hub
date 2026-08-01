@@ -1,0 +1,15 @@
+[Unit]
+Description=Enterprise Flow Hub expired Docker image cleanup
+Documentation=https://docs.docker.com/reference/cli/docker/image/prune/
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/enterprise-flow-hub/cleanup-docker-images.sh --all --until 168h
+Nice=19
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+TimeoutStartSec=2h
+StandardOutput=journal
+StandardError=journal
