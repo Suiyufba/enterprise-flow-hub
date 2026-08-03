@@ -21,6 +21,7 @@ import { runAllPersonaSummaries } from "./store.js";
 import { startAutomationScheduler } from "./automation/scheduler.js";
 import { startEventDispatcher } from "./events/emitter.js";
 import { registerDailyMaintenanceTask, startMaintenanceScheduler } from "./maintenance/scheduler.js";
+import { getLicenseStatus, recordInstallationProvenance } from "./licensing/index.js";
 
 // Register tool executors so agent can actually execute tools
 registerTool("tool-csv-profile", csvProfile);
@@ -71,6 +72,22 @@ app.addHook("onRequest", async (request, reply) => {
   if (isPublic) return;
   const actor = (request as unknown as Record<string, unknown>).actor as { id?: string } | undefined;
   if (!actor?.id) return reply.status(401).send({ error: "未登录或会话已过期" });
+});
+
+// Commercial deployments use a signed, offline-verifiable license. In enforce
+// mode, read-only access remains available for diagnosis and data export.
+app.addHook("onRequest", async (request, reply) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return;
+  const path = request.url.split("?")[0];
+  if (path === "/auth/login" || path === "/integrations/feishu/events") return;
+  const license = getLicenseStatus();
+  if (license.enforcement === "enforce" && !license.valid) {
+    return reply.status(402).send({
+      error: "当前部署未通过商业授权验证",
+      licenseState: license.state,
+      fingerprint: license.fingerprint,
+    });
+  }
 });
 
 // Audit logging — log all write operations
@@ -157,6 +174,13 @@ registerDailyMaintenanceTask({
 });
 
 await app.listen({ port, host });
+const license = recordInstallationProvenance();
+app.log.info({
+  licenseState: license.state,
+  licenseId: license.licenseId,
+  fingerprint: license.fingerprint,
+  enforcement: license.enforcement,
+}, "installation provenance initialized");
 startEventDispatcher(app.log);
 startAutomationScheduler(app.log);
 startIntegrationScheduler();

@@ -1,8 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { getAnalysis } from "../store.js";
+import { provenanceMarker } from "../licensing/index.js";
 
 function toMarkdown(a: NonNullable<ReturnType<typeof getAnalysis>>): string {
+  const provenance = provenanceMarker();
   return [
+    `<!-- ${provenance.product}:${provenance.fingerprint}:${provenance.licenseState} -->`,
     `# Analysis Report`,
     ``,
     `> ${a.summary}`,
@@ -52,6 +55,6 @@ export async function exportRoutes(app: FastifyInstance) {
         .header("Content-Type", "text/markdown; charset=utf-8")
         .send(toMarkdown(analysis));
     }
-    return analysis;
+    return { ...analysis, _provenance: provenanceMarker() };
   });
 }

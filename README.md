@@ -33,6 +33,8 @@ Enterprise Flow Hub 是面向企业业务操作的 Agent 工作台。用户在�
 
 服务器通过 `enterprise-flow-hub-docker-cleanup.timer` 每周清理 Docker 资源：每个当前运行仓库只保留最新 2 个发布版本（当前版和回滚版），同时清理超过 7 天的其他未使用镜像和构建缓存。任务以最低 CPU/IO 优先级运行，不清理业务数据卷，并通过 `Persistent=true` 在服务器错过执行时间后补跑。
 
+商业部署使用 Ed25519 离线签名授权，并在实例数据库、审计日志和导出文件中写入一致的溯源指纹。签发、部署和验收方法见 [商业授权与实例溯源](docs/licensing-and-provenance.md)。
+
 **不要**把 SQLite 数据文件放到不保证 POSIX 锁语义的普通网络文件系统（NFS/SMB 等），**不要**跨多台物理机共享同一个 SQLite 文件。出现以下任一信号时，按 [PostgreSQL 迁移评估](docs/postgresql-migration-assessment.md) 启动迁移：
 
 1. 需要将后端副本部署到不同物理机；

@@ -207,6 +207,7 @@ jobs:
           FEISHU_USER_ACCESS_TOKEN: ${{ secrets.FEISHU_USER_ACCESS_TOKEN }}
           FEISHU_VERIFICATION_TOKEN: ${{ secrets.FEISHU_VERIFICATION_TOKEN }}
           FEISHU_ENCRYPT_KEY: ${{ secrets.FEISHU_ENCRYPT_KEY }}
+          LICENSE_TOKEN: ${{ secrets.LICENSE_TOKEN }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
@@ -231,6 +232,7 @@ jobs:
             FEISHU_USER_ACCESS_TOKEN="${FEISHU_USER_ACCESS_TOKEN}" \
             FEISHU_VERIFICATION_TOKEN="${FEISHU_VERIFICATION_TOKEN}" \
             FEISHU_ENCRYPT_KEY="${FEISHU_ENCRYPT_KEY}" \
+            LICENSE_TOKEN="${LICENSE_TOKEN}" \
             DEPLOY_HOST="${SSH_HOST}" \
             'bash -s' <<'EOF'
           set -euo pipefail
@@ -267,6 +269,10 @@ jobs:
           FEISHU_DOMAIN=https://open.feishu.cn
           FEISHU_VERIFICATION_TOKEN=${FEISHU_VERIFICATION_TOKEN}
           FEISHU_ENCRYPT_KEY=${FEISHU_ENCRYPT_KEY}
+          LICENSE_TOKEN=${LICENSE_TOKEN}
+          LICENSE_DEPLOYMENT_ID=efh-production-cn-1
+          LICENSE_HOST=http://${DEPLOY_HOST}
+          LICENSE_ENFORCEMENT=enforce
           ENVEOF
 
           docker image inspect "${BACKEND_IMAGE}" >/dev/null

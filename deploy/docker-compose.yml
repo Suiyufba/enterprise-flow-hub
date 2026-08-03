@@ -37,6 +37,10 @@ services:
       FEISHU_DOMAIN: ${FEISHU_DOMAIN:-https://open.feishu.cn}
       FEISHU_VERIFICATION_TOKEN: ${FEISHU_VERIFICATION_TOKEN:-}
       FEISHU_ENCRYPT_KEY: ${FEISHU_ENCRYPT_KEY:-}
+      LICENSE_TOKEN: ${LICENSE_TOKEN:-}
+      LICENSE_DEPLOYMENT_ID: ${LICENSE_DEPLOYMENT_ID:-development}
+      LICENSE_HOST: ${LICENSE_HOST:-http://localhost}
+      LICENSE_ENFORCEMENT: ${LICENSE_ENFORCEMENT:-monitor}
     volumes:
       - backend-data:/data
     ports:

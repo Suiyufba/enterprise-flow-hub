@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db/index.js";
+import { provenanceMarker } from "../licensing/index.js";
 
 function db() { return getDb(); }
 
@@ -23,7 +24,7 @@ export function createAuditLog(entry: AuditEntry): void {
       entry.action,
       entry.objectType,
       entry.objectId ?? null,
-      JSON.stringify(entry.changes ?? {}),
+      JSON.stringify({ ...(entry.changes ?? {}), _provenance: provenanceMarker() }),
       entry.ipAddress ?? "",
       new Date().toISOString(),
     );

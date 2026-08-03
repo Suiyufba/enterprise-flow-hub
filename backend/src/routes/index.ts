@@ -14,6 +14,7 @@ import { workspaceRoutes } from "./workspace.js";
 import { taskRoutes } from "./tasks.js";
 import { dashboardRoutes } from "./dashboard.js";
 import { feishuEventRoutes } from "./feishu-events.js";
+import { licenseRoutes } from "./license.js";
 
 export async function registerAllRoutes(app: FastifyInstance): Promise<void> {
   await app.register(analysisRoutes);
@@ -31,4 +32,5 @@ export async function registerAllRoutes(app: FastifyInstance): Promise<void> {
   await app.register(dashboardRoutes);
   await app.register(workspaceRoutes);
   await app.register(feishuEventRoutes);
+  await app.register(licenseRoutes);
 }
