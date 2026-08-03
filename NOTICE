@@ -1,0 +1,13 @@
+Enterprise Flow Hub
+Copyright (c) 2026 Junqi Liu. All rights reserved.
+
+Required Notice: Enterprise Flow Hub is source-available under the PolyForm
+Noncommercial License 1.0.0. Commercial production use, resale, paid hosting,
+white-label distribution, and use primarily intended for commercial advantage
+require a separate written commercial license from the copyright holder.
+
+Commercial licensing contact: GitHub account @Suiyufba.
+
+Official builds are distributed only through the Suiyufba/enterprise-flow-hub
+repository and its linked GHCR packages. Verify official container signatures
+and SBOM bundles before deployment.

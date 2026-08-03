@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 jobs:
   checks:
@@ -75,26 +76,102 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push backend image
+        id: build_backend
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.backend
           push: true
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0
           tags: |
             ${{ env.BACKEND_IMAGE }}
             ${{ env.BACKEND_IMAGE_LATEST }}
 
       - name: Build and push frontend image
+        id: build_frontend
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.frontend
           push: true
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0
           build-args: |
             NEXT_PUBLIC_API_URL=/api
           tags: |
             ${{ env.FRONTEND_IMAGE }}
             ${{ env.FRONTEND_IMAGE_LATEST }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Sign container images with GitHub OIDC
+        env:
+          BACKEND_DIGEST: ${{ steps.build_backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.build_frontend.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes -a "repository=${GITHUB_REPOSITORY}" -a "revision=${GITHUB_SHA}" \
+            "${BACKEND_IMAGE}@${BACKEND_DIGEST}"
+          cosign sign --yes -a "repository=${GITHUB_REPOSITORY}" -a "revision=${GITHUB_SHA}" \
+            "${FRONTEND_IMAGE}@${FRONTEND_DIGEST}"
+
+      - name: Verify container signatures
+        env:
+          BACKEND_DIGEST: ${{ steps.build_backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.build_frontend.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IDENTITY="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/deploy.yml@refs/heads/main"
+          ISSUER="https://token.actions.githubusercontent.com"
+          cosign verify --certificate-identity "$IDENTITY" --certificate-oidc-issuer "$ISSUER" \
+            "${BACKEND_IMAGE}@${BACKEND_DIGEST}"
+          cosign verify --certificate-identity "$IDENTITY" --certificate-oidc-issuer "$ISSUER" \
+            "${FRONTEND_IMAGE}@${FRONTEND_DIGEST}"
+
+      - name: Generate backend SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.BACKEND_IMAGE }}@${{ steps.build_backend.outputs.digest }}
+          format: spdx-json
+          output-file: backend-sbom.spdx.json
+          artifact-name: backend-sbom-${{ github.sha }}.spdx.json
+          upload-artifact-retention: 90
+
+      - name: Generate frontend SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.FRONTEND_IMAGE }}@${{ steps.build_frontend.outputs.digest }}
+          format: spdx-json
+          output-file: frontend-sbom.spdx.json
+          artifact-name: frontend-sbom-${{ github.sha }}.spdx.json
+          upload-artifact-retention: 90
+
+      - name: Sign SBOM bundles
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes --bundle backend-sbom.sigstore.json backend-sbom.spdx.json
+          cosign sign-blob --yes --bundle frontend-sbom.sigstore.json frontend-sbom.spdx.json
+
+      - name: Upload signed SBOM bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-sbom-bundles-${{ github.sha }}
+          path: |
+            backend-sbom.spdx.json
+            backend-sbom.sigstore.json
+            frontend-sbom.spdx.json
+            frontend-sbom.sigstore.json
+          retention-days: 90
 
       - name: Prepare SSH key
         env:

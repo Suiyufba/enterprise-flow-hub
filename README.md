@@ -35,6 +35,12 @@ Enterprise Flow Hub 是面向企业业务操作的 Agent 工作台。用户在�
 
 商业部署使用 Ed25519 离线签名授权，并在实例数据库、审计日志和导出文件中写入一致的溯源指纹。签发、部署和验收方法见 [商业授权与实例溯源](docs/licensing-and-provenance.md)。
 
+## 授权
+
+Copyright © 2026 Junqi Liu。源码采用 [PolyForm Noncommercial License 1.0.0](LICENSE)：个人研究、测试及其他许可证允许的非商业用途可按条款使用；生产商用、转售、付费托管和白标分发需要单独书面商业授权。必要声明见 [NOTICE](NOTICE)。
+
+官方前后端镜像均通过 GitHub OIDC + Sigstore/Cosign 签名，并生成 SPDX SBOM。验证方法见 [发布物签名与供应链验证](docs/supply-chain-security.md)。
+
 **不要**把 SQLite 数据文件放到不保证 POSIX 锁语义的普通网络文件系统（NFS/SMB 等），**不要**跨多台物理机共享同一个 SQLite 文件。出现以下任一信号时，按 [PostgreSQL 迁移评估](docs/postgresql-migration-assessment.md) 启动迁移：
 
 1. 需要将后端副本部署到不同物理机；

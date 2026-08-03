@@ -2,6 +2,7 @@
   "name": "enterprise-flow-hub",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "description": "Lightweight information integration platform for small businesses.",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
